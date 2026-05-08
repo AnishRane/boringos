@@ -10,15 +10,33 @@ import { useSlot } from "../slots/context.js";
 import { SlotRenderer } from "../slots/SlotRenderer.js";
 import { EmptyState, ScreenBody, ScreenHeader } from "./_shared.js";
 import { BrandingPanel } from "./Settings/BrandingPanel.js";
+import { AgentsPanel } from "./Settings/AgentsPanel.js";
+import { RoutinesPanel } from "./Settings/RoutinesPanel.js";
+import { BudgetsPanel } from "./Settings/BudgetsPanel.js";
+import { V2ModulesPanel } from "./Settings/V2ModulesPanel.js";
+import { V2ToolsPanel } from "./Settings/V2ToolsPanel.js";
+import { V2ToolCallsPanel } from "./Settings/V2ToolCallsPanel.js";
 
 type Tab = { id: string; label: string };
 
 export function Settings() {
   const { user } = useAuth();
   const panels = useSlot("settingsPanels");
+  const isAdmin = user?.role === "admin";
+
   const tabs: Tab[] = [
     { id: "general", label: "General" },
     { id: "branding", label: "Branding" },
+    ...(isAdmin
+      ? [
+          { id: "agents", label: "Agents" },
+          { id: "routines", label: "Routines" },
+          { id: "budgets", label: "Budgets" },
+          { id: "v2-modules", label: "Modules" },
+          { id: "v2-tools", label: "Tool catalog" },
+          { id: "v2-tool-calls", label: "Tool calls" },
+        ]
+      : []),
     ...panels.map((p) => ({
       id: `app-${p.appId}-${p.slotId}`,
       label: p.slot.label,
@@ -70,6 +88,18 @@ export function Settings() {
           )}
 
           {active === "branding" && <BrandingPanel />}
+
+          {active === "agents" && <AgentsPanel />}
+
+          {active === "routines" && <RoutinesPanel />}
+
+          {active === "budgets" && <BudgetsPanel />}
+
+          {active === "v2-modules" && <V2ModulesPanel />}
+
+          {active === "v2-tools" && <V2ToolsPanel />}
+
+          {active === "v2-tool-calls" && <V2ToolCallsPanel />}
 
           {activePanel && (
             <SlotRenderer

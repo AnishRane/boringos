@@ -95,6 +95,24 @@ describe("v2 — admin views", () => {
       // Missing tenant id → 401.
       const noTenantRes = await fetch(`${server.url}/api/admin/v2/tool-calls`);
       expect(noTenantRes.status).toBe(401);
+
+      // /installs reflects the lazy-installed default modules.
+      const installsRes = await fetch(`${server.url}/api/admin/v2/installs`, {
+        headers: adminHeaders,
+      });
+      expect(installsRes.status).toBe(200);
+      const installsBody = await installsRes.json() as {
+        installs: Array<{ moduleId: string; version: string }>;
+      };
+      const installedIds = new Set(installsBody.installs.map((r) => r.moduleId));
+      // Both registered modules are default-install — the first
+      // tool call lazy-installs framework, but memory needs an
+      // explicit GET on /installs to not show... actually GET
+      // /installs only returns existing rows. Memory wasn't
+      // called, so it isn't installed yet. That's correct
+      // behavior — the dispatcher's lazy install only fires on
+      // dispatch.
+      expect(installedIds.has("framework")).toBe(true);
     } finally {
       await server.close();
     }
