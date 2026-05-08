@@ -1003,7 +1003,71 @@ export class BoringOS {
     // Forward sync — ingest new Gmail messages into inbox_items every
     // 30 seconds. Replaces the v1 `gmail.gmail-sync` workflow + routine
     // that the deleted workflow engine used to run.
-    const forwardSyncTicker = createInboxGmailForwardSyncTicker(dbConn.db);
+    //
+    // The `onIngest` callback below replaces the v1 `triage-on-inbox`
+    // and `draft-on-inbox` workflow templates: those used `create-task`
+    // + `wake-agent` blocks which the v2 workflow runner doesn't support
+    // yet. Until the runner gains those block kinds, we fan out
+    // directly here. The triage/replier agents are looked up by the
+    // names the default-app catalog seeds them under.
+    const TRIAGE_AGENT_NAMES = new Set([
+      "Generic Inbox Triage",
+      "Generic Email Replier",
+    ]);
+    const forwardSyncTicker = createInboxGmailForwardSyncTicker(dbConn.db, {
+      eventBus,
+      async onIngest(item) {
+        const { agents: agentsTable, tasks: tasksTable } = await import("@boringos/db");
+        const candidates = await dbConn.db
+          .select({ id: agentsTable.id, name: agentsTable.name })
+          .from(agentsTable)
+          .where(eqOp(agentsTable.tenantId, item.tenantId));
+        for (const ag of candidates) {
+          if (!TRIAGE_AGENT_NAMES.has(ag.name)) continue;
+          const taskId = generateId();
+          try {
+            await dbConn.db.insert(tasksTable).values({
+              id: taskId,
+              tenantId: item.tenantId,
+              title: `Triage inbox item: ${item.subject}`,
+              description:
+                `inbox-item-id: ${item.itemId}\n` +
+                `source: ${item.source}\n` +
+                `from: ${item.from ?? ""}\n` +
+                `subject: ${item.subject}\n` +
+                `---\n` +
+                (item.body ?? ""),
+              status: "todo",
+              assigneeAgentId: ag.id,
+              originKind: "inbox.item_created",
+              originId: item.itemId,
+            });
+          } catch (err) {
+            console.warn(
+              `[inbox-fanout] failed to create task for agent=${ag.name} item=${item.itemId}:`,
+              err instanceof Error ? err.message : err,
+            );
+            continue;
+          }
+          try {
+            const outcome = await agentEngine.wake({
+              agentId: ag.id,
+              tenantId: item.tenantId,
+              taskId,
+              reason: "connector_event",
+            });
+            if (outcome.kind === "created") {
+              await agentEngine.enqueue(outcome.wakeupRequestId);
+            }
+          } catch (err) {
+            console.warn(
+              `[inbox-fanout] failed to wake agent=${ag.name} item=${item.itemId}:`,
+              err instanceof Error ? err.message : err,
+            );
+          }
+        }
+      },
+    });
     forwardSyncTicker.start();
 
     // Reverse sync — pull state changes from Gmail back into Hebbs

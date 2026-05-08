@@ -23,6 +23,18 @@ import { sql } from "drizzle-orm";
 import type { Db } from "@boringos/db";
 import { GmailClient } from "@boringos/connector-google";
 import { refreshOAuthToken } from "./oauth.js";
+import type { EventBus } from "./event-bus.js";
+
+export interface IngestedInboxItem {
+  itemId: string;
+  tenantId: string;
+  source: string;
+  sourceId: string;
+  subject: string;
+  body: string | null;
+  from: string | null;
+  threadId?: string;
+}
 
 const KIND_GMAIL = "google";
 const SOURCE_GMAIL = "google.gmail";
@@ -122,8 +134,8 @@ async function ingestMessage(
   db: Db,
   tenantId: string,
   msg: GmailMessage,
-): Promise<boolean> {
-  if (!msg.id) return false;
+): Promise<IngestedInboxItem | null> {
+  if (!msg.id) return null;
 
   // Dedup: skip if we've already ingested this Gmail message.
   const existing = await db.execute(sql`
@@ -133,7 +145,7 @@ async function ingestMessage(
        AND source_id = ${msg.id}
      LIMIT 1
   `);
-  if ((existing as unknown as Array<{ id: string }>).length > 0) return false;
+  if ((existing as unknown as Array<{ id: string }>).length > 0) return null;
 
   const subject = msg.subject ?? "(no subject)";
   const body = msg.body ?? msg.snippet ?? null;
@@ -142,7 +154,7 @@ async function ingestMessage(
   if (msg.threadId) metadata.threadId = msg.threadId;
   if (msg.date) metadata.date = msg.date;
 
-  await db.execute(sql`
+  const inserted = await db.execute(sql`
     INSERT INTO inbox_items (
       tenant_id, source, source_id, subject, body, "from",
       status, metadata, created_at, updated_at
@@ -157,13 +169,38 @@ async function ingestMessage(
       ${JSON.stringify(metadata)}::jsonb,
       now(), now()
     )
+    RETURNING id
   `);
-  return true;
+  const itemId = (inserted as unknown as Array<{ id: string }>)[0]?.id;
+  if (!itemId) return null;
+  return {
+    itemId,
+    tenantId,
+    source: SOURCE_GMAIL,
+    sourceId: msg.id,
+    subject,
+    body,
+    from,
+    threadId: msg.threadId,
+  };
+}
+
+export interface InboxGmailForwardSyncOptions {
+  intervalMs?: number;
+  /** Fired after a new inbox item is inserted, before the next message
+   *  in the batch is processed. Used by boringos.ts to trigger the
+   *  triage / replier wakeups. Errors thrown by the listener are
+   *  swallowed so they don't abort the sync. */
+  onIngest?: (item: IngestedInboxItem) => Promise<void> | void;
+  /** Optional event-bus emit. When provided, the ticker also emits
+   *  `inbox.item_created` events so any other event-driven listeners
+   *  (workflows, plugins) can subscribe. */
+  eventBus?: EventBus;
 }
 
 export function createInboxGmailForwardSyncTicker(
   db: Db,
-  options: { intervalMs?: number } = {},
+  options: InboxGmailForwardSyncOptions = {},
 ): InboxGmailForwardSyncTicker {
   const intervalMs = options.intervalMs ?? DEFAULT_INTERVAL_MS;
   let interval: ReturnType<typeof setInterval> | null = null;
@@ -205,14 +242,56 @@ export function createInboxGmailForwardSyncTicker(
 
         const messages = ((result.data as { messages?: GmailMessage[] })?.messages ?? []) as GmailMessage[];
         for (const msg of messages) {
-          const created = await ingestMessage(db, row.tenant_id, msg).catch((e) => {
+          let item: IngestedInboxItem | null = null;
+          try {
+            item = await ingestMessage(db, row.tenant_id, msg);
+          } catch (e) {
             console.warn(
               `[gmail-forward-sync] ingest failed tenant=${row.tenant_id} msg=${msg.id}:`,
               e instanceof Error ? e.message : e,
             );
-            return false;
-          });
-          if (created) itemsCreated += 1;
+          }
+          if (!item) continue;
+          itemsCreated += 1;
+
+          // Fire the ingest hook (used for triage/replier wakeups) and
+          // emit an event-bus event for any other subscribers. Both run
+          // in best-effort mode — sync continues even if a listener
+          // throws.
+          if (options.onIngest) {
+            try {
+              await options.onIngest(item);
+            } catch (e) {
+              console.warn(
+                `[gmail-forward-sync] onIngest threw tenant=${row.tenant_id} item=${item.itemId}:`,
+                e instanceof Error ? e.message : e,
+              );
+            }
+          }
+          if (options.eventBus) {
+            try {
+              await options.eventBus.emit({
+                connectorKind: KIND_GMAIL,
+                type: "inbox.item_created",
+                tenantId: item.tenantId,
+                timestamp: new Date(),
+                data: {
+                  itemId: item.itemId,
+                  source: item.source,
+                  sourceId: item.sourceId,
+                  subject: item.subject,
+                  body: item.body,
+                  from: item.from,
+                  threadId: item.threadId,
+                },
+              });
+            } catch (e) {
+              console.warn(
+                `[gmail-forward-sync] eventBus.emit threw tenant=${row.tenant_id} item=${item.itemId}:`,
+                e instanceof Error ? e.message : e,
+              );
+            }
+          }
         }
 
         await persistCursor(db, row, nowSeconds);
