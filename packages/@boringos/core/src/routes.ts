@@ -74,6 +74,12 @@ export function createCallbackRoutes(db: Db, _engine: AgentEngine, jwtSecret: st
   });
 
   // PATCH /tasks/:taskId — update task
+  //
+  // Allowed fields: status, title, description, priority,
+  // assigneeAgentId, assigneeUserId, parentId. Setting an assignee to
+  // null clears it (e.g. handing a task off to a user clears the
+  // agent assignee). Required so agents can hand work back to users
+  // when stuck — see protocol provider's "When you're stuck" section.
   app.patch("/tasks/:taskId", async (c) => {
     const taskId = c.req.param("taskId");
     const body = await c.req.json() as Record<string, unknown>;
@@ -82,6 +88,10 @@ export function createCallbackRoutes(db: Db, _engine: AgentEngine, jwtSecret: st
     if (body.status) updates.status = body.status;
     if (body.title) updates.title = body.title;
     if (body.description !== undefined) updates.description = body.description;
+    if (body.priority) updates.priority = body.priority;
+    if (body.assigneeAgentId !== undefined) updates.assigneeAgentId = body.assigneeAgentId;
+    if (body.assigneeUserId !== undefined) updates.assigneeUserId = body.assigneeUserId;
+    if (body.parentId !== undefined) updates.parentId = body.parentId;
 
     await db.update(tasks).set(updates).where(eq(tasks.id, taskId));
     return c.json({ ok: true });
