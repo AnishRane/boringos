@@ -195,28 +195,31 @@ async function finish<T>(
   let toolCallId: string | undefined;
   if (deps.db) {
     try {
+      // postgres-js rejects `undefined` parameters even for nullable
+      // columns, so build the insert payload by only including fields
+      // we actually have a value for.
+      const values: Record<string, unknown> = {
+        tenantId: ctx.tenantId,
+        toolName: fullName,
+        moduleId: moduleId ?? "unknown",
+        invokedBy: ctx.invokedBy,
+        status,
+        durationMs,
+        startedAt,
+        endedAt,
+      };
+      if (ctx.agentId) values.agentId = ctx.agentId;
+      if (ctx.runId) values.runId = ctx.runId;
+      if (ctx.taskId) values.taskId = ctx.taskId;
+      if (idempotencyKey) values.idempotencyKey = idempotencyKey;
+      if (isPojo(inputs)) values.inputs = inputs as Record<string, unknown>;
+      if (isPojo(resultBody)) values.result = resultBody as Record<string, unknown>;
+      if (!result.ok && isPojo(result.error)) {
+        values.error = result.error as unknown as Record<string, unknown>;
+      }
       const inserted = await deps.db
         .insert(toolCalls)
-        .values({
-          tenantId: ctx.tenantId,
-          toolName: fullName,
-          moduleId: moduleId ?? "unknown",
-          invokedBy: ctx.invokedBy,
-          agentId: ctx.agentId,
-          runId: ctx.runId,
-          taskId: ctx.taskId,
-          inputs: isPojo(inputs) ? (inputs as Record<string, unknown>) : undefined,
-          result: isPojo(resultBody) ? (resultBody as Record<string, unknown>) : undefined,
-          error:
-            !result.ok && isPojo(result.error)
-              ? (result.error as unknown as Record<string, unknown>)
-              : undefined,
-          status,
-          durationMs,
-          idempotencyKey,
-          startedAt,
-          endedAt,
-        })
+        .values(values as typeof toolCalls.$inferInsert)
         .returning({ id: toolCalls.id });
       toolCallId = inserted[0]?.id;
     } catch (auditError) {

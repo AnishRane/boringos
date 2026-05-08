@@ -106,20 +106,29 @@ export function createV2Routes(deps: V2RoutesDeps): Hono<AuthEnv> {
 
     const idempotencyKey = c.req.header("Idempotency-Key") ?? undefined;
 
-    const dispatched = await dispatch(
-      { registry: deps.registry, db: deps.db },
-      fullName,
-      body,
-      {
-        tenantId: claims.tenant_id,
-        agentId: claims.agent_id,
-        runId: claims.sub,
-        invokedBy: "agent",
-      },
-      { idempotencyKey },
-    );
+    try {
+      const dispatched = await dispatch(
+        { registry: deps.registry, db: deps.db },
+        fullName,
+        body,
+        {
+          tenantId: claims.tenant_id,
+          agentId: claims.agent_id,
+          runId: claims.sub,
+          invokedBy: "agent",
+        },
+        { idempotencyKey },
+      );
 
-    return c.json(dispatched.result, dispatched.status as 200 | 400 | 403 | 404 | 500);
+      return c.json(dispatched.result, dispatched.status as 200 | 400 | 403 | 404 | 500);
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error(`[v2-routes] dispatch threw for ${fullName}:`, err);
+      return c.json(
+        { ok: false, error: { code: "internal", message: err instanceof Error ? err.message : String(err), retryable: false } },
+        500,
+      );
+    }
   });
 
   return app;

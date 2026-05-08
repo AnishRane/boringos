@@ -110,16 +110,16 @@ async function runWithRefresh(
   if (looks401 && creds.refreshToken) {
     const refreshed = await refreshOAuthToken("google", creds.refreshToken);
     if (refreshed) {
+      // `expiresAt` may be absent — postgres-js rejects undefined params,
+      // so drop the key rather than carrying it as `undefined`.
+      const nextCreds: Record<string, unknown> = {
+        ...creds.rawCredentials,
+        accessToken: refreshed.accessToken,
+      };
+      if (refreshed.expiresAt) nextCreds.expiresAt = refreshed.expiresAt;
       await db
         .update(connectors)
-        .set({
-          credentials: {
-            ...creds.rawCredentials,
-            accessToken: refreshed.accessToken,
-            expiresAt: refreshed.expiresAt,
-          },
-          updatedAt: new Date(),
-        })
+        .set({ credentials: nextCreds, updatedAt: new Date() })
         .where(eq(connectors.id, creds.rowId))
         .catch(() => {});
       result = await invokeOnce(refreshed.accessToken);

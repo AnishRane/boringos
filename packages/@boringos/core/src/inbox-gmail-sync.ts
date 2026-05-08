@@ -70,12 +70,16 @@ async function runWithRefresh(
   if (looks401 && refresh) {
     const refreshed = await refreshOAuthToken("google", refresh);
     if (refreshed) {
+      // postgres-js rejects undefined params, so omit `expiresAt`
+      // rather than setting it to undefined when absent.
+      const nextCreds: Record<string, unknown> = {
+        ...(row.credentials ?? {}),
+        accessToken: refreshed.accessToken,
+      };
+      if (refreshed.expiresAt) nextCreds.expiresAt = refreshed.expiresAt;
       await db
         .update(connectors)
-        .set({
-          credentials: { ...(row.credentials ?? {}), accessToken: refreshed.accessToken, expiresAt: refreshed.expiresAt },
-          updatedAt: new Date(),
-        })
+        .set({ credentials: nextCreds, updatedAt: new Date() })
         .where(eq(connectors.id, row.id))
         .catch(() => {});
       result = await new GmailClient(refreshed.accessToken).executeAction(action, inputs);

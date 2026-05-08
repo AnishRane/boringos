@@ -23,7 +23,6 @@ import {
   createHebbsCrmModule,
   createTriageModule,
 } from "@boringos/core";
-import { google } from "@boringos/connector-google";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, "..");
@@ -49,17 +48,6 @@ const app = new BoringOS({
   queue: { concurrency: 5 },
   v2Only,
 });
-
-// Connectors. We register every connector unconditionally so the
-// Connectors page always shows the catalog. If GOOGLE_CLIENT_ID isn't
-// set, clicking Add → Authorize surfaces a clear "missing client_id"
-// error from N2 rather than hiding the connector entirely.
-app.connector(
-  google({
-    clientId: process.env.GOOGLE_CLIENT_ID ?? "",
-    clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
-  }),
-);
 
 // v2 modules — registered in both parallel and v2-only modes so
 // /api/tools/* + the Settings v2 panels are always available in
