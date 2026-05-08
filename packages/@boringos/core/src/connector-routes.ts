@@ -211,8 +211,11 @@ export function createConnectorRoutes(
   });
 
   // ── Connection listing ────────────────────────────────────
+  //
+  // Mounted at both `/status` (Connectors screen) and `/connectors`
+  // (ui/client hooks) — same handler, different historical names.
 
-  app.get("/connectors", async (c) => {
+  const listingHandler = async (c: Context) => {
     // Browser flow: resolve tenant from session token.
     const tenantHeader = c.req.header("X-Tenant-Id");
     let tenantId = tenantHeader ?? "";
@@ -245,7 +248,10 @@ export function createConnectorRoutes(
     });
 
     return c.json({ connectors: available, tenantId });
-  });
+  };
+
+  app.get("/status", listingHandler);
+  app.get("/connectors", listingHandler);
 
   // ── Disconnect ────────────────────────────────────────────
 
