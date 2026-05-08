@@ -32,11 +32,10 @@ const port = Number(process.env.PORT ?? 3030);
 const pgPort = Number(process.env.PG_PORT ?? 5436);
 const shellOrigin = process.env.BORINGOS_SHELL_URL ?? "http://localhost:5174";
 
-// v2 mode flag. Set BORINGOS_V2_ONLY=true to disable v1 routes and
-// providers. Default false → v1 + v2 run side-by-side (parallel
-// mode), giving full parity while letting you exercise the v2
-// surface from /api/tools/* and the Settings panels.
-const v2Only = process.env.BORINGOS_V2_ONLY === "true";
+// v2 is the default. Set BORINGOS_KEEP_V1=true if you specifically
+// want v1 routes mounted alongside (rare — useful for porting
+// debugging where you want both surfaces reachable).
+const v2Only = process.env.BORINGOS_KEEP_V1 !== "true";
 
 const app = new BoringOS({
   database: { embedded: true, port: pgPort },
