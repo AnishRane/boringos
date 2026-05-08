@@ -25,10 +25,32 @@ import { z } from "@boringos/module-sdk";
 import type {
   Module,
   ModuleFactory,
+  ModuleFactoryDeps,
   Tool,
   ToolContext,
   ToolResult,
 } from "@boringos/module-sdk";
+import type { AgentEngine } from "@boringos/agent";
+
+/**
+ * The wake-reason literal union the engine enforces (mirrored
+ * here so this module doesn't import @boringos/shared's full
+ * type tree).
+ */
+type EngineWakeReason =
+  | "comment_posted"
+  | "comment_mentioned"
+  | "routine_triggered"
+  | "manual_request"
+  | "approval_resolved"
+  | "connector_event";
+
+type EngineWakeRequest = {
+  agentId: string;
+  tenantId: string;
+  reason: EngineWakeReason;
+  taskId?: string;
+};
 
 const TOOL_PROTOCOL_SKILL = `Every tool you can call is at \`POST $BORINGOS_CALLBACK_URL/api/tools/<name>\`.
 The full tool name is \`<module-id>.<tool-name>\` (e.g. \`framework.tasks.patch\`,
@@ -87,6 +109,74 @@ guard catches this once, but the procedure above is the right answer.`;
 
 interface FrameworkDeps {
   db: Db;
+  /** Holder reference — read at dispatch time, populated by the
+   * host after `createAgentEngine` returns. */
+  factoryDeps: ModuleFactoryDeps;
+}
+
+/** Pull a working AgentEngine reference, or throw a clean error. */
+function getEngine(deps: FrameworkDeps): AgentEngine | null {
+  return (deps.factoryDeps.engine as AgentEngine | undefined) ?? null;
+}
+
+/**
+ * Spawn an agent run for (agentId, taskId). Used by:
+ *   - the explicit `framework.agents.wake` tool
+ *   - auto-wake from `framework.tasks.create` when an
+ *     assigneeAgentId is supplied
+ *
+ * Goes through the standard wake → enqueue path so coalescing,
+ * pause-state, and budget guards apply. Returns the wakeup
+ * outcome shape for visibility.
+ */
+async function wakeAgent(
+  deps: FrameworkDeps,
+  ctx: ToolContext,
+  request: EngineWakeRequest,
+): Promise<ToolResult> {
+  const engine = getEngine(deps);
+  if (!engine) {
+    return {
+      ok: false,
+      error: {
+        code: "internal",
+        message:
+          "Agent engine is not yet available. The host has not finished booting.",
+        retryable: true,
+      },
+    };
+  }
+  const outcome = await engine.wake(request);
+  if (outcome.kind === "agent_not_found") {
+    return {
+      ok: false,
+      error: {
+        code: "not_found",
+        message: `Agent ${request.agentId} not found in this tenant.`,
+        retryable: false,
+      },
+    };
+  }
+  if (outcome.kind === "agent_not_invokable") {
+    return {
+      ok: false,
+      error: {
+        code: "permission_denied",
+        message: `Agent is paused (status=${outcome.agentStatus}).`,
+        retryable: false,
+      },
+    };
+  }
+  // created / coalesced — both are fine. Enqueue so the queue
+  // actually drains (created wakes come back as queued; coalesced
+  // wakes already have a job in flight).
+  if (outcome.kind === "created") {
+    await engine.enqueue(outcome.wakeupRequestId);
+  }
+  return {
+    ok: true,
+    result: { kind: outcome.kind, runWasCoalesced: outcome.kind === "coalesced" },
+  };
 }
 
 function makeReadTask(db: Db): Tool {
@@ -163,7 +253,8 @@ function makePatchTask(db: Db): Tool {
   };
 }
 
-function makeCreateTask(db: Db): Tool {
+function makeCreateTask(deps: FrameworkDeps): Tool {
+  const db = deps.db;
   return {
     name: "tasks.create",
     description: "Create a task. Use originKind 'agent_action' for approval flows",
@@ -232,7 +323,66 @@ function makeCreateTask(db: Db): Tool {
         originKind,
         proposedParams: input.proposedParams,
       });
-      return { ok: true, result: { id } };
+
+      // Auto-wake the assignee agent (parity with v1's admin
+      // create-task endpoint). If no assignee agent or no engine
+      // available, skip silently — the row exists either way and
+      // the next external trigger picks it up.
+      let wake: { kind: string; runWasCoalesced: boolean } | undefined;
+      if (input.assigneeAgentId) {
+        const engine = getEngine(deps);
+        if (engine) {
+          try {
+            const outcome = await engine.wake({
+              agentId: input.assigneeAgentId,
+              tenantId: ctx.tenantId,
+              // closest existing wake-reason for "task assigned to
+              // this agent" — the v1 admin endpoint uses the same
+              // mapping. A new "task_assigned" literal would be a
+              // separate change to the shared union.
+              reason: "manual_request",
+              taskId: id,
+            });
+            if (outcome.kind === "created") {
+              await engine.enqueue(outcome.wakeupRequestId);
+              wake = { kind: outcome.kind, runWasCoalesced: false };
+            } else if (outcome.kind === "coalesced") {
+              wake = { kind: outcome.kind, runWasCoalesced: true };
+            }
+          } catch {
+            // wake failure shouldn't block task creation
+          }
+        }
+      }
+      return { ok: true, result: { id, wake } };
+    },
+  };
+}
+
+function makeWakeAgent(deps: FrameworkDeps): Tool {
+  return {
+    name: "agents.wake",
+    description:
+      "Wake an agent on a task. Coalesces with any in-flight run. Respects pause state.",
+    inputs: z.object({
+      agentId: z.string().uuid(),
+      taskId: z.string().uuid().optional(),
+      reason: z.string().optional(),
+    }),
+    async handler(
+      input: { agentId: string; taskId?: string; reason?: string },
+      ctx: ToolContext,
+    ): Promise<ToolResult> {
+      // The user-supplied reason is informational; the engine's
+      // typed reason union is fixed. Default to manual_request.
+      const reason: EngineWakeReason = "manual_request";
+      void input.reason;
+      return wakeAgent(deps, ctx, {
+        agentId: input.agentId,
+        tenantId: ctx.tenantId,
+        reason,
+        taskId: input.taskId,
+      });
     },
   };
 }
@@ -456,6 +606,7 @@ function makeUpdateInbox(db: Db): Tool {
  */
 export const createFrameworkModule: ModuleFactory = (deps) => {
   const db = deps.db as Db;
+  const fwDeps: FrameworkDeps = { db, factoryDeps: deps };
 
   const module: Module = {
     id: "framework",
@@ -487,13 +638,14 @@ export const createFrameworkModule: ModuleFactory = (deps) => {
     tools: [
       makeReadTask(db),
       makePatchTask(db),
-      makeCreateTask(db),
+      makeCreateTask(fwDeps),
       makePostComment(db),
       makeRecordWorkProduct(db),
       makeReportCost(db),
       makeCreateAgent(db),
       makeReadInbox(db),
       makeUpdateInbox(db),
+      makeWakeAgent(fwDeps),
     ],
   };
 

@@ -403,6 +403,13 @@ export class BoringOS {
       v2Only: this.config.v2Only === true,
     });
 
+    // Now that the agent engine exists, populate the deps holder
+    // so v2 module handlers (e.g. framework.agents.wake) can
+    // call into it. Module factories captured `v2FactoryDeps` by
+    // reference at registration; reading `deps.engine` inside a
+    // handler at dispatch time sees this value.
+    (v2FactoryDeps as { engine: unknown }).engine = agentEngine;
+
     // 7. Build workflow engine
     const handlerRegistry = createHandlerRegistry();
     handlerRegistry.register(triggerHandler);
