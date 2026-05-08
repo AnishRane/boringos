@@ -19,6 +19,7 @@ describe("v2 — built-in modules", () => {
       createInboxModule,
       createSlackModule,
       createGoogleModule,
+      createCopilotModule,
     } = await import("@boringos/core");
     const { signCallbackToken } = await import("@boringos/agent");
     const { mkdtemp } = await import("node:fs/promises");
@@ -40,6 +41,7 @@ describe("v2 — built-in modules", () => {
     app.module(createInboxModule);
     app.module(createSlackModule);
     app.module(createGoogleModule);
+    app.module(createCopilotModule);
 
     const server = await app.listen(0);
     try {
@@ -136,6 +138,22 @@ describe("v2 — built-in modules", () => {
       const gmailBody = await gmailOut.json() as { ok: boolean; error?: { code: string } };
       expect(gmailBody.ok).toBe(false);
       expect(gmailBody.error?.code).toBe("permission_denied");
+
+      // copilot.start_session — fails cleanly with not_found
+      // when this test tenant has no copilot agent provisioned.
+      const copilotOut = await fetch(`${server.url}/api/tools/copilot.start_session`, {
+        method: "POST",
+        headers: auth,
+        body: JSON.stringify({ title: "test session" }),
+      });
+      expect(copilotOut.status).toBe(200);
+      const copilotBody = await copilotOut.json() as { ok: boolean; error?: { code: string } };
+      // Either ok=true (if v1's tenant-provisioning hook ran) OR
+      // not_found (test tenant created directly without hook).
+      // Both are acceptable; the tool wired up correctly either way.
+      if (!copilotBody.ok) {
+        expect(copilotBody.error?.code).toBe("not_found");
+      }
 
       // memory.remember when no provider configured: graceful error.
       const memOut = await fetch(`${server.url}/api/tools/memory.remember`, {
