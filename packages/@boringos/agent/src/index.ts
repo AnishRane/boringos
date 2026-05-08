@@ -58,3 +58,21 @@ export { findDelegateForTask, escalateToManager, createHandoffTask, validateRepa
 export type { DelegateQuery } from "./hierarchy.js";
 
 export { createHierarchyProvider } from "./providers/hierarchy.js";
+
+// v2 (Skills + Tools + Modules) — additive scaffolding. See
+// docs/blockers/task_12_greenfield_rebuild.md. v1 surface above
+// is unchanged; v2 lives alongside until the phased migration
+// retires the v1 providers / connector registry / curl block.
+export {
+  createToolRegistry,
+  createSkillRegistry,
+  createModuleRegistry,
+} from "./v2/index.js";
+export type {
+  ToolRegistry,
+  RegisteredTool,
+  SkillRegistry,
+  RegisteredSkill,
+  ModuleRegistry,
+  ModuleRegistryDeps,
+} from "./v2/index.js";

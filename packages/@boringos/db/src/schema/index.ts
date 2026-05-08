@@ -24,3 +24,6 @@ export { inboxItems } from "./inbox.js";
 export { entityReferences } from "./entity-refs.js";
 export { tenantApps } from "./tenant-apps.js";
 export { tenantAppLinks } from "./tenant-app-links.js";
+
+// v2 (Skills + Tools + Modules). Additive — coexists with v1.
+export { toolCalls } from "./tool-calls.js";

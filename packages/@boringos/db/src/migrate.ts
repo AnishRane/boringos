@@ -633,5 +633,34 @@ async function ensureSchema(db: Db): Promise<void> {
     );
     CREATE UNIQUE INDEX IF NOT EXISTS tenant_app_links_uniq_idx
       ON tenant_app_links(tenant_id, source_app_id, target_app_id, capability);
+
+    -- v2 (Skills + Tools + Modules) — additive scaffolding for the
+    -- audited tool dispatcher. Phase 1 of task_12. Unused until the
+    -- v2 dispatcher lands in Phase 2; safe to ship now because the
+    -- v1 code paths never read or write this table.
+    CREATE TABLE IF NOT EXISTS tool_calls (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+      tool_name TEXT NOT NULL,
+      module_id TEXT NOT NULL,
+      invoked_by TEXT NOT NULL,
+      agent_id UUID,
+      run_id UUID,
+      task_id UUID,
+      inputs JSONB,
+      result JSONB,
+      error JSONB,
+      status TEXT NOT NULL,
+      duration_ms INTEGER,
+      idempotency_key TEXT,
+      started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      ended_at TIMESTAMPTZ
+    );
+    CREATE INDEX IF NOT EXISTS tool_calls_tenant_tool_idx
+      ON tool_calls(tenant_id, tool_name);
+    CREATE INDEX IF NOT EXISTS tool_calls_tenant_started_idx
+      ON tool_calls(tenant_id, started_at);
+    CREATE INDEX IF NOT EXISTS tool_calls_run_idx
+      ON tool_calls(run_id);
   `);
 }
