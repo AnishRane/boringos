@@ -60,10 +60,12 @@ async function runWorkflowDag(
     type?: string;
     tool?: string;
     inputs?: Record<string, unknown>;
+    config?: Record<string, unknown>;
   };
   type Edge = {
     sourceBlockId: string;
     targetBlockId: string;
+    sourceHandle?: string;
   };
 
   const blocks = (args.workflow.blocks as Block[]) ?? [];
@@ -84,19 +86,41 @@ async function runWorkflowDag(
   for (const [id, ins] of incoming) if (ins.size === 0) ready.push(id);
 
   // Compute outgoing edges per block for traversal.
-  const outgoing = new Map<string, string[]>();
+  const outgoing = new Map<string, Edge[]>();
   for (const e of edges) {
     if (!outgoing.has(e.sourceBlockId)) outgoing.set(e.sourceBlockId, []);
-    outgoing.get(e.sourceBlockId)!.push(e.targetBlockId);
+    outgoing.get(e.sourceBlockId)!.push(e);
   }
   const remainingIncoming = new Map(
     Array.from(incoming.entries()).map(([id, set]) => [id, new Set(set)]),
   );
 
+  // Blocks pruned by a `condition` block's selectedHandle aren't
+  // walked. We track them so we don't fire downstream blocks
+  // whose only path was through a pruned branch.
+  const pruned = new Set<string>();
+
+  // Per-block selected handle (for condition / branch outputs).
+  // Edges from this block whose sourceHandle doesn't match are
+  // pruned.
+  const selectedHandle = new Map<string, string>();
+
   while (ready.length > 0) {
     const id = ready.shift()!;
     const block = blockMap.get(id);
     if (!block) continue;
+    if (pruned.has(id)) {
+      // Skip pruned blocks but propagate pruning downstream so
+      // their descendants don't fire spuriously.
+      for (const e of outgoing.get(id) ?? []) {
+        pruned.add(e.targetBlockId);
+        const stillIn = remainingIncoming.get(e.targetBlockId);
+        if (!stillIn) continue;
+        stillIn.delete(id);
+        if (stillIn.size === 0) ready.push(e.targetBlockId);
+      }
+      continue;
+    }
     visited.push(id);
 
     const kind = block.kind ?? block.type ?? "tool";
@@ -124,11 +148,118 @@ async function runWorkflowDag(
           };
         }
         blockOutput = dispatched.result.result;
+      } else if (kind === "condition") {
+        // config: { field: "{{nodeId.path}}" | literal, operator,
+        //          value }. Operators: equals, not_equals,
+        //          truthy, falsy, contains, gt, gte, lt, lte.
+        const cfg = (block.config ?? {}) as {
+          field?: unknown;
+          operator?: string;
+          value?: unknown;
+        };
+        const lhs = resolveTemplates({ x: cfg.field }, outputs).x;
+        const op = cfg.operator ?? "truthy";
+        const rhs = cfg.value;
+        let truth = false;
+        switch (op) {
+          case "equals":
+            truth = lhs === rhs;
+            break;
+          case "not_equals":
+            truth = lhs !== rhs;
+            break;
+          case "truthy":
+            truth = Boolean(lhs);
+            break;
+          case "falsy":
+            truth = !lhs;
+            break;
+          case "contains":
+            truth =
+              typeof lhs === "string" && typeof rhs === "string" && lhs.includes(rhs);
+            break;
+          case "gt":
+            truth = typeof lhs === "number" && typeof rhs === "number" && lhs > rhs;
+            break;
+          case "gte":
+            truth = typeof lhs === "number" && typeof rhs === "number" && lhs >= rhs;
+            break;
+          case "lt":
+            truth = typeof lhs === "number" && typeof rhs === "number" && lhs < rhs;
+            break;
+          case "lte":
+            truth = typeof lhs === "number" && typeof rhs === "number" && lhs <= rhs;
+            break;
+          default:
+            throw new Error(`Block ${id}: unknown condition operator ${op}`);
+        }
+        const handle = truth ? "true" : "false";
+        selectedHandle.set(id, handle);
+        blockOutput = { result: truth, selectedHandle: handle };
+      } else if (kind === "for_each") {
+        // config: { items: "{{nodeId.field}}" | array, tool, inputs? }
+        // Iterates the items array, dispatching the tool once per item.
+        // The current item is exposed via `{{item}}` and `{{index}}`
+        // in the inputs templates.
+        const cfg = (block.config ?? {}) as {
+          items?: unknown;
+          tool?: string;
+          inputs?: Record<string, unknown>;
+        };
+        const items = (() => {
+          const resolved = resolveTemplates({ x: cfg.items }, outputs).x;
+          return Array.isArray(resolved) ? resolved : [];
+        })();
+        if (!cfg.tool) {
+          throw new Error(`Block ${id}: kind=for_each requires config.tool`);
+        }
+        const itemResults: unknown[] = [];
+        for (let i = 0; i < items.length; i += 1) {
+          const item = items[i];
+          const perItemOutputs = { ...outputs, item, index: i };
+          const resolvedInputs = resolveTemplates(cfg.inputs ?? {}, perItemOutputs);
+          const dispatched = await dispatch(
+            { registry: args.registry, db: args.db },
+            cfg.tool,
+            resolvedInputs,
+            { ...args.ctx, invokedBy: "workflow" },
+          );
+          if (!dispatched.result.ok) {
+            return {
+              outputs,
+              visited,
+              failed: {
+                blockId: id,
+                error: { iteration: i, item, ...dispatched.result.error },
+              },
+            };
+          }
+          itemResults.push(dispatched.result.result);
+        }
+        blockOutput = { items, count: items.length, results: itemResults };
+      } else if (kind === "delay") {
+        // config: { ms }
+        const cfg = (block.config ?? {}) as { ms?: number };
+        const ms = typeof cfg.ms === "number" && cfg.ms >= 0 ? cfg.ms : 0;
+        if (ms > 0) {
+          await new Promise((r) => setTimeout(r, ms));
+        }
+        blockOutput = { waited: ms };
+      } else if (kind === "transform") {
+        // config: { mapping: { outKey: "{{template}}" } }
+        const cfg = (block.config ?? {}) as {
+          mapping?: Record<string, unknown>;
+        };
+        blockOutput = resolveTemplates(cfg.mapping ?? {}, outputs);
+      } else if (kind === "branch") {
+        // Like condition but doesn't compute truth — the upstream
+        // node sets selectedHandle, this just acts as a router.
+        // For now, treat identically to a passthrough.
+        blockOutput = args.triggerPayload;
       } else {
-        // Unknown / deferred kinds — record the block ran but
-        // didn't do anything. A future pass implements
-        // condition / for_each / delay / transform / branch.
-        blockOutput = { skipped: true, reason: `kind=${kind} not yet supported` };
+        // Unknown kinds — skip, mark for visibility, downstream
+        // continues unblocked.
+        blockOutput = { skipped: true, reason: `unknown kind ${kind}` };
       }
     } catch (e) {
       return {
@@ -144,11 +275,17 @@ async function runWorkflowDag(
     outputs[id] = blockOutput;
 
     // Mark this block as resolved for downstream nodes.
-    for (const target of outgoing.get(id) ?? []) {
-      const stillIn = remainingIncoming.get(target);
+    // For condition blocks: prune outgoing edges whose
+    // sourceHandle doesn't match the selected one.
+    const sel = selectedHandle.get(id);
+    for (const e of outgoing.get(id) ?? []) {
+      if (sel && e.sourceHandle && e.sourceHandle !== sel) {
+        pruned.add(e.targetBlockId);
+      }
+      const stillIn = remainingIncoming.get(e.targetBlockId);
       if (!stillIn) continue;
       stillIn.delete(id);
-      if (stillIn.size === 0) ready.push(target);
+      if (stillIn.size === 0) ready.push(e.targetBlockId);
     }
   }
 
