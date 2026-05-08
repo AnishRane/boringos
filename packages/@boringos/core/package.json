@@ -29,7 +29,6 @@
     "@boringos/pipeline": "workspace:*",
     "@boringos/runtime": "workspace:*",
     "@boringos/shared": "workspace:*",
-    "@boringos/workflow": "workspace:*",
     "@hono/node-server": "^1.13.0",
     "better-auth": "^1.6.0",
     "hono": "^4.7.0"

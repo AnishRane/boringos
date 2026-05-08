@@ -34,13 +34,13 @@ import {
   workflowRuns,
   workflowBlockRuns,
 } from "@boringos/db";
-import type { AgentEngine } from "@boringos/agent";
-import type { WorkflowEngine, TriggerType } from "@boringos/workflow";
+import type { AgentEngine, ToolRegistry } from "@boringos/agent";
 import type { RuntimeRegistry } from "@boringos/runtime";
 import type { ActionRunner } from "@boringos/connector";
 import { generateId } from "@boringos/shared";
 import type { RealtimeBus } from "./realtime.js";
 import { syncArchive, syncStatusChange } from "./inbox-gmail-sync.js";
+import { runWorkflow } from "./run-workflow.js";
 
 type AdminEnv = {
   Variables: {
@@ -55,7 +55,7 @@ export function createAdminRoutes(
   engine: AgentEngine,
   adminKey: string,
   realtimeBus?: RealtimeBus,
-  workflowEngine?: WorkflowEngine,
+  toolRegistry?: ToolRegistry,
   runtimeRegistry?: RuntimeRegistry,
   actionRunner?: ActionRunner,
 ): Hono<AdminEnv> {
@@ -1234,12 +1234,22 @@ export function createAdminRoutes(
     const routine = rows[0];
     if (!routine) return c.json({ error: "Routine not found" }, 404);
 
-    if (routine.workflowId && workflowEngine) {
-      const result = await workflowEngine.execute(routine.workflowId, {
-        type: "routine",
-        data: { routineId: routine.id, routineTitle: routine.title, tenantId: c.get("tenantId") },
+    if (routine.workflowId && toolRegistry) {
+      const result = await runWorkflow(
+        { db, toolRegistry },
+        {
+          workflowId: routine.workflowId,
+          tenantId: c.get("tenantId"),
+          payload: { routineId: routine.id, routineTitle: routine.title, triggerType: "routine" },
+          invokedBy: "admin",
+        },
+      );
+      return c.json({
+        kind: "workflow_executed",
+        runId: result.runId,
+        status: result.ok ? "completed" : "failed",
+        error: result.error?.message,
       });
-      return c.json({ kind: "workflow_executed", runId: result.runId, status: result.status });
     }
 
     if (!routine.assigneeAgentId) {
@@ -1333,21 +1343,41 @@ export function createAdminRoutes(
    * letting users "run now" without waiting for cron.
    */
   app.post("/workflows/:id/execute", async (c) => {
-    if (!workflowEngine) return c.json({ error: "workflow engine not available" }, 503);
-    const body = await c.req.json().catch(() => ({})) as Record<string, unknown>;
-    // Background mode so the HTTP response returns the runId immediately
-    // and the user can navigate to the run detail page mid-execution.
-    // Without this, a long-running workflow blocks the response and the
-    // user only ever sees the final state.
-    const result = await workflowEngine.execute(c.req.param("id"), {
-      type: "manual",
-      data: (body.payload as Record<string, unknown> | undefined) ?? {},
-    }, { background: true });
+    if (!toolRegistry) return c.json({ error: "v2 dispatcher not available" }, 503);
+    const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>;
+    const result = await runWorkflow(
+      { db, toolRegistry },
+      {
+        workflowId: c.req.param("id"),
+        tenantId: c.get("tenantId"),
+        payload: (body.payload as Record<string, unknown> | undefined) ?? {},
+        invokedBy: "admin",
+      },
+    );
     return c.json({
       runId: result.runId,
-      status: result.status,
-      error: result.error,
-      awaitingActionTaskId: result.awaitingActionTaskId,
+      status: result.ok ? "completed" : "failed",
+      error: result.error?.message,
+    });
+  });
+
+  // Alias used by the shell's Workflows screen.
+  app.post("/workflows/:id/run", async (c) => {
+    if (!toolRegistry) return c.json({ error: "v2 dispatcher not available" }, 503);
+    const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>;
+    const result = await runWorkflow(
+      { db, toolRegistry },
+      {
+        workflowId: c.req.param("id"),
+        tenantId: c.get("tenantId"),
+        payload: (body.payload as Record<string, unknown> | undefined) ?? {},
+        invokedBy: "admin",
+      },
+    );
+    return c.json({
+      runId: result.runId,
+      status: result.ok ? "completed" : "failed",
+      error: result.error?.message,
     });
   });
 
@@ -1403,18 +1433,14 @@ export function createAdminRoutes(
    * with user input, and walks the rest of the DAG.
    */
   app.post("/workflow-runs/:id/resume", async (c) => {
-    if (!workflowEngine) return c.json({ error: "workflow engine not available" }, 503);
-    const body = await c.req.json().catch(() => ({})) as Record<string, unknown>;
-    const result = await workflowEngine.resume(
-      c.req.param("id"),
-      (body.userInput as Record<string, unknown> | undefined) ?? {},
+    // v1 wait-for-human resume isn't ported to v2. Workflows that
+    // need human-in-the-loop should use an `agent_action` task and
+    // re-trigger the workflow from a comment instead.
+    void c;
+    return c.json(
+      { error: "Workflow resume is not supported in v2." },
+      410,
     );
-    return c.json({
-      runId: result.runId,
-      status: result.status,
-      error: result.error,
-      awaitingActionTaskId: result.awaitingActionTaskId,
-    });
   });
 
   /**
@@ -1428,13 +1454,12 @@ export function createAdminRoutes(
    * "does this still happen?" tool, not a "reproduce byte-for-byte" tool.
    */
   app.post("/workflow-runs/:id/replay", async (c) => {
-    if (!workflowEngine) return c.json({ error: "workflow engine not available" }, 503);
+    if (!toolRegistry) return c.json({ error: "v2 dispatcher not available" }, 503);
     const tenantId = c.get("tenantId") as string;
 
     const runRows = await db.select({
       id: workflowRuns.id,
       workflowId: workflowRuns.workflowId,
-      triggerType: workflowRuns.triggerType,
       triggerPayload: workflowRuns.triggerPayload,
     }).from(workflowRuns).where(
       and(eq(workflowRuns.id, c.req.param("id")), eq(workflowRuns.tenantId, tenantId)),
@@ -1443,15 +1468,19 @@ export function createAdminRoutes(
     const original = runRows[0];
     if (!original) return c.json({ error: "run not found" }, 404);
 
-    const triggerType = (original.triggerType ?? "manual") as TriggerType;
-    const result = await workflowEngine.execute(original.workflowId, {
-      type: triggerType,
-      data: (original.triggerPayload as Record<string, unknown> | null) ?? {},
-    }, { background: true });
+    const result = await runWorkflow(
+      { db, toolRegistry },
+      {
+        workflowId: original.workflowId,
+        tenantId,
+        payload: (original.triggerPayload as Record<string, unknown> | null) ?? {},
+        invokedBy: "admin",
+      },
+    );
     return c.json({
       runId: result.runId,
-      status: result.status,
-      error: result.error,
+      status: result.ok ? "completed" : "failed",
+      error: result.error?.message,
       replayedFromRunId: original.id,
     });
   });

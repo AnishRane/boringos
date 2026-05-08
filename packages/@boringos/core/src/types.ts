@@ -3,7 +3,7 @@ import type { RuntimeModule, RuntimeRegistry } from "@boringos/runtime";
 import type { StorageBackend } from "@boringos/drive";
 import type { DatabaseConfig } from "@boringos/db";
 import type { AgentEngine, ContextProvider } from "@boringos/agent";
-import type { WorkflowEngine, BlockHandler } from "@boringos/workflow";
+// @boringos/workflow engine deleted — use the v2 dispatcher.
 import type { SkillProvider } from "@boringos/shared";
 import type { EventBus } from "@boringos/connector";
 
@@ -72,7 +72,7 @@ export interface AppContext {
   drive: StorageBackend | null;
   runtimes: RuntimeRegistry;
   agentEngine: AgentEngine | null;
-  workflowEngine: WorkflowEngine | null;
+  // workflowEngine removed — use v2 `workflow.run` tool.
   eventBus: EventBus;
 }
 

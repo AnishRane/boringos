@@ -34,7 +34,8 @@ export type { MemoryProvider } from "@boringos/memory";
 export type { RuntimeModule, RuntimeRegistry } from "@boringos/runtime";
 export type { StorageBackend } from "@boringos/drive";
 export type { AgentEngine, ContextProvider } from "@boringos/agent";
-export type { WorkflowEngine, BlockHandler } from "@boringos/workflow";
+// WorkflowEngine + BlockHandler types removed — workflows run
+// through the v2 `workflow.run` tool dispatcher now.
 
 export { createAuthMiddleware } from "./auth-middleware.js";
 export {

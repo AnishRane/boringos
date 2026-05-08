@@ -17,7 +17,6 @@
     { "path": "../pipeline" },
     { "path": "../connector" },
     { "path": "../connector-google" },
-    { "path": "../connector-slack" },
-    { "path": "../workflow" }
+    { "path": "../connector-slack" }
   ]
 }

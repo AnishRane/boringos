@@ -22,27 +22,8 @@ import { createAgentEngine, ContextPipeline } from "@boringos/agent";
 import type { AgentEngine, ContextProvider, AgentRunJob } from "@boringos/agent";
 import type { QueueAdapter } from "@boringos/pipeline";
 import { createInProcessQueue } from "@boringos/pipeline";
-import {
-  createWorkflowEngine,
-  createWorkflowStore,
-  createWorkflowRunStore,
-  createHandlerRegistry,
-  triggerHandler,
-  conditionHandler,
-  delayHandler,
-  transformHandler,
-  wakeAgentHandler,
-  connectorActionHandler,
-  forEachHandler,
-  createInboxItemHandler,
-  emitEventHandler,
-  queryDatabaseHandler,
-  updateRowHandler,
-  createTaskHandler,
-  waitForHumanHandler,
-  invokeWorkflowHandler,
-} from "@boringos/workflow";
-import type { WorkflowEngine, BlockHandler } from "@boringos/workflow";
+// v1 @boringos/workflow engine deleted — workflows execute through
+// the v2 `workflow.run` tool dispatcher. See run-workflow.ts.
 import {
   createConnectorRegistry,
   createEventBus,
@@ -59,6 +40,7 @@ import type {
   StartedServer,
 } from "./types.js";
 // v1 callback routes deleted — agents now call /api/tools/*
+import { runWorkflow } from "./run-workflow.js";
 import { createV2Routes } from "./v2-routes.js";
 import { createV2AdminRoutes } from "./v2-admin-routes.js";
 import {
@@ -117,7 +99,8 @@ export class BoringOS {
   private afterStartHooks: LifecycleHook[] = [];
   private beforeShutdownHooks: LifecycleHook[] = [];
   private extraRoutes: Array<{ path: string; app: Hono; agentDocs?: string | ((callbackUrl: string) => string) }> = [];
-  private blockHandlers: BlockHandler[] = [];
+  // BlockHandler API removed with the v1 workflow engine. Custom
+  // workflow blocks should ship as v2 tools instead.
   private queueAdapter: QueueAdapter<AgentRunJob> | undefined;
   private userSchemaStatements: string[] = [];
   private inboxRoutes: Array<{ filter: (event: Record<string, unknown>) => boolean; transform: (event: Record<string, unknown>) => { source: string; subject: string; body?: string; from?: string; assigneeUserId?: string } }> = [];
@@ -188,11 +171,6 @@ export class BoringOS {
 
   routeToInbox(config: { filter: (event: Record<string, unknown>) => boolean; transform: (event: Record<string, unknown>) => { source: string; subject: string; body?: string; from?: string; assigneeUserId?: string } }): this {
     this.inboxRoutes.push(config);
-    return this;
-  }
-
-  blockHandler(handler: BlockHandler): this {
-    this.blockHandlers.push(handler);
     return this;
   }
 
@@ -391,63 +369,10 @@ export class BoringOS {
     // handler at dispatch time sees this value.
     (v2FactoryDeps as { engine: unknown }).engine = agentEngine;
 
-    // 7. Build workflow engine
-    const handlerRegistry = createHandlerRegistry();
-    handlerRegistry.register(triggerHandler);
-    handlerRegistry.register(conditionHandler);
-    handlerRegistry.register(delayHandler);
-    handlerRegistry.register(transformHandler);
-    handlerRegistry.register(wakeAgentHandler);
-    handlerRegistry.register(connectorActionHandler);
-    handlerRegistry.register(forEachHandler);
-    handlerRegistry.register(createInboxItemHandler);
-    handlerRegistry.register(emitEventHandler);
-    handlerRegistry.register(queryDatabaseHandler);
-    handlerRegistry.register(updateRowHandler);
-    handlerRegistry.register(createTaskHandler);
-    handlerRegistry.register(waitForHumanHandler);
-    handlerRegistry.register(invokeWorkflowHandler);
-    for (const handler of this.blockHandlers) {
-      handlerRegistry.register(handler);
-    }
-
-    const workflowStore = createWorkflowStore(dbConn.db);
-    const workflowRunStore = createWorkflowRunStore(dbConn.db);
-    const memoryRef = this.memoryProvider;
-    // Lazy service map — allows services registered after workflow engine creation
-    // (e.g., actionRunner, connectorRegistry) to be available to block handlers.
-    const serviceMap: Record<string, unknown> = { db: dbConn.db, memory: memoryRef, drive, agentEngine };
-    // Forward-declare realtimeBus so we can close over it; the bus itself is
-    // created below at step 10. The closure reads it lazily so initialization
-    // order doesn't matter.
+    // 7. Workflow engine — replaced by v2 dispatcher. Workflows
+    // execute via `workflow.run` tool (see run-workflow.ts). The
+    // realtime bus is still needed below for connector events.
     let realtimeBusRef: import("./realtime.js").RealtimeBus | null = null;
-    const workflowEngine = createWorkflowEngine({
-      store: workflowStore,
-      runStore: workflowRunStore,
-      handlers: handlerRegistry,
-      services: {
-        get<T>(key: string): T | undefined {
-          return serviceMap[key] as T | undefined;
-        },
-        has(key: string): boolean {
-          return key in serviceMap;
-        },
-      },
-      // Publish every engine event to the RealtimeBus so SSE consumers (the
-      // live DAG view in the CRM) get pushed updates instead of polling.
-      onEvent: (event) => {
-        realtimeBusRef?.publish({
-          type: `workflow:${event.type}`,
-          tenantId: event.tenantId,
-          data: event as unknown as Record<string, unknown>,
-          timestamp: new Date().toISOString(),
-        });
-      },
-    });
-    // Expose the engine itself in the service map so invoke-workflow blocks
-    // can recursively call engine.execute on another workflow. Must set
-    // after engine creation — the service map is consulted lazily.
-    serviceMap.workflowEngine = workflowEngine;
 
     // 8. Build app context (eventBus added after creation below)
     const context: AppContext = {
@@ -457,7 +382,7 @@ export class BoringOS {
       drive,
       runtimes,
       agentEngine,
-      workflowEngine,
+      // workflowEngine: removed — use the v2 `workflow.run` tool.
       eventBus: null as any, // populated below after eventBus creation
     };
 
@@ -485,10 +410,8 @@ export class BoringOS {
       connectorRegistry.register(def);
     }
     const actionRunner = createActionRunner(connectorRegistry);
-    // Make actionRunner available to workflow block handlers (connector-action)
-    serviceMap.actionRunner = actionRunner;
-    serviceMap.connectorRegistry = connectorRegistry;
-    serviceMap.eventBus = eventBus;
+    // (v1 workflow service map removed — actionRunner is still
+    // available through connector-routes.ts for OAuth + webhooks.)
 
     // Populate eventBus on context (was null placeholder before eventBus creation)
     context.eventBus = eventBus;
@@ -549,11 +472,16 @@ export class BoringOS {
             const trigger = blocks.find((b) => b.type === "trigger");
             const triggerEventType = trigger?.config?.eventType;
             if (typeof triggerEventType !== "string" || triggerEventType !== event.type) continue;
-            // Fire-and-forget — the run is persisted, results visible in the UI.
-            await workflowEngine.execute(w.id, {
-              type: "event",
-              data: { ...(event.data ?? {}), eventType: event.type },
-            }).catch((err) => {
+            // Fire-and-forget — runs through v2 dispatch.
+            await runWorkflow(
+              { db: dbConn.db, toolRegistry: v2ToolRegistry },
+              {
+                workflowId: w.id,
+                tenantId: event.tenantId,
+                payload: { ...(event.data ?? {}), eventType: event.type },
+                invokedBy: "internal",
+              },
+            ).catch((err) => {
               console.warn(`[workflow-dispatch] ${w.id} failed:`, err);
             });
           }
@@ -804,7 +732,7 @@ export class BoringOS {
     // Now that the bus exists, connect the workflow engine's event sink.
     realtimeBusRef = realtimeBus;
 
-    const adminApp = createAdminRoutes(dbConn.db, agentEngine, adminKeyValue, realtimeBus, workflowEngine, runtimes, actionRunner);
+    const adminApp = createAdminRoutes(dbConn.db, agentEngine, adminKeyValue, realtimeBus, v2ToolRegistry, runtimes, actionRunner);
     app.route("/api/admin", adminApp);
 
     // K10/K11 — apps install/uninstall HTTP endpoints. Mounted with an
@@ -1080,7 +1008,7 @@ export class BoringOS {
     const actualPort = typeof address === "object" && address ? address.port : listenPort;
 
     // 13. Start routine scheduler
-    const scheduler = createRoutineScheduler(dbConn.db, agentEngine, workflowEngine);
+    const scheduler = createRoutineScheduler(dbConn.db, agentEngine, v2ToolRegistry);
     scheduler.start();
 
     // Inbox snooze ticker: flips snoozed rows back to unread when their
