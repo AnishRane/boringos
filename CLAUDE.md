@@ -104,6 +104,86 @@ pnpm test                 # Watch mode
 
 ---
 
+## v2 architecture (in progress on `branch_modules_skills`)
+
+The framework is being rebuilt around three primitives — see
+[`docs/blockers/task_12_greenfield_rebuild.md`](docs/blockers/task_12_greenfield_rebuild.md)
+and [`docs/blockers/task_13_v2_docs_rewrite.md`](docs/blockers/task_13_v2_docs_rewrite.md)
+for the full plan, [`docs/new_thesis.md`](docs/new_thesis.md) for
+the current-state vs proposed-state thesis.
+
+**Status:** v1 is unchanged. v2 lives alongside additively. v2 is
+opt-in per host application — register at least one Module via
+`app.module(...)` to mount the v2 surface.
+
+### The three primitives
+
+| Primitive | Type | Where it lives |
+|---|---|---|
+| **Skill** | Markdown teaching, loaded into the agent's prompt under `## Skills` | Module manifest's `skills` field — inline `Skill` object today, `SKILL.md` files in Phase 6+ |
+| **Tool** | Zod-typed callable operation, dispatched at `POST /api/tools/<module>.<name>` | Module manifest's `tools` field |
+| **Module** | Universal component shape — bundles skills + tools + (optionally) schema, routines, webhooks, OAuth | `@boringos/module-sdk` defines the type |
+
+### How to register a v2 Module
+
+```typescript
+import { BoringOS, createFrameworkModule, createMemoryModule, createDriveModule } from "@boringos/core";
+
+const app = new BoringOS({});
+
+// Built-in modules — factory pattern; framework injects deps
+// (db, memory provider, drive backend) at boot.
+app.module(createFrameworkModule);
+app.module(createMemoryModule);
+app.module(createDriveModule);
+
+// Custom Module — inline manifest.
+app.module({
+  id: "my-app",
+  name: "My App",
+  version: "0.1.0",
+  description: "...",
+  tools: [/* ... */],
+  skills: [/* ... */],
+});
+
+await app.listen(3000);
+```
+
+When at least one Module is registered:
+- The `/api/tools/:fullName` route is mounted (JWT-authed, same as v1's `/api/agent/*`).
+- Two new context providers (`v2-skills`, `v2-tool-catalog`) join the prompt pipeline alongside v1's providers.
+- Every tool call writes a `tool_calls` audit row.
+
+### Built-in modules shipped so far
+
+| Module id | Tools | Skill |
+|---|---|---|
+| `framework` | `tasks.{read, create, patch}`, `comments.post`, `work_products.record`, `runs.report_cost`, `agents.create`, `inbox.{read, update}` | `tool-protocol`, `approvals`, `when-stuck` |
+| `memory` | `remember`, `recall`, `forget` | `memory` |
+| `drive` | `read`, `write`, `list`, `delete`, `exists`, `move` | `drive` |
+| `workflow` | `list`, `get`, `get_run` | `workflow` |
+| `inbox` | `list`, `archive`, `create_task` | `inbox` |
+
+### v2 packages
+
+| Package | Role |
+|---|---|
+| `@boringos/module-sdk` | Type-only SDK — `Module`, `Tool`, `Skill`, `ModuleFactory`, `ToolContext`, etc. plus `z` re-export from Zod |
+| `@boringos/agent` | Hosts the v2 registries (`createToolRegistry`, `createSkillRegistry`, `createModuleRegistry`), the dispatcher (`dispatch`, `invoke`), and the v2 context providers (`createSkillsProvider`, `createToolCatalogProvider`) |
+| `@boringos/core` | Built-in module factories live in `src/v2-modules/`. `app.module(...)` registers them. The HTTP route `/api/tools/:fullName` is mounted from `src/v2-routes.ts` |
+| `@boringos/db` | Adds `tool_calls` table for audit |
+
+### Where to read for the rebuild plan
+
+- [`docs/new_thesis.md`](docs/new_thesis.md) — current vs proposed
+- [`docs/blockers/task_11_skills_and_tools.md`](docs/blockers/task_11_skills_and_tools.md) — original Skills + Tools proposal
+- [`docs/blockers/task_12_greenfield_rebuild.md`](docs/blockers/task_12_greenfield_rebuild.md) — the rebuild plan, 12 phases
+- [`docs/blockers/task_13_v2_docs_rewrite.md`](docs/blockers/task_13_v2_docs_rewrite.md) — the docs rewrite plan with CRM as the canonical Module example
+- [`BUILD-A-MODULE.md`](BUILD-A-MODULE.md) (this branch) — starter guide for authoring Modules
+
+---
+
 ## Package Details
 
 ### `@boringos/shared`
