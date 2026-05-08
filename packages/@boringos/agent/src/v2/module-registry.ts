@@ -16,9 +16,67 @@
 // host-process catalog of Modules the host application has
 // imported.
 
-import type { Module } from "@boringos/module-sdk";
+import { readFileSync } from "node:fs";
+import { resolve as resolvePath } from "node:path";
+import type { Module, Skill } from "@boringos/module-sdk";
 import type { ToolRegistry } from "./tool-registry.js";
 import type { SkillRegistry } from "./skill-registry.js";
+
+/**
+ * Parse minimal YAML frontmatter at the start of a markdown
+ * string. Recognised keys (all optional):
+ *   id: <string>
+ *   priority: <number>
+ *   roles: [role1, role2]      (becomes appliesTo gating)
+ *   requires: [tool.name, ...]
+ * The body is everything after the closing `---` marker; if no
+ * frontmatter is present, the whole string is the body.
+ */
+function parseSkillFile(
+  raw: string,
+  fallbackId: string,
+): {
+  id: string;
+  body: string;
+  priority?: number;
+  appliesTo?: Skill["appliesTo"];
+  requires?: string[];
+} {
+  const match = /^---\n([\s\S]*?)\n---\n?([\s\S]*)$/.exec(raw);
+  if (!match) {
+    return { id: fallbackId, body: raw.trim() };
+  }
+  const fmText = match[1];
+  const body = match[2].trim();
+  const meta: Record<string, unknown> = {};
+  for (const line of fmText.split("\n")) {
+    const colon = line.indexOf(":");
+    if (colon < 0) continue;
+    const key = line.slice(0, colon).trim();
+    const value = line.slice(colon + 1).trim();
+    // Array form: roles: [a, b, c]
+    if (value.startsWith("[") && value.endsWith("]")) {
+      meta[key] = value
+        .slice(1, -1)
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+    } else if (/^\d+$/.test(value)) {
+      meta[key] = Number(value);
+    } else {
+      // Strip surrounding quotes if present.
+      meta[key] = value.replace(/^['"]|['"]$/g, "");
+    }
+  }
+  const id = typeof meta.id === "string" ? meta.id : fallbackId;
+  const priority = typeof meta.priority === "number" ? meta.priority : undefined;
+  const requires = Array.isArray(meta.requires) ? (meta.requires as string[]) : undefined;
+  const roles = Array.isArray(meta.roles) ? (meta.roles as string[]) : undefined;
+  const appliesTo: Skill["appliesTo"] | undefined = roles
+    ? (event) => Boolean(event.agentRole && roles.includes(event.agentRole))
+    : undefined;
+  return { id, body, priority, appliesTo, requires };
+}
 
 export interface ModuleRegistry {
   register(mod: Module): void;
@@ -82,13 +140,35 @@ export function createModuleRegistry(deps: ModuleRegistryDeps): ModuleRegistry {
       }
 
       for (const skillRef of mod.skills ?? []) {
-        // Phase 1 only handles the inline `Skill` form. Path
-        // strings (loading SKILL.md from disk) are added in
-        // Phase 3 along with the `skills` context provider.
         if (typeof skillRef === "string") {
-          // Eventually: read the file, parse frontmatter, build a
-          // Skill record. For now: no-op; the test suite uses
-          // inline form.
+          // Disk loading: read the file relative to the module's
+          // home dir (set by the factory via __moduleDir), parse
+          // YAML frontmatter, build a Skill record. If the file
+          // can't be read, log + skip — better than crashing the
+          // whole boot. Modules that ship SKILL.md files should
+          // set __moduleDir; if missing, we fall back to cwd.
+          const baseDir = mod.__moduleDir ?? process.cwd();
+          const path = resolvePath(baseDir, skillRef);
+          let raw: string;
+          try {
+            raw = readFileSync(path, "utf8");
+          } catch (e) {
+            // eslint-disable-next-line no-console
+            console.warn(
+              `[v2-module-registry] failed to read skill file ${path} for module ${mod.id}:`,
+              e instanceof Error ? e.message : e,
+            );
+            continue;
+          }
+          const parsed = parseSkillFile(raw, `${mod.id}.skill`);
+          deps.skills.register(mod.id, {
+            id: parsed.id,
+            source: "module",
+            body: parsed.body,
+            priority: parsed.priority,
+            appliesTo: parsed.appliesTo,
+            requires: parsed.requires,
+          });
           continue;
         }
         deps.skills.register(mod.id, skillRef);

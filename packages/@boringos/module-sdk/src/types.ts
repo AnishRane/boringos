@@ -459,6 +459,16 @@ export interface Module {
    * `false`.
    */
   defaultInstall?: boolean;
+  /**
+   * Filesystem directory the framework should treat as the
+   * module's "home" for resolving relative paths in
+   * `skills: ["./SKILL.md"]`. Set by the module's factory using
+   * `dirname(fileURLToPath(import.meta.url))`. If unset, string
+   * skill refs fall back to relative-to-cwd, which is rarely
+   * what you want; setting this is highly recommended for any
+   * module that ships SKILL.md files.
+   */
+  __moduleDir?: string;
 }
 
 export type SkillFileRef =
