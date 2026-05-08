@@ -318,6 +318,7 @@ export class BoringOS {
       // object at call time, not at factory time.
       engine: undefined as unknown,
       workflowEngine: undefined as unknown,
+      toolRegistry: v2ToolRegistry,
     };
     const v2BoundModules: Module[] = [];
     for (const entry of this.v2Modules) {

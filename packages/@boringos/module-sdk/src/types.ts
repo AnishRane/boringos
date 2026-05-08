@@ -381,6 +381,13 @@ export interface ModuleFactoryDeps {
   engine?: unknown;
   /** The workflow engine instance. */
   workflowEngine?: unknown;
+  /**
+   * The v2 tool registry. Modules that need to invoke other
+   * tools internally (workflow.run dispatching DAG nodes, agent
+   * orchestration code) cast this to ToolRegistry from
+   * `@boringos/agent`.
+   */
+  toolRegistry?: unknown;
 }
 
 export type ModuleFactory = (deps: ModuleFactoryDeps) => Module;
