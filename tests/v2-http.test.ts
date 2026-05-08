@@ -59,6 +59,15 @@ describe("v2 — HTTP tool route", () => {
     const tenantId = "00000000-0000-0000-0000-000000000001";
     const agentId = "00000000-0000-0000-0000-000000000002";
     const runId = "00000000-0000-0000-0000-000000000003";
+
+    // Insert the tenant row so module_installs FK resolves.
+    const { tenants } = await import("@boringos/db");
+    const db = (server as unknown as { context: { db: import("@boringos/db").Db } }).context.db;
+    await db
+      .insert(tenants)
+      .values({ id: tenantId, name: "Test", slug: "test-v2-http" })
+      .onConflictDoNothing();
+
     const token = signCallbackToken(
       { runId, agentId, tenantId },
       jwtSecret,

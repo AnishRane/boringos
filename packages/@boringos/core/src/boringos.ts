@@ -67,11 +67,13 @@ import {
   createModuleRegistry,
   createSkillsProvider,
   createToolCatalogProvider,
+  createInstallManager,
 } from "@boringos/agent";
 import type {
   ToolRegistry as V2ToolRegistry,
   SkillRegistry as V2SkillRegistry,
   ModuleRegistry as V2ModuleRegistry,
+  InstallManager as V2InstallManager,
 } from "@boringos/agent";
 import type { Module, ModuleFactory } from "@boringos/module-sdk";
 import { createConnectorRoutes } from "./connector-routes.js";
@@ -326,6 +328,13 @@ export class BoringOS {
       v2BoundModules.push(mod);
     }
     const v2HasModules = v2BoundModules.length > 0;
+
+    // Construct the install manager early so the new-tenant hook
+    // can fire onTenantCreate during signup. Backfill of existing
+    // tenants happens later (fire-and-forget) once routes mount.
+    const v2InstallManagerEarly: V2InstallManager | undefined = v2HasModules
+      ? createInstallManager({ db: dbConn.db, modules: v2BoundModules })
+      : undefined;
 
     // 6. Build context pipeline
     const pipeline = new ContextPipeline();
@@ -711,8 +720,35 @@ export class BoringOS {
               }
             }
             if (userHook) await userHook(db, tenantId);
+            // v2: fire onTenantCreate hooks + write install rows
+            // for every default-install module. Runs LAST so any
+            // schema/data the user-hook created is in place
+            // before module hooks read it.
+            if (v2InstallManagerEarly) {
+              try {
+                await v2InstallManagerEarly.onTenantCreated(tenantId);
+              } catch (err) {
+                console.warn(
+                  "[boringos] v2 onTenantCreated hooks failed for tenant",
+                  tenantId,
+                  err,
+                );
+              }
+            }
           }
-        : undefined;
+        : v2InstallManagerEarly
+          ? async (_db: Db, tenantId: string) => {
+              try {
+                await v2InstallManagerEarly.onTenantCreated(tenantId);
+              } catch (err) {
+                console.warn(
+                  "[boringos] v2 onTenantCreated hooks failed for tenant",
+                  tenantId,
+                  err,
+                );
+              }
+            }
+          : undefined;
 
     // Auth routes (login, signup, session)
     const authApp = createAuthRoutes(dbConn.db, jwtSecret, composedTenantHook);
@@ -730,11 +766,20 @@ export class BoringOS {
     // modules are present. The registries themselves were built
     // earlier (step 5) so the context pipeline could add the v2
     // providers.
-    if (v2HasModules) {
+    if (v2HasModules && v2InstallManagerEarly) {
+      // Backfill install rows for every existing tenant ×
+      // default-install module. Idempotent. Fire-and-forget on
+      // boot so a slow backfill doesn't block listen().
+      void v2InstallManagerEarly.backfill(v2BoundModules).catch((e) => {
+        // eslint-disable-next-line no-console
+        console.error("[v2] install-manager backfill failed:", e);
+      });
+
       const v2App = createV2Routes({
         db: dbConn.db,
         registry: v2ToolRegistry,
         jwtSecret,
+        installManager: v2InstallManagerEarly,
       });
       app.route("/api/tools", v2App);
 
@@ -743,6 +788,7 @@ export class BoringOS {
         toolRegistry: v2ToolRegistry,
         skillRegistry: v2SkillRegistry,
         modules: v2BoundModules,
+        installManager: v2InstallManagerEarly,
         resolveTenantId: (req) => req.headers.get("x-tenant-id"),
       });
       app.route("/api/admin/v2", v2AdminApp);

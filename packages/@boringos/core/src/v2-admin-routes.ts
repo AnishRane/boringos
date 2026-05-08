@@ -12,7 +12,7 @@ import { Hono } from "hono";
 import { eq, desc, and } from "drizzle-orm";
 import type { Db } from "@boringos/db";
 import { toolCalls } from "@boringos/db";
-import type { ToolRegistry, SkillRegistry } from "@boringos/agent";
+import type { ToolRegistry, SkillRegistry, InstallManager } from "@boringos/agent";
 import type { Module } from "@boringos/module-sdk";
 
 interface AdminAuthEnv {
@@ -26,6 +26,7 @@ export interface V2AdminRoutesDeps {
   toolRegistry: ToolRegistry;
   skillRegistry: SkillRegistry;
   modules: readonly Module[];
+  installManager: InstallManager;
   /**
    * Reads the auth context. Reuses the host's existing admin
    * auth pattern: API-key clients send `X-Tenant-Id`; browser
@@ -58,6 +59,41 @@ export function createV2AdminRoutes(deps: V2AdminRoutesDeps): Hono<AdminAuthEnv>
         .map((s) => ({ id: s.skill.id, source: s.skill.source, priority: s.skill.priority })),
     }));
     return c.json({ modules: out });
+  });
+
+  // GET /installs — list installed modules for the current
+  // tenant. The shell's Modules screen uses this to show
+  // installed-vs-available state.
+  app.get("/installs", async (c) => {
+    const tenantId = deps.resolveTenantId(c.req.raw);
+    if (!tenantId) return c.json({ error: "Tenant id required" }, 401);
+    const rows = await deps.installManager.listForTenant(tenantId);
+    return c.json({ installs: rows });
+  });
+
+  // POST /modules/:id/install — install a module for the current
+  // tenant. Runs `lifecycle.onInstall(ctx)` if defined. Idempotent.
+  app.post("/modules/:id/install", async (c) => {
+    const tenantId = deps.resolveTenantId(c.req.raw);
+    if (!tenantId) return c.json({ error: "Tenant id required" }, 401);
+    const moduleId = c.req.param("id");
+    const result = await deps.installManager.install(moduleId, tenantId);
+    if (!result.ok && result.hookError?.startsWith("Unknown module")) {
+      return c.json({ error: result.hookError }, 404);
+    }
+    return c.json({ ok: result.ok, hookError: result.hookError });
+  });
+
+  // POST /modules/:id/uninstall — uninstall + run `onUninstall`.
+  app.post("/modules/:id/uninstall", async (c) => {
+    const tenantId = deps.resolveTenantId(c.req.raw);
+    if (!tenantId) return c.json({ error: "Tenant id required" }, 401);
+    const moduleId = c.req.param("id");
+    const result = await deps.installManager.uninstall(moduleId, tenantId);
+    if (!result.ok && result.hookError?.startsWith("Unknown module")) {
+      return c.json({ error: result.hookError }, 404);
+    }
+    return c.json({ ok: result.ok, hookError: result.hookError });
   });
 
   // GET /tools — flat list of every registered tool, useful for

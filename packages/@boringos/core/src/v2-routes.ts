@@ -21,6 +21,7 @@ import {
 import type {
   CallbackTokenClaims,
   ToolRegistry,
+  InstallManager,
 } from "@boringos/agent";
 
 type AuthEnv = {
@@ -31,6 +32,9 @@ export interface V2RoutesDeps {
   db: Db;
   registry: ToolRegistry;
   jwtSecret: string;
+  /** Optional. When provided, the dispatcher gates calls on the
+   * tool's owning module being installed for the JWT's tenant. */
+  installManager?: InstallManager;
 }
 
 export function createV2Routes(deps: V2RoutesDeps): Hono<AuthEnv> {
@@ -70,6 +74,36 @@ export function createV2Routes(deps: V2RoutesDeps): Hono<AuthEnv> {
       );
     }
 
+    // Per-tenant install gate — only meaningful for tools that
+    // actually exist. Unknown tools fall through to the
+    // dispatcher's 404 path so callers get the right error.
+    if (deps.installManager && deps.registry.get(fullName)) {
+      const moduleId = fullName.includes(".")
+        ? fullName.slice(0, fullName.indexOf("."))
+        : "";
+      if (moduleId) {
+        const installed = await deps.installManager.isInstalled(
+          moduleId,
+          claims.tenant_id,
+        );
+        if (!installed) {
+          return c.json(
+            {
+              ok: false,
+              error: {
+                code: "permission_denied",
+                message:
+                  `Module "${moduleId}" is not installed for this tenant. ` +
+                  "An admin can install it via POST /api/admin/v2/modules/<id>/install.",
+                retryable: false,
+              },
+            },
+            403,
+          );
+        }
+      }
+    }
+
     const idempotencyKey = c.req.header("Idempotency-Key") ?? undefined;
 
     const dispatched = await dispatch(
@@ -85,7 +119,7 @@ export function createV2Routes(deps: V2RoutesDeps): Hono<AuthEnv> {
       { idempotencyKey },
     );
 
-    return c.json(dispatched.result, dispatched.status as 200 | 400 | 404 | 500);
+    return c.json(dispatched.result, dispatched.status as 200 | 400 | 403 | 404 | 500);
   });
 
   return app;

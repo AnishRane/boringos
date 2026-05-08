@@ -441,6 +441,17 @@ export interface Module {
   lifecycle?: ModuleLifecycle;
   /** Default permissions; per-tool overrides allowed. */
   permissions?: ModulePermissions;
+  /**
+   * Whether this module should be auto-installed for every
+   * tenant at boot (and for new tenants via `onTenantCreate`).
+   *
+   * Defaults to `true` so v2's introduction is backwards
+   * compatible — every host-registered module is callable for
+   * every existing tenant immediately. Third-party modules that
+   * should require explicit per-tenant install set this to
+   * `false`.
+   */
+  defaultInstall?: boolean;
 }
 
 export type SkillFileRef =

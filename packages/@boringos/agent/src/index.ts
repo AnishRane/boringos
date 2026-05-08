@@ -71,6 +71,7 @@ export {
   invoke,
   createSkillsProvider,
   createToolCatalogProvider,
+  createInstallManager,
 } from "./v2/index.js";
 export type {
   ToolRegistry,
@@ -84,4 +85,8 @@ export type {
   DispatchOptions,
   SkillsProviderDeps,
   ToolCatalogProviderDeps,
+  InstallManager,
+  InstallManagerDeps,
+  InstallResult,
+  InstalledRow,
 } from "./v2/index.js";
