@@ -10,7 +10,19 @@
 
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
-import { BoringOS } from "@boringos/core";
+import {
+  BoringOS,
+  createFrameworkModule,
+  createMemoryModule,
+  createDriveModule,
+  createInboxModule,
+  createWorkflowModule,
+  createCopilotModule,
+  createSlackModule,
+  createGoogleModule,
+  createHebbsCrmModule,
+  createTriageModule,
+} from "@boringos/core";
 import { google } from "@boringos/connector-google";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -19,6 +31,12 @@ const repoRoot = resolve(here, "..");
 const port = Number(process.env.PORT ?? 3030);
 const pgPort = Number(process.env.PG_PORT ?? 5436);
 const shellOrigin = process.env.BORINGOS_SHELL_URL ?? "http://localhost:5174";
+
+// v2 mode flag. Set BORINGOS_V2_ONLY=true to disable v1 routes and
+// providers. Default false → v1 + v2 run side-by-side (parallel
+// mode), giving full parity while letting you exercise the v2
+// surface from /api/tools/* and the Settings panels.
+const v2Only = process.env.BORINGOS_V2_ONLY === "true";
 
 const app = new BoringOS({
   database: { embedded: true, port: pgPort },
@@ -30,6 +48,7 @@ const app = new BoringOS({
   // claude subprocess, so 5 = ~5x the burst throughput. Tuned for a
   // dev box; production should profile before bumping.
   queue: { concurrency: 5 },
+  v2Only,
 });
 
 // Connectors. We register every connector unconditionally so the
@@ -43,8 +62,23 @@ app.connector(
   }),
 );
 
+// v2 modules — registered in both parallel and v2-only modes so
+// /api/tools/* + the Settings v2 panels are always available in
+// dev. v1 routes coexist when v2Only=false.
+app.module(createFrameworkModule);
+app.module(createMemoryModule);
+app.module(createDriveModule);
+app.module(createInboxModule);
+app.module(createWorkflowModule);
+app.module(createCopilotModule);
+app.module(createSlackModule);
+app.module(createGoogleModule);
+app.module(createHebbsCrmModule);
+app.module(createTriageModule);
+
 const server = await app.listen(port);
 
 console.log(`[dev-server] BoringOS listening at ${server.url}`);
 console.log(`[dev-server] Health: ${server.url}/health`);
+console.log(`[dev-server] v2 mode: ${v2Only ? "v2-only" : "parallel (v1 + v2)"}`);
 console.log(`[dev-server] Press Ctrl+C to stop`);
