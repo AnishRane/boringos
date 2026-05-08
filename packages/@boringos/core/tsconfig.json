@@ -13,6 +13,7 @@
     { "path": "../drive" },
     { "path": "../db" },
     { "path": "../agent" },
+    { "path": "../module-sdk" },
     { "path": "../pipeline" },
     { "path": "../connector" },
     { "path": "../workflow" }

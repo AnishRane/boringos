@@ -67,6 +67,8 @@ export {
   createToolRegistry,
   createSkillRegistry,
   createModuleRegistry,
+  dispatch,
+  invoke,
 } from "./v2/index.js";
 export type {
   ToolRegistry,
@@ -75,4 +77,7 @@ export type {
   RegisteredSkill,
   ModuleRegistry,
   ModuleRegistryDeps,
+  DispatchResult,
+  DispatchDeps,
+  DispatchOptions,
 } from "./v2/index.js";

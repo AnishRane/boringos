@@ -59,6 +59,13 @@ import type {
   StartedServer,
 } from "./types.js";
 import { createCallbackRoutes } from "./routes.js";
+import { createV2Routes } from "./v2-routes.js";
+import {
+  createToolRegistry,
+  createSkillRegistry,
+  createModuleRegistry,
+} from "@boringos/agent";
+import type { Module } from "@boringos/module-sdk";
 import { createConnectorRoutes } from "./connector-routes.js";
 import { createAdminRoutes } from "./admin-routes.js";
 import { createRealtimeBus } from "./realtime.js";
@@ -105,6 +112,11 @@ export class BoringOS {
   private inboxRoutes: Array<{ filter: (event: Record<string, unknown>) => boolean; transform: (event: Record<string, unknown>) => { source: string; subject: string; body?: string; from?: string; assigneeUserId?: string } }> = [];
   private tenantProvisionedHook: ((db: Db, tenantId: string) => Promise<void>) | undefined;
   private eventHandlers: Array<{ type: string | null; handler: (event: import("@boringos/connector").ConnectorEvent) => void | Promise<void> }> = [];
+  // v2 — Skills + Tools + Modules. Empty in v1-only deployments.
+  // Populated via `app.module(myModule)`. The boot sequence skips
+  // mounting the v2 routes when this is empty, so v1 deployments
+  // are unaffected.
+  private v2Modules: Module[] = [];
 
   constructor(config: BoringOSConfig = {}) {
     this.config = config;
@@ -204,6 +216,27 @@ export class BoringOS {
    */
   route(path: string, app: Hono, options?: { agentDocs?: string | ((callbackUrl: string) => string) }): this {
     this.extraRoutes.push({ path, app, agentDocs: options?.agentDocs });
+    return this;
+  }
+
+  /**
+   * Register a v2 Module (Skills + Tools + Modules architecture).
+   *
+   * In v2, every component — connectors, apps, plugins, built-in
+   * subsystems — implements the `Module` interface from
+   * `@boringos/module-sdk`. The framework collects them, walks
+   * their tools into the tool registry, walks their skills into
+   * the skill registry, runs migrations + lifecycle hooks per
+   * tenant install, and exposes the unified
+   * `POST /api/tools/<module-id>.<tool-name>` dispatch endpoint.
+   *
+   * v1 connectors / apps / plugins continue to work in parallel
+   * during the phased migration. The v2 routes are mounted only
+   * if at least one Module is registered, so v1-only hosts boot
+   * exactly as before.
+   */
+  module(mod: Module): this {
+    this.v2Modules.push(mod);
     return this;
   }
 
@@ -612,6 +645,28 @@ export class BoringOS {
     // Agent callback API
     const callbackApp = createCallbackRoutes(dbConn.db, agentEngine, jwtSecret);
     app.route("/api/agent", callbackApp);
+
+    // v2 — Skills + Tools + Modules. Mounted only when at least
+    // one Module has been registered via `app.module(...)`. Build
+    // the registries, walk every Module's tools/skills into them,
+    // and mount the unified dispatch endpoint.
+    if (this.v2Modules.length > 0) {
+      const v2ToolRegistry = createToolRegistry();
+      const v2SkillRegistry = createSkillRegistry();
+      const v2ModuleRegistry = createModuleRegistry({
+        tools: v2ToolRegistry,
+        skills: v2SkillRegistry,
+      });
+      for (const mod of this.v2Modules) {
+        v2ModuleRegistry.register(mod);
+      }
+      const v2App = createV2Routes({
+        db: dbConn.db,
+        registry: v2ToolRegistry,
+        jwtSecret,
+      });
+      app.route("/api/tools", v2App);
+    }
 
     // Connector routes
     const connectorApp = createConnectorRoutes(dbConn.db, connectorRegistry, eventBus, actionRunner, jwtSecret, callbackUrl, {

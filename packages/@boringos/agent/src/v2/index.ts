@@ -25,3 +25,10 @@ export type {
   ModuleRegistry,
   ModuleRegistryDeps,
 } from "./module-registry.js";
+
+export { dispatch, invoke } from "./dispatcher.js";
+export type {
+  DispatchResult,
+  DispatchDeps,
+  DispatchOptions,
+} from "./dispatcher.js";

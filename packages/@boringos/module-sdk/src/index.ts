@@ -12,3 +12,11 @@
 // migration in task_12 retires them.
 
 export * from "./types.js";
+
+// Convenience re-export so Module authors can write
+//   import { z } from "@boringos/module-sdk";
+// without taking a separate Zod dep. Zod is the canonical schema
+// library for Tool inputs/outputs in v2; the registry duck-types
+// on `safeParse` so other libraries also work, but Zod is the
+// blessed choice.
+export { z } from "zod";
