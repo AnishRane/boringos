@@ -224,6 +224,91 @@ describe("v2 — module registry", () => {
     expect(skills.list()).toHaveLength(0);
   });
 
+  it("rejects registration when a non-optional concrete dep is missing", () => {
+    const tools = createToolRegistry();
+    const skills = createSkillRegistry();
+    const modules = createModuleRegistry({ tools, skills });
+
+    expect(() =>
+      modules.register({
+        id: "a",
+        name: "A",
+        version: "0.1.0",
+        description: "depends on B",
+        dependsOn: [{ moduleId: "b" }],
+      }),
+    ).toThrow(/requires "b"/);
+  });
+
+  it("allows registration when a concrete dep is registered first", () => {
+    const tools = createToolRegistry();
+    const skills = createSkillRegistry();
+    const modules = createModuleRegistry({ tools, skills });
+
+    modules.register({ id: "b", name: "B", version: "0.1.0", description: "..." });
+    modules.register({
+      id: "a",
+      name: "A",
+      version: "0.1.0",
+      description: "...",
+      dependsOn: [{ moduleId: "b" }],
+    });
+    expect(modules.list()).toHaveLength(2);
+  });
+
+  it("rejects registration when no module provides the required capability", () => {
+    const tools = createToolRegistry();
+    const skills = createSkillRegistry();
+    const modules = createModuleRegistry({ tools, skills });
+
+    expect(() =>
+      modules.register({
+        id: "consumer",
+        name: "Consumer",
+        version: "0.1.0",
+        description: "needs email-send",
+        dependsOn: [{ capability: "email-send" }],
+      }),
+    ).toThrow(/email-send/);
+  });
+
+  it("resolves capability deps when a provider is registered first", () => {
+    const tools = createToolRegistry();
+    const skills = createSkillRegistry();
+    const modules = createModuleRegistry({ tools, skills });
+
+    modules.register({
+      id: "smtp",
+      name: "SMTP",
+      version: "0.1.0",
+      description: "...",
+      provides: ["email-send"],
+    });
+    modules.register({
+      id: "consumer",
+      name: "Consumer",
+      version: "0.1.0",
+      description: "...",
+      dependsOn: [{ capability: "email-send" }],
+    });
+    expect(modules.list()).toHaveLength(2);
+  });
+
+  it("optional deps don't block registration when missing", () => {
+    const tools = createToolRegistry();
+    const skills = createSkillRegistry();
+    const modules = createModuleRegistry({ tools, skills });
+
+    modules.register({
+      id: "consumer",
+      name: "Consumer",
+      version: "0.1.0",
+      description: "...",
+      dependsOn: [{ capability: "email-send", optional: true }],
+    });
+    expect(modules.list()).toHaveLength(1);
+  });
+
   it("ignores string-form skill refs in Phase 1 (file loading is Phase 3)", () => {
     const tools = createToolRegistry();
     const skills = createSkillRegistry();

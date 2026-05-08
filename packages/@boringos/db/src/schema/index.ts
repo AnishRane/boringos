@@ -33,3 +33,4 @@ export {
   hebbsCrmDeals,
   hebbsCrmActivities,
 } from "./v2-crm.js";
+export { moduleInstalls } from "./module-installs.js";

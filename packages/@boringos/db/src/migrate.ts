@@ -733,5 +733,22 @@ async function ensureSchema(db: Db): Promise<void> {
     );
     CREATE INDEX IF NOT EXISTS hebbs_crm__activities_tenant_entity_idx
       ON hebbs_crm__activities(tenant_id, entity_kind, entity_id);
+
+    -- v2 module install state. One row per (tenant, module). The
+    -- framework registry knows which modules the host has imported;
+    -- this table records which of those a given tenant has actually
+    -- installed (via the admin UI or auto-install at signup).
+    -- Phase 9 of task_12.
+    CREATE TABLE IF NOT EXISTS module_installs (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+      module_id TEXT NOT NULL,
+      version TEXT NOT NULL,
+      config JSONB NOT NULL DEFAULT '{}'::jsonb,
+      installed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS module_installs_tenant_module_idx
+      ON module_installs(tenant_id, module_id);
   `);
 }

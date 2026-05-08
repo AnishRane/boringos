@@ -44,6 +44,37 @@ export function createModuleRegistry(deps: ModuleRegistryDeps): ModuleRegistry {
             "be unique within a host process.",
         );
       }
+
+      // Phase 9 capability resolution — validate dependencies
+      // before accepting the registration. We check against
+      // already-registered modules; that means dependents must
+      // be registered AFTER their concrete deps. Capability deps
+      // are looser (any provider satisfies them), so order
+      // matters less but the check is still in registration
+      // order.
+      for (const dep of mod.dependsOn ?? []) {
+        if (dep.optional) continue;
+        if ("moduleId" in dep) {
+          if (!modules.has(dep.moduleId)) {
+            throw new Error(
+              `Module "${mod.id}" requires "${dep.moduleId}", but that ` +
+                "module isn't registered. Register dependencies first.",
+            );
+          }
+        } else {
+          const providers = Array.from(modules.values()).filter((m) =>
+            (m.provides ?? []).includes(dep.capability),
+          );
+          if (providers.length === 0) {
+            throw new Error(
+              `Module "${mod.id}" requires capability "${dep.capability}", ` +
+                "but no registered module provides it. Register a provider first " +
+                "or mark the dependency as optional.",
+            );
+          }
+        }
+      }
+
       modules.set(mod.id, mod);
 
       for (const tool of mod.tools ?? []) {
