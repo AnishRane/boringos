@@ -752,11 +752,18 @@ export class BoringOS {
       if (event.result.exitCode === 0) {
         try {
           const { sql } = await import("drizzle-orm");
+          // Skip the task we just finished. If it's still `todo`, the
+          // agent didn't make progress — re-waking on it just loops
+          // (BOS-003 hit this with 275 wakes in 23 min). The next
+          // external trigger (user comment, routine, assign) picks it
+          // up. Other todos for the agent still drain normally.
+          const justFinishedTaskId = event.taskId ?? "";
           const nextTaskRows = await dbConn.db.execute(sql`
             SELECT id FROM tasks
             WHERE assignee_agent_id = ${event.agentId}
               AND tenant_id = ${event.tenantId}
               AND status = 'todo'
+              AND id <> ${justFinishedTaskId}::uuid
             ORDER BY created_at ASC
             LIMIT 1
           `);
