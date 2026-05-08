@@ -60,6 +60,7 @@ import type {
 } from "./types.js";
 import { createCallbackRoutes } from "./routes.js";
 import { createV2Routes } from "./v2-routes.js";
+import { createV2AdminRoutes } from "./v2-admin-routes.js";
 import {
   createToolRegistry,
   createSkillRegistry,
@@ -725,9 +726,10 @@ export class BoringOS {
     const callbackApp = createCallbackRoutes(dbConn.db, agentEngine, jwtSecret);
     app.route("/api/agent", callbackApp);
 
-    // v2 — mount the unified dispatch endpoint when modules are
-    // present. The registries themselves were built earlier (step 5)
-    // so the context pipeline could add the v2 providers.
+    // v2 — mount the unified dispatch endpoint + admin views when
+    // modules are present. The registries themselves were built
+    // earlier (step 5) so the context pipeline could add the v2
+    // providers.
     if (v2HasModules) {
       const v2App = createV2Routes({
         db: dbConn.db,
@@ -735,6 +737,15 @@ export class BoringOS {
         jwtSecret,
       });
       app.route("/api/tools", v2App);
+
+      const v2AdminApp = createV2AdminRoutes({
+        db: dbConn.db,
+        toolRegistry: v2ToolRegistry,
+        skillRegistry: v2SkillRegistry,
+        modules: v2BoundModules,
+        resolveTenantId: (req) => req.headers.get("x-tenant-id"),
+      });
+      app.route("/api/admin/v2", v2AdminApp);
     }
 
     // Connector routes
