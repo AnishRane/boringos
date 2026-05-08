@@ -24,6 +24,7 @@ export { createDriveModule } from "./v2-modules/drive.js";
 export { createWorkflowModule } from "./v2-modules/workflow.js";
 export { createInboxModule } from "./v2-modules/inbox.js";
 export { createSlackModule } from "./v2-modules/slack.js";
+export { createGoogleModule } from "./v2-modules/google.js";
 
 // Re-export key types from sub-packages for convenience
 export type { MemoryProvider } from "@boringos/memory";

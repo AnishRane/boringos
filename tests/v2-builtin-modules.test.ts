@@ -18,6 +18,7 @@ describe("v2 — built-in modules", () => {
       createWorkflowModule,
       createInboxModule,
       createSlackModule,
+      createGoogleModule,
     } = await import("@boringos/core");
     const { signCallbackToken } = await import("@boringos/agent");
     const { mkdtemp } = await import("node:fs/promises");
@@ -38,6 +39,7 @@ describe("v2 — built-in modules", () => {
     app.module(createWorkflowModule);
     app.module(createInboxModule);
     app.module(createSlackModule);
+    app.module(createGoogleModule);
 
     const server = await app.listen(0);
     try {
@@ -122,6 +124,18 @@ describe("v2 — built-in modules", () => {
       const slackBody = await slackOut.json() as { ok: boolean; error?: { code: string } };
       expect(slackBody.ok).toBe(false);
       expect(slackBody.error?.code).toBe("permission_denied");
+
+      // gmail.list_emails without google connector creds: graceful
+      // permission_denied — same shape as slack above.
+      const gmailOut = await fetch(`${server.url}/api/tools/google.gmail.list_emails`, {
+        method: "POST",
+        headers: auth,
+        body: JSON.stringify({ maxResults: 5 }),
+      });
+      expect(gmailOut.status).toBe(200);
+      const gmailBody = await gmailOut.json() as { ok: boolean; error?: { code: string } };
+      expect(gmailBody.ok).toBe(false);
+      expect(gmailBody.error?.code).toBe("permission_denied");
 
       // memory.remember when no provider configured: graceful error.
       const memOut = await fetch(`${server.url}/api/tools/memory.remember`, {
