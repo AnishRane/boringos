@@ -27,6 +27,7 @@ export { createSlackModule } from "./v2-modules/slack.js";
 export { createGoogleModule } from "./v2-modules/google.js";
 export { createHebbsCrmModule } from "./v2-modules/hebbs-crm.js";
 export { createCopilotModule } from "./v2-modules/copilot.js";
+export { createTriageModule } from "./v2-modules/triage.js";
 
 // Re-export key types from sub-packages for convenience
 export type { MemoryProvider } from "@boringos/memory";
