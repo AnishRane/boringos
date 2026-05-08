@@ -12,6 +12,7 @@ import { eq, and } from "drizzle-orm";
 import type { Db } from "@boringos/db";
 import { connectors } from "@boringos/db";
 import { GmailClient, CalendarClient } from "@boringos/connector-google";
+import { refreshOAuthToken } from "@boringos/connector";
 import { z } from "@boringos/module-sdk";
 import type {
   Module,
@@ -60,13 +61,18 @@ interface CredsRow {
 async function loadGoogleCreds(
   db: Db,
   tenantId: string,
-): Promise<{ accessToken: string; refreshToken?: string } | null> {
+): Promise<{
+  rowId: string;
+  rawCredentials: Record<string, unknown>;
+  accessToken: string;
+  refreshToken?: string;
+} | null> {
   const rows = await db
-    .select({ credentials: connectors.credentials, config: connectors.config })
+    .select({ id: connectors.id, credentials: connectors.credentials, config: connectors.config })
     .from(connectors)
     .where(and(eq(connectors.tenantId, tenantId), eq(connectors.kind, "google")))
     .limit(1);
-  const row = rows[0] as CredsRow | undefined;
+  const row = rows[0] as (CredsRow & { id: string }) | undefined;
   if (!row || !row.credentials) return null;
   const accessToken = row.credentials.accessToken;
   if (typeof accessToken !== "string") return null;
@@ -74,7 +80,53 @@ async function loadGoogleCreds(
     typeof row.credentials.refreshToken === "string"
       ? row.credentials.refreshToken
       : undefined;
-  return { accessToken, refreshToken };
+  return { rowId: row.id, rawCredentials: row.credentials, accessToken, refreshToken };
+}
+
+/**
+ * Run a Gmail / Calendar action with OAuth refresh-and-retry.
+ *
+ * Access tokens last ~1 hour; without this every call past the
+ * first hour 401s and the user has to reconnect manually. v1's
+ * connector-routes does the same dance — we share
+ * `refreshOAuthToken` so both stay in sync.
+ */
+async function runWithRefresh(
+  db: Db,
+  tenantId: string,
+  toolName: string,
+  invokeOnce: (token: string) => Promise<{ success: boolean; data?: unknown; error?: string }>,
+): Promise<ToolResult> {
+  const creds = await loadGoogleCreds(db, tenantId);
+  if (!creds) return denyOnNoCreds(toolName);
+
+  let result = await invokeOnce(creds.accessToken);
+
+  const looks401 =
+    !result.success &&
+    typeof result.error === "string" &&
+    /\b401\b/.test(result.error);
+
+  if (looks401 && creds.refreshToken) {
+    const refreshed = await refreshOAuthToken("google", creds.refreshToken);
+    if (refreshed) {
+      await db
+        .update(connectors)
+        .set({
+          credentials: {
+            ...creds.rawCredentials,
+            accessToken: refreshed.accessToken,
+            expiresAt: refreshed.expiresAt,
+          },
+          updatedAt: new Date(),
+        })
+        .where(eq(connectors.id, creds.rowId))
+        .catch(() => {});
+      result = await invokeOnce(refreshed.accessToken);
+    }
+  }
+
+  return wrapClientResult(result);
 }
 
 function denyOnNoCreds(toolName: string): ToolResult {
@@ -105,24 +157,26 @@ function wrapClientResult(result: { success: boolean; data?: unknown; error?: st
 export const createGoogleModule: ModuleFactory = (deps) => {
   const db = deps.db as Db;
 
-  const withGmail = async (
+  const withGmail = (
     ctx: ToolContext,
-    fn: (client: GmailClient) => Promise<ToolResult>,
+    invoke: (client: GmailClient) => Promise<{ success: boolean; data?: unknown; error?: string }>,
     toolName: string,
-  ): Promise<ToolResult> => {
-    const creds = await loadGoogleCreds(db, ctx.tenantId);
-    if (!creds) return denyOnNoCreds(toolName);
-    return fn(new GmailClient(creds as Record<string, unknown> as never));
-  };
-  const withCalendar = async (
+  ): Promise<ToolResult> =>
+    runWithRefresh(db, ctx.tenantId, toolName, (token) =>
+      // GmailClient + CalendarClient take the access-token string
+      // directly (not a credentials object). v1 routes use the
+      // same constructor.
+      invoke(new GmailClient(token)),
+    );
+
+  const withCalendar = (
     ctx: ToolContext,
-    fn: (client: CalendarClient) => Promise<ToolResult>,
+    invoke: (client: CalendarClient) => Promise<{ success: boolean; data?: unknown; error?: string }>,
     toolName: string,
-  ): Promise<ToolResult> => {
-    const creds = await loadGoogleCreds(db, ctx.tenantId);
-    if (!creds) return denyOnNoCreds(toolName);
-    return fn(new CalendarClient(creds as Record<string, unknown> as never));
-  };
+  ): Promise<ToolResult> =>
+    runWithRefresh(db, ctx.tenantId, toolName, (token) =>
+      invoke(new CalendarClient(token)),
+    );
 
   // ── Gmail ──────────────────────────────────────────────────
 
@@ -136,10 +190,7 @@ export const createGoogleModule: ModuleFactory = (deps) => {
     async handler(input: { query?: string; maxResults?: number }, ctx) {
       return withGmail(
         ctx,
-        async (client) => {
-          const result = await client.executeAction("list_emails", input);
-          return wrapClientResult(result);
-        },
+        async (client) => client.executeAction("list_emails", input),
         "gmail.list_emails",
       );
     },
@@ -152,7 +203,7 @@ export const createGoogleModule: ModuleFactory = (deps) => {
     async handler(input: { messageId: string }, ctx) {
       return withGmail(
         ctx,
-        async (client) => wrapClientResult(await client.executeAction("read_email", input)),
+        async (client) => client.executeAction("read_email", input),
         "gmail.read_email",
       );
     },
@@ -169,7 +220,7 @@ export const createGoogleModule: ModuleFactory = (deps) => {
     async handler(input: { to: string; subject: string; body: string }, ctx) {
       return withGmail(
         ctx,
-        async (client) => wrapClientResult(await client.executeAction("send_email", input)),
+        async (client) => client.executeAction("send_email", input),
         "gmail.send_email",
       );
     },
@@ -185,7 +236,7 @@ export const createGoogleModule: ModuleFactory = (deps) => {
     async handler(input: { query: string; maxResults?: number }, ctx) {
       return withGmail(
         ctx,
-        async (client) => wrapClientResult(await client.executeAction("search_emails", input)),
+        async (client) => client.executeAction("search_emails", input),
         "gmail.search_emails",
       );
     },
@@ -207,7 +258,7 @@ export const createGoogleModule: ModuleFactory = (deps) => {
     ) {
       return withCalendar(
         ctx,
-        async (client) => wrapClientResult(await client.executeAction("list_events", input)),
+        async (client) => client.executeAction("list_events", input),
         "calendar.list_events",
       );
     },
@@ -237,7 +288,7 @@ export const createGoogleModule: ModuleFactory = (deps) => {
     ) {
       return withCalendar(
         ctx,
-        async (client) => wrapClientResult(await client.executeAction("create_event", input)),
+        async (client) => client.executeAction("create_event", input),
         "calendar.create_event",
       );
     },
@@ -265,7 +316,7 @@ export const createGoogleModule: ModuleFactory = (deps) => {
     ) {
       return withCalendar(
         ctx,
-        async (client) => wrapClientResult(await client.executeAction("update_event", input)),
+        async (client) => client.executeAction("update_event", input),
         "calendar.update_event",
       );
     },
@@ -285,7 +336,7 @@ export const createGoogleModule: ModuleFactory = (deps) => {
     ) {
       return withCalendar(
         ctx,
-        async (client) => wrapClientResult(await client.executeAction("find_free_slots", input)),
+        async (client) => client.executeAction("find_free_slots", input),
         "calendar.find_free_slots",
       );
     },
