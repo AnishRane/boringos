@@ -750,5 +750,19 @@ async function ensureSchema(db: Db): Promise<void> {
     );
     CREATE UNIQUE INDEX IF NOT EXISTS module_installs_tenant_module_idx
       ON module_installs(tenant_id, module_id);
+
+    -- v2 module-shipped schema migrations applied per-tenant.
+    -- Tracks which Module.schema[].id has been applied for which
+    -- (tenant, module). Enables idempotent re-install + clean
+    -- rollback at uninstall. Chunk C of the final session.
+    CREATE TABLE IF NOT EXISTS module_migrations (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+      module_id TEXT NOT NULL,
+      migration_id TEXT NOT NULL,
+      applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS module_migrations_uniq_idx
+      ON module_migrations(tenant_id, module_id, migration_id);
   `);
 }

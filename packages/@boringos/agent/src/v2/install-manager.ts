@@ -18,8 +18,17 @@
 
 import { eq, and, sql } from "drizzle-orm";
 import type { Db } from "@boringos/db";
-import { tenants as tenantsTable, moduleInstalls } from "@boringos/db";
-import type { Module, ModuleContext, ModuleDb } from "@boringos/module-sdk";
+import {
+  tenants as tenantsTable,
+  moduleInstalls,
+  moduleMigrations,
+} from "@boringos/db";
+import type {
+  Migration,
+  Module,
+  ModuleContext,
+  ModuleDb,
+} from "@boringos/module-sdk";
 
 export interface InstallManager {
   /** Run at boot: ensure every existing tenant has install rows
@@ -103,6 +112,91 @@ export function createInstallManager(deps: InstallManagerDeps): InstallManager {
       });
   };
 
+  /**
+   * Apply pending Module.schema migrations for (tenant, module).
+   * Idempotent: skips migrations whose id is already in
+   * `module_migrations`. Records each applied id so a later
+   * uninstall can roll them back in reverse order.
+   *
+   * If a migration's `up()` throws, we rethrow — the caller
+   * decides whether to mark install as ok=false. Partial state
+   * is OK because the marker row is only written after up()
+   * succeeds.
+   */
+  const applyMigrations = async (mod: Module, tenantId: string): Promise<void> => {
+    const migrations = mod.schema ?? [];
+    if (migrations.length === 0) return;
+    const appliedRows = await deps.db
+      .select({ migrationId: moduleMigrations.migrationId })
+      .from(moduleMigrations)
+      .where(
+        and(
+          eq(moduleMigrations.tenantId, tenantId),
+          eq(moduleMigrations.moduleId, mod.id),
+        ),
+      );
+    const applied = new Set(appliedRows.map((r) => r.migrationId));
+    for (const migration of migrations) {
+      if (applied.has(migration.id)) continue;
+      await migration.up(moduleDb);
+      await deps.db.insert(moduleMigrations).values({
+        tenantId,
+        moduleId: mod.id,
+        migrationId: migration.id,
+      });
+    }
+  };
+
+  /**
+   * Roll back applied migrations for (tenant, module) in reverse
+   * order. Used at uninstall. Tolerates per-migration failures
+   * by logging and continuing — module data may be left in a
+   * partial state but the operator can drop the namespace
+   * tables manually.
+   */
+  const rollbackMigrations = async (mod: Module, tenantId: string): Promise<void> => {
+    const declared = mod.schema ?? [];
+    if (declared.length === 0) return;
+    const appliedRows = await deps.db
+      .select({ migrationId: moduleMigrations.migrationId })
+      .from(moduleMigrations)
+      .where(
+        and(
+          eq(moduleMigrations.tenantId, tenantId),
+          eq(moduleMigrations.moduleId, mod.id),
+        ),
+      );
+    const applied = new Set(appliedRows.map((r) => r.migrationId));
+    // Roll back in reverse declared order. Migrations not
+    // declared in the current Module manifest are skipped.
+    const toRollBack: Migration[] = [];
+    for (let i = declared.length - 1; i >= 0; i -= 1) {
+      const m = declared[i];
+      if (applied.has(m.id)) toRollBack.push(m);
+    }
+    for (const migration of toRollBack) {
+      try {
+        await migration.down(moduleDb);
+        await deps.db
+          .delete(moduleMigrations)
+          .where(
+            and(
+              eq(moduleMigrations.tenantId, tenantId),
+              eq(moduleMigrations.moduleId, mod.id),
+              eq(moduleMigrations.migrationId, migration.id),
+            ),
+          );
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.error(
+          `[v2-install-manager] rollback of ${mod.id}.${migration.id} failed for tenant ${tenantId}:`,
+          e,
+        );
+        // Keep going — best-effort cleanup.
+      }
+    }
+  };
+
   return {
     async backfill(modules) {
       const tenantRows = await deps.db
@@ -122,10 +216,19 @@ export function createInstallManager(deps: InstallManagerDeps): InstallManager {
         return { ok: false, hookError: `Unknown module ${moduleId}` };
       }
       let hookError: string | undefined;
+      // Migrations first so onInstall can rely on tables
+      // existing.
       try {
-        await mod.lifecycle?.onInstall?.(ctxFor(mod, tenantId));
+        await applyMigrations(mod, tenantId);
       } catch (e) {
-        hookError = e instanceof Error ? e.message : String(e);
+        hookError = `migration error: ${e instanceof Error ? e.message : String(e)}`;
+      }
+      if (!hookError) {
+        try {
+          await mod.lifecycle?.onInstall?.(ctxFor(mod, tenantId));
+        } catch (e) {
+          hookError = e instanceof Error ? e.message : String(e);
+        }
       }
       await writeInstallRow(mod, tenantId);
       return { ok: !hookError, hookError };
@@ -137,11 +240,16 @@ export function createInstallManager(deps: InstallManagerDeps): InstallManager {
         return { ok: false, hookError: `Unknown module ${moduleId}` };
       }
       let hookError: string | undefined;
+      // onUninstall first so the module can read its tables one
+      // last time before they're dropped.
       try {
         await mod.lifecycle?.onUninstall?.(ctxFor(mod, tenantId));
       } catch (e) {
         hookError = e instanceof Error ? e.message : String(e);
       }
+      // Roll back schema regardless of hook failure — leftover
+      // tables are worse than a missing hook side-effect.
+      await rollbackMigrations(mod, tenantId);
       await deps.db
         .delete(moduleInstalls)
         .where(
@@ -156,6 +264,15 @@ export function createInstallManager(deps: InstallManagerDeps): InstallManager {
     async onTenantCreated(tenantId) {
       for (const mod of deps.modules) {
         if (mod.defaultInstall === false) continue;
+        try {
+          await applyMigrations(mod, tenantId);
+        } catch (e) {
+          // eslint-disable-next-line no-console
+          console.error(
+            `[v2-install-manager] migration failed for ${mod.id} on new tenant ${tenantId}:`,
+            e,
+          );
+        }
         try {
           await mod.lifecycle?.onTenantCreate?.(ctxFor(mod, tenantId));
         } catch (e) {
