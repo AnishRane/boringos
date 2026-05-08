@@ -400,6 +400,7 @@ export class BoringOS {
       queue: resolvedQueue,
       apiCatalog,
       connectorRegistry,
+      v2Only: this.config.v2Only === true,
     });
 
     // 7. Build workflow engine
@@ -759,9 +760,24 @@ export class BoringOS {
     const deviceAuthApp = createDeviceAuthRoutes(dbConn.db);
     app.route("/api/auth/device", deviceAuthApp);
 
-    // Agent callback API
-    const callbackApp = createCallbackRoutes(dbConn.db, agentEngine, jwtSecret);
-    app.route("/api/agent", callbackApp);
+    // v2-only mode: when on, v1 HTTP surfaces are NOT mounted.
+    // The host MUST register at least one v2 module (typically
+    // createFrameworkModule) for the agent surface to exist —
+    // otherwise /api/tools/* serves only 404s.
+    const v2Only = this.config.v2Only === true;
+    if (v2Only && !v2HasModules) {
+      console.warn(
+        "[boringos] config.v2Only=true but no v2 modules are registered. " +
+          "Agents will have no callable surface. Register createFrameworkModule + " +
+          "any other modules you need via app.module(...).",
+      );
+    }
+
+    // Agent callback API (v1 — gated by v2-only flag)
+    if (!v2Only) {
+      const callbackApp = createCallbackRoutes(dbConn.db, agentEngine, jwtSecret);
+      app.route("/api/agent", callbackApp);
+    }
 
     // v2 — mount the unified dispatch endpoint + admin views when
     // modules are present. The registries themselves were built
@@ -795,7 +811,10 @@ export class BoringOS {
       app.route("/api/admin/v2", v2AdminApp);
     }
 
-    // Connector routes
+    // Connector routes (v1 actions surface — gated by v2-only flag).
+    // The OAuth + webhook pieces of /api/connectors stay mounted so
+    // OAuth flows and 3rd-party webhooks keep working — the gating
+    // is specifically the actions invocation paths.
     const connectorApp = createConnectorRoutes(dbConn.db, connectorRegistry, eventBus, actionRunner, jwtSecret, callbackUrl, {
       shellOrigin: this.config.shellOrigin,
     });
@@ -980,10 +999,15 @@ export class BoringOS {
       app.route(path, routeApp);
     }
 
-    // 10b. Copilot routes — multi-tenant (resolves tenant from session)
-    {
+    // 10b. Copilot routes — multi-tenant (resolves tenant from
+    // session). Gated by v2-only: when on, the browser shell must
+    // talk to /api/admin/tasks/* (creating tasks with originKind=
+    // "copilot") and use the copilot.start_session tool instead.
+    if (!v2Only) {
       const copilotApp = createCopilotRoutes(dbConn.db, agentEngine);
       app.route("/api/copilot", copilotApp);
+    }
+    {
 
       // Auto-create Chief of Staff and Copilot for existing first tenant (backward compat)
       const { tenants: tenantsTable, agents: agentsTable } = await import("@boringos/db");

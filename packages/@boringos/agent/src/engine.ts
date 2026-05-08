@@ -68,33 +68,57 @@ export interface AgentEngineConfig {
    * compound.
    */
   connectorRegistry?: ConnectorRegistry;
+  /**
+   * v2-only mode — when true, the v1 prompt providers (memory-
+   * skill, drive-skill, approvals-skill, chief-of-staff, protocol's
+   * curl block, api-catalog, connector-actions-catalog) are NOT
+   * registered. The agent's prompt comes from v2 SKILL providers +
+   * tool catalog instead.
+   *
+   * Per-run / per-agent providers (header, persona, hierarchy,
+   * tenant-guidelines, agent-instructions, session, task, comments,
+   * memory-context) remain registered — they're not v1-specific.
+   */
+  v2Only?: boolean;
 }
 
 function registerDefaultProviders(pipeline: ContextPipeline, config: AgentEngineConfig): void {
-  // System instruction providers
+  const v2Only = config.v2Only === true;
+
+  // System instruction providers — these stay in both modes
+  // because they inject per-agent / per-run state (org tree,
+  // role, tenant-level config) that v2 modules don't replicate.
   pipeline.add(headerProvider);
   pipeline.add(createHierarchyProvider({ db: config.db }));
   pipeline.add(personaProvider);
   pipeline.add(createTenantGuidelinesProvider({ db: config.db }));
-  pipeline.add(chiefOfStaffProvider);
-  pipeline.add(createDriveSkillProvider({ drive: config.drive }));
-  pipeline.add(memorySkillProvider);
   pipeline.add(agentInstructionsProvider);
-  pipeline.add(protocolProvider);
-  pipeline.add(approvalsSkillProvider);
-  if (config.connectorRegistry) {
-    pipeline.add(
-      createConnectorActionsCatalogProvider({
-        registry: config.connectorRegistry,
-        db: config.db,
-      }),
-    );
-  }
-  if (config.apiCatalog) {
-    pipeline.add(createApiCatalogProvider(config.apiCatalog));
+
+  // v1 prompt providers — gated by v2-only flag. In v2-only
+  // mode, the framework module's SKILL.md files (tool-protocol,
+  // approvals, when-stuck) cover this surface and the v2
+  // tool-catalog provider lists callables.
+  if (!v2Only) {
+    pipeline.add(chiefOfStaffProvider);
+    pipeline.add(createDriveSkillProvider({ drive: config.drive }));
+    pipeline.add(memorySkillProvider);
+    pipeline.add(protocolProvider);
+    pipeline.add(approvalsSkillProvider);
+    if (config.connectorRegistry) {
+      pipeline.add(
+        createConnectorActionsCatalogProvider({
+          registry: config.connectorRegistry,
+          db: config.db,
+        }),
+      );
+    }
+    if (config.apiCatalog) {
+      pipeline.add(createApiCatalogProvider(config.apiCatalog));
+    }
   }
 
-  // Context markdown providers
+  // Context markdown providers — per-run state, always
+  // registered regardless of mode.
   pipeline.add(sessionProvider);
   pipeline.add(createTaskProvider({ db: config.db }));
   pipeline.add(createCommentsProvider({ db: config.db }));
