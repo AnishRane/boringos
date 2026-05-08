@@ -344,18 +344,42 @@ function makeCreateAgent(db: Db): Tool {
       name: z.string(),
       role: z.string().optional(),
       instructions: z.string().optional(),
+      /**
+       * Optional manager. Defaults to the calling agent's id —
+       * the new agent reports to whoever spawned it. Required
+       * unless the tenant has no agents yet (the schema enforces
+       * "one root per tenant" via a partial unique index on
+       * `(tenant_id) WHERE reports_to IS NULL`).
+       */
+      reportsTo: z.string().uuid().optional(),
     }),
     async handler(
-      input: { name: string; role?: string; instructions?: string },
+      input: { name: string; role?: string; instructions?: string; reportsTo?: string },
       ctx: ToolContext,
     ): Promise<ToolResult> {
       const id = generateId();
+      // If no reportsTo was provided, default to the caller. If
+      // there's no caller (rare — internal invocations), find the
+      // tenant's root and report to it. If the tenant is empty,
+      // this agent becomes the root.
+      let reportsTo = input.reportsTo;
+      if (!reportsTo && ctx.agentId) {
+        reportsTo = ctx.agentId;
+      } else if (!reportsTo) {
+        const rootRows = await db
+          .select({ id: agents.id })
+          .from(agents)
+          .where(eq(agents.tenantId, ctx.tenantId))
+          .limit(1);
+        reportsTo = rootRows[0]?.id;
+      }
       await db.insert(agents).values({
         id,
         tenantId: ctx.tenantId,
         name: input.name,
         role: input.role ?? "general",
         instructions: input.instructions,
+        reportsTo,
       });
       return { ok: true, result: { id } };
     },
