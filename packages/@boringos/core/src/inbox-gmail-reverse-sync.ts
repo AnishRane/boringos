@@ -25,18 +25,43 @@
 import { sql } from "drizzle-orm";
 import type { Db } from "@boringos/db";
 import { GmailClient } from "@boringos/connector-google";
+import { refreshOAuthToken } from "./oauth.js";
 
-// v1's `ActionRunner.execute()` is replaced with a tiny local
-// helper that constructs a fresh GmailClient per call. Same HTTP
-// path, no v1 framework.
 interface SimpleResult { success: boolean; data?: unknown; error?: string; }
+
+// Run a Gmail action with OAuth refresh-and-retry. Mirror of the
+// pattern in v2-modules/google.ts and inbox-gmail-sync.ts.
 async function runGmail(
-  row: { credentials: Record<string, unknown> | null },
+  db: Db,
+  row: { id: string; credentials: Record<string, unknown> | null },
   action: string,
   inputs: Record<string, unknown>,
 ): Promise<SimpleResult> {
   const access = (row.credentials?.accessToken as string | undefined) ?? "";
-  return new GmailClient(access).executeAction(action, inputs);
+  const refresh = row.credentials?.refreshToken as string | undefined;
+  let result = await new GmailClient(access).executeAction(action, inputs);
+  const looks401 =
+    !result.success && typeof result.error === "string" && /\b401\b/.test(result.error);
+  if (looks401 && refresh) {
+    const refreshed = await refreshOAuthToken("google", refresh);
+    if (refreshed) {
+      const nextCreds: Record<string, unknown> = {
+        ...(row.credentials ?? {}),
+        accessToken: refreshed.accessToken,
+      };
+      if (refreshed.expiresAt) nextCreds.expiresAt = refreshed.expiresAt;
+      await db.execute(sql`
+        UPDATE connectors
+           SET credentials = ${JSON.stringify(nextCreds)}::jsonb,
+               updated_at  = now()
+         WHERE id = ${row.id}
+      `).catch(() => {});
+      // Mutate in place so subsequent calls in this tick reuse the fresh token.
+      row.credentials = nextCreds;
+      result = await new GmailClient(refreshed.accessToken).executeAction(action, inputs);
+    }
+  }
+  return result;
 }
 
 const KIND_GMAIL = "google";
@@ -149,7 +174,7 @@ async function seedHistoryId(
   `);
   const gmailId = (result as unknown as Array<{ gmail_id: string }>)[0]?.gmail_id;
   if (!gmailId) return null;
-  const r = await runGmail(row, "read_email", { messageId: gmailId });
+  const r = await runGmail(db, row, "read_email", { messageId: gmailId });
   if (!r.success) return null;
   const historyId = (r.data as { historyId?: string } | undefined)?.historyId;
   return typeof historyId === "string" ? historyId : null;
@@ -189,7 +214,7 @@ export function createInboxGmailReverseSyncTicker(
           continue;
         }
 
-        const result = await runGmail(row, "list_history", { startHistoryId: historyId });
+        const result = await runGmail(db, row, "list_history", { startHistoryId: historyId });
 
         if (!result.success) {
           // 404-equivalent (cursor too old): re-seed from current state.
