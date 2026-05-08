@@ -72,7 +72,7 @@ import type {
   SkillRegistry as V2SkillRegistry,
   ModuleRegistry as V2ModuleRegistry,
 } from "@boringos/agent";
-import type { Module } from "@boringos/module-sdk";
+import type { Module, ModuleFactory } from "@boringos/module-sdk";
 import { createConnectorRoutes } from "./connector-routes.js";
 import { createAdminRoutes } from "./admin-routes.js";
 import { createRealtimeBus } from "./realtime.js";
@@ -123,7 +123,15 @@ export class BoringOS {
   // Populated via `app.module(myModule)`. The boot sequence skips
   // mounting the v2 routes when this is empty, so v1 deployments
   // are unaffected.
-  private v2Modules: Module[] = [];
+  //
+  // Two registration shapes:
+  //   - inline `Module` — the manifest is plain data (typical for
+  //     connector / capability modules built without DB access)
+  //   - `ModuleFactory` — a function that receives framework
+  //     services after boot and returns a `Module`. Used by
+  //     built-ins (framework / memory / inbox / copilot / etc.)
+  //     and by hybrid modules that own their own schema.
+  private v2Modules: Array<Module | ModuleFactory> = [];
 
   constructor(config: BoringOSConfig = {}) {
     this.config = config;
@@ -242,7 +250,7 @@ export class BoringOS {
    * if at least one Module is registered, so v1-only hosts boot
    * exactly as before.
    */
-  module(mod: Module): this {
+  module(mod: Module | ModuleFactory): this {
     this.v2Modules.push(mod);
     return this;
   }
@@ -292,10 +300,19 @@ export class BoringOS {
       tools: v2ToolRegistry,
       skills: v2SkillRegistry,
     });
-    for (const mod of this.v2Modules) {
+    // ModuleFactory functions are resolved here, after the DB +
+    // (eventually) the agent engine are available. The factory
+    // pattern lets built-ins close over framework services
+    // without leaking those types into the SDK's Module shape.
+    const v2BoundModules: Module[] = [];
+    for (const entry of this.v2Modules) {
+      const mod = typeof entry === "function"
+        ? entry({ db: dbConn.db })
+        : entry;
       v2ModuleRegistry.register(mod);
+      v2BoundModules.push(mod);
     }
-    const v2HasModules = this.v2Modules.length > 0;
+    const v2HasModules = v2BoundModules.length > 0;
 
     // 6. Build context pipeline
     const pipeline = new ContextPipeline();

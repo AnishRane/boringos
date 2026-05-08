@@ -104,7 +104,15 @@ export interface Tool<TInput = unknown, TOutput = unknown> {
   inputs: SchemaLike<TInput>;
   /** Optional output schema. */
   output?: SchemaLike<TOutput>;
-  handler: (inputs: TInput, ctx: ToolContext) => Promise<ToolResult<TOutput>>;
+  /**
+   * Method-shorthand declaration so TypeScript treats the
+   * parameter types bivariantly. Without this, a handler typed
+   * `(input: { foo: string }) => ...` cannot be assigned to a
+   * `Tool<unknown>` slot — even though at runtime the dispatcher
+   * always passes a Zod-validated value matching the schema.
+   * Method shorthand is the standard escape hatch.
+   */
+  handler(inputs: TInput, ctx: ToolContext): Promise<ToolResult<TOutput>>;
   /** Roles that may call this tool. Empty/undefined = open within tenant. */
   permissions?: string[];
   /** Idempotency mode. "key" requires `Idempotency-Key` header. */
@@ -349,6 +357,25 @@ export interface ModuleContext {
   moduleId: string;
   db: ModuleDb;
 }
+
+/**
+ * Framework services injected into a `ModuleFactory` at boot.
+ *
+ * Inline `Module` manifests are plain data — but built-in modules
+ * (framework / memory / inbox / copilot) and hybrid modules
+ * (CRM, support desk, …) need to close over framework services
+ * (DB handle, eventually agent engine, etc.) at boot time. They
+ * register a factory function instead of a manifest, and the
+ * framework calls the factory after services are available.
+ *
+ * Typed loosely so the SDK doesn't take a Drizzle dep — host
+ * narrows to its own concrete types.
+ */
+export interface ModuleFactoryDeps {
+  db: unknown;
+}
+
+export type ModuleFactory = (deps: ModuleFactoryDeps) => Module;
 
 /**
  * `dependsOn` entry. Either concrete (specific module id) or
