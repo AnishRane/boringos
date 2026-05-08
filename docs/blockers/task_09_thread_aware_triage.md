@@ -100,41 +100,59 @@ A `superseded` item:
   Phase A6 / Inbox D-batch — needs the query updated to include
   `superseded` rows for the selected thread)
 
-### C. Triage agent sees the thread, not just the message
+### C. Teach the agent how a threaded body is structured
 
-When the workflow fires for an inbox item that's part of an
-existing thread (thread has > 1 message), include a brief
-summary of the prior messages in the task description so the
-agent triages the conversation, not the latest delta.
-
-Format the task description like:
+Gmail already gives us the thread inline. When you fetch a
+reply via `messages.get`, the body contains:
 
 ```
-inbox-item-id: <uuid>
-source: google.gmail
-from: <latest sender>
-subject: <subject>
-thread-length: 3
----
-[Latest message body — verbatim]
+[New content from the latest sender — top of body]
 
---- Prior messages in this thread (oldest → newest) ---
-
-From <sender>, <date>:
-<body, summarized to 500 chars max>
-
-From <sender>, <date>:
-<body, summarized to 500 chars max>
+On Mon, May 5, 2026, X wrote:
+> [Prior message they're replying to]
+>
+> > [The message before that]
+> >
+> > [And so on, deeper quote levels for older messages]
 ```
 
-The agent should classify based on the **conversation state**,
-not just the new chunk. Notably:
+That's standard email quoting (`> ` per level). The latest
+content is at the top; the conversation history is quoted
+below in reverse chronological depth. Most email clients format
+this consistently.
 
-- A reply that says *"thanks, looks good"* on a thread that
-  started with a $50K deal proposal is still a "reply" in the
-  CRM sense, not a generic ack — context matters
-- An auto-reply / out-of-office on an internal thread shouldn't
-  flip the whole thread to "newsletter"
+So the agent doesn't need a separate `threadSummary` block fed
+into its prompt — the body already carries the chain. What it
+DOES need is to be taught:
+
+1. **The new content is at the top.** Anything before the first
+   `On <date>, <name> wrote:` separator is what the latest
+   sender actually wrote. That's the message you're triaging.
+
+2. **Quoted lines (`>`) are context, not the subject of triage.**
+   Use them to understand the conversation — what was promised,
+   what was asked, what's pending — but don't classify based on
+   them. A "thanks, looks good" reply on a $50K deal thread is
+   still about the deal; the quoted deal context tells you that.
+
+3. **If you see a prior message of this thread also in the
+   inbox, it's outdated.** The framework marks earlier messages
+   as `superseded` when a new one lands. Triage only the latest
+   row per thread. (Today the workflow only wakes triage for the
+   new row, so this is automatic — but the instruction is
+   defensive in case the agent ever gets multiple by accident.)
+
+4. **Edge case: when the body lacks quoted history** (iPhone
+   "Sent from my iPhone" with nothing below, terse one-word
+   replies that strip the quote): you may not have full thread
+   context. In that case, classify based on what's there and
+   note the limitation in your `rationale`. We can add a
+   `fetch_thread` capability later if this becomes a problem.
+
+This lives in the triage skill markdown (`apps/generic-triage/
+skills/triage.md` or the agent's `instructions` field). No
+workflow / event-payload changes needed — the message body
+already has what the agent needs.
 
 ## Implementation outline
 
@@ -203,34 +221,26 @@ admin `GET /inbox` endpoint:
   user sees the full conversation history). Server-side: add a
   `?threadId=X` query param to `GET /inbox`.
 
-### Step 4 — Thread-aware triage task description
+### Step 4 — Update the triage agent's instructions
 
-`apps/generic-triage/src/workflows/triage-on-inbox.ts`:
+This is the only "C" step that ships. No workflow / event-payload
+changes needed — the latest message's body already contains the
+quoted chain that Gmail's clients produce.
 
-The current `create-task` block uses
-`{{trigger.body}}` and `{{trigger.from}}` — fields the
-`inbox.item_created` event payload provides for ONE message.
+`apps/generic-triage/src/agents/triage.ts`'s `instructions` field
+gets a new section explaining how to read a threaded body:
 
-To include thread context, the workflow needs access to all
-items in the thread. Two options:
-
-- **Easy:** add a new workflow block `fetch-thread` that takes
-  `threadId` and queries `inbox_items` for prior messages,
-  returning a synthesized thread summary string. Feed that into
-  the triage task description.
-- **Easier still:** have `create-inbox-item` enrich the emitted
-  event with a `threadSummary` field built from the same
-  `UPDATE` query in step 2. Triage workflow templates
-  `{{trigger.threadSummary}}`.
-
-Recommend the second — single block change, no new handler.
-
-### Step 5 — Update the triage agent's instructions
-
-`apps/generic-triage/src/agents/triage.ts`'s `instructions`
-field already says "read the email body inline." Append a
-section telling it to read the thread summary if present and
-classify the conversation, not the new message.
+- The new content is at the top, before the first
+  `On <date>, <name> wrote:` separator
+- Lines starting with `>` are quoted history — context, not
+  triage subject
+- Classify the conversation as a whole, using quoted history to
+  understand what's pending, but anchored on the new content
+- If a prior thread item is also in the inbox, it'll be marked
+  `superseded` by the framework — triage only the latest row
+- If the body lacks quoted context (iPhone "Sent from my iPhone"
+  with no `>` lines), classify on what's there and note the
+  limitation in `rationale`
 
 ## Schema impact
 
@@ -244,13 +254,12 @@ classify the conversation, not the new message.
 ## Files in scope
 
 - `packages/@boringos/connector-google/src/default-workflows.ts` — sync query
-- `packages/@boringos/workflow/src/handlers/create-inbox-item.ts` — supersede + emit threadSummary
-- `packages/@boringos/db/src/schema/inbox.ts` — comment update
+- `packages/@boringos/workflow/src/handlers/create-inbox-item.ts` — supersede same-thread rows on insert
+- `packages/@boringos/db/src/schema/inbox.ts` — comment update (status text now includes `superseded`)
 - `packages/@boringos/core/src/admin-routes.ts` — `GET /inbox?threadId=` for the detail pane
 - `packages/@boringos/shell/src/screens/Inbox/InboxDetail.tsx` — fetch full thread when detail opens
-- `apps/generic-triage/src/workflows/triage-on-inbox.ts` — task description includes thread summary
-- `apps/generic-triage/src/agents/triage.ts` — instructions mention thread context
-- `tests/phase23-thread-triage.test.ts` (new) — supersede correctness, exclusion of self-from, thread summary in agent prompt
+- `apps/generic-triage/src/agents/triage.ts` — instructions teach how to read a threaded body
+- `tests/phase23-thread-triage.test.ts` (new) — supersede correctness, exclusion of self-from
 
 ## Why this matters
 
@@ -269,10 +278,9 @@ agent layer needs to match.
 
 1. Sync query exclude `-from:me` — one line, ship today
 2. Supersede on ingest — server-side change, takes a re-test
-3. Inbox detail pane fetches by threadId — depends on #2
-4. Thread summary in triage task description — depends on #2
-5. Triage skill markdown update — touches no code paths
-6. Tests — last
+3. `GET /inbox?threadId=` + InboxDetail fetches by threadId — depends on #2
+4. Triage agent instructions teach threaded-body reading — touches no code paths
+5. Tests — last
 
 ## Open questions
 
