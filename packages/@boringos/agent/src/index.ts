@@ -62,6 +62,7 @@ export {
   createSkillsProvider,
   createToolCatalogProvider,
   createInstallManager,
+  createSettingRegistry,
 } from "./v2/index.js";
 export type {
   ToolRegistry,
@@ -79,4 +80,5 @@ export type {
   InstallManagerDeps,
   InstallResult,
   InstalledRow,
+  SettingRegistry,
 } from "./v2/index.js";

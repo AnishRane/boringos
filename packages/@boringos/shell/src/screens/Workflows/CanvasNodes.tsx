@@ -17,10 +17,10 @@ export interface BlockNodeData extends Record<string, unknown> {
 }
 
 const STATUS_DOT: Record<BlockRunStatus, string> = {
-  pending: "bg-slate-300",
+  pending: "bg-border",
   running: "bg-amber-400 animate-pulse",
   completed: "bg-emerald-500",
-  skipped: "bg-slate-300 opacity-50",
+  skipped: "bg-border opacity-50",
   failed: "bg-rose-500",
   waiting: "bg-violet-400",
 };
@@ -56,14 +56,14 @@ function NodeShell({
     <div
       className={`group relative w-[152px] rounded-md border bg-white shadow-sm transition-shadow ${
         selected
-          ? `border-slate-900 shadow-md ring-2 ${accent.ring}`
+          ? `border-accent shadow-md ring-2 ${accent.ring}`
           : status === "failed"
             ? "border-rose-300"
             : status === "completed"
               ? "border-emerald-200"
               : status === "running"
                 ? "border-amber-300"
-                : "border-slate-200 hover:border-slate-300"
+                : "border-border hover:border-border"
       }`}
     >
       {/* Left accent bar — category color */}
@@ -81,7 +81,7 @@ function NodeShell({
         <Handle
           type="target"
           position={Position.Left}
-          className="!w-1.5 !h-1.5 !min-w-0 !min-h-0 !-left-[3px] !bg-slate-300 !border-0"
+          className="!w-1.5 !h-1.5 !min-w-0 !min-h-0 !-left-[3px] !bg-border !border-0"
         />
       )}
 
@@ -93,7 +93,7 @@ function NodeShell({
         <Handle
           type="source"
           position={Position.Right}
-          className="!w-1.5 !h-1.5 !min-w-0 !min-h-0 !-right-[3px] !bg-slate-300 !border-0"
+          className="!w-1.5 !h-1.5 !min-w-0 !min-h-0 !-right-[3px] !bg-border !border-0"
         />
       )}
       {branched && (
@@ -117,7 +117,7 @@ function NodeShell({
 
       {/* Status footer (run mode only) */}
       {(status || durationMs) && (
-        <div className="absolute -bottom-4 left-3 flex items-center gap-1 text-[9px] text-slate-400 font-mono">
+        <div className="absolute -bottom-4 left-3 flex items-center gap-1 text-[9px] text-muted font-mono">
           <StatusDot status={status} />
           {durationMs !== null && durationMs !== undefined && <span>{formatDur(durationMs)}</span>}
         </div>
@@ -162,11 +162,11 @@ export function BlockNode({ data }: NodeProps<Node<BlockNodeData>>) {
         </span>
         {data.status && <span className="ml-auto"><StatusDot status={data.status} /></span>}
       </div>
-      <div className="text-[11px] font-medium text-slate-900 leading-tight truncate">
+      <div className="text-[11px] font-medium text-text leading-tight truncate">
         {label}
       </div>
       {sub && (
-        <div className="text-[9px] font-mono text-slate-400 leading-tight truncate mt-0.5">
+        <div className="text-[9px] font-mono text-muted leading-tight truncate mt-0.5">
           {sub}
         </div>
       )}

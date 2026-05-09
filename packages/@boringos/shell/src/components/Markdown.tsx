@@ -16,6 +16,7 @@
 import { useMemo } from "react";
 import DOMPurify from "dompurify";
 import { marked } from "marked";
+import { withDriveAuth } from "../screens/Drive/url.js";
 
 const ALLOWED_TAGS = [
   "a", "b", "blockquote", "br", "code", "del", "div", "em", "h1", "h2",
@@ -72,14 +73,14 @@ const PROSE_CLASS_BASE =
   "[&_ul]:list-disc [&_ul]:ml-5 [&_ul]:my-1.5 " +
   "[&_ol]:list-decimal [&_ol]:ml-5 [&_ol]:my-1.5 " +
   "[&_li]:my-0.5 " +
-  "[&_a]:text-blue-600 [&_a]:underline hover:[&_a]:text-blue-700 " +
-  "[&_code]:bg-slate-100 [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-[0.85em] [&_code]:font-mono " +
-  "[&_pre]:bg-slate-100 [&_pre]:p-2 [&_pre]:rounded-md [&_pre]:my-2 [&_pre]:overflow-x-auto " +
+  "[&_a]:text-accent [&_a]:underline hover:[&_a]:text-accent " +
+  "[&_code]:bg-bg-warm [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-[0.85em] [&_code]:font-mono " +
+  "[&_pre]:bg-bg-warm [&_pre]:p-2 [&_pre]:rounded-md [&_pre]:my-2 [&_pre]:overflow-x-auto " +
   "[&_pre>code]:bg-transparent [&_pre>code]:p-0 " +
-  "[&_blockquote]:border-l-2 [&_blockquote]:border-slate-200 [&_blockquote]:pl-3 [&_blockquote]:text-slate-600 [&_blockquote]:my-2 " +
-  "[&_hr]:border-slate-200 [&_hr]:my-3 " +
-  "[&_table]:my-2 [&_th]:border [&_th]:border-slate-200 [&_th]:px-2 [&_th]:py-1 [&_th]:bg-slate-50 [&_th]:font-medium " +
-  "[&_td]:border [&_td]:border-slate-200 [&_td]:px-2 [&_td]:py-1";
+  "[&_blockquote]:border-l-2 [&_blockquote]:border-border [&_blockquote]:pl-3 [&_blockquote]:text-muted-strong [&_blockquote]:my-2 " +
+  "[&_hr]:border-border [&_hr]:my-3 " +
+  "[&_table]:my-2 [&_th]:border [&_th]:border-border [&_th]:px-2 [&_th]:py-1 [&_th]:bg-bg [&_th]:font-medium " +
+  "[&_td]:border [&_td]:border-border [&_td]:px-2 [&_td]:py-1";
 
 const PROSE_CLASS_COMPACT =
   "[&_p]:my-1 [&_ul]:my-1 [&_ol]:my-1 [&_h1]:mt-1 [&_h1]:mb-1 [&_h2]:mt-1 [&_h2]:mb-1";
@@ -114,5 +115,14 @@ export function Markdown({ source, className, compact }: MarkdownProps) {
     '<a target="_blank" rel="noopener noreferrer" ',
   );
 
-  return <div className={cls} dangerouslySetInnerHTML={{ __html: hardened }} />;
+  // Drive-file URLs need the active session token appended so the
+  // browser's <img>/<a> requests authenticate. The agent embeds
+  // tokenless URLs (it doesn't know the user's token); we add the
+  // token here at render time.
+  const authed = hardened.replace(
+    /(src|href)="(\/api\/admin\/drive\/file\/[^"]*)"/g,
+    (_m, attr: string, url: string) => `${attr}="${withDriveAuth(url)}"`,
+  );
+
+  return <div className={cls} dangerouslySetInnerHTML={{ __html: authed }} />;
 }

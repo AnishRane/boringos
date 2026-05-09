@@ -89,13 +89,13 @@ export function Copilot() {
       <ScreenHeader title="Copilot" subtitle="Threaded conversations with your copilot agent" />
       <div className="flex-1 flex overflow-hidden">
         {/* Sidebar: thread list */}
-        <nav className="w-64 border-r border-slate-100 overflow-y-auto shrink-0 flex flex-col">
+        <nav className="w-64 border-r border-border-subtle overflow-y-auto shrink-0 flex flex-col">
           <NewSessionButton
             disabled={!copilotAgent}
             onCreated={(taskId) => setActiveId(taskId)}
           />
           {copilotTasks.length === 0 ? (
-            <div className="px-3 py-4 text-xs text-slate-500">
+            <div className="px-3 py-4 text-xs text-muted">
               No conversations yet. Click "New session" to start.
             </div>
           ) : (
@@ -107,12 +107,12 @@ export function Copilot() {
                     onClick={() => setActiveId(t.id)}
                     className={`block w-full text-left px-3 py-2 text-sm transition-colors border-l-2 ${
                       activeId === t.id
-                        ? "bg-slate-100 text-slate-900 border-slate-900 font-medium"
-                        : "text-slate-700 hover:bg-slate-50 border-transparent"
+                        ? "bg-bg-warm text-text border-accent font-medium"
+                        : "text-text-secondary hover:bg-bg border-transparent"
                     }`}
                   >
                     <div className="truncate">{t.title || "(untitled)"}</div>
-                    <div className="text-[10px] text-slate-400 mt-0.5 uppercase tracking-wide">
+                    <div className="text-[10px] text-muted mt-0.5 uppercase tracking-wide">
                       {t.status}
                     </div>
                   </button>
@@ -191,7 +191,7 @@ function NewSessionButton(props: { disabled: boolean; onCreated: (taskId: string
       type="button"
       disabled={props.disabled || busy}
       onClick={start}
-      className="m-3 px-3 py-1.5 rounded-md bg-slate-900 text-white text-sm hover:bg-slate-800 disabled:opacity-50"
+      className="m-3 px-3 py-1.5 rounded-md bg-accent text-white text-sm hover:bg-accent-light disabled:opacity-50"
     >
       {busy ? "..." : "+ New session"}
     </button>
@@ -247,9 +247,9 @@ function ActiveThread(props: {
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="px-1 pb-3 mb-3 border-b border-slate-100">
-        <div className="text-sm font-medium text-slate-900">{task.title}</div>
-        <div className="text-xs text-slate-500 mt-0.5">
+      <div className="px-1 pb-3 mb-3 border-b border-border-subtle">
+        <div className="text-sm font-medium text-text">{task.title}</div>
+        <div className="text-xs text-muted mt-0.5">
           {task.status} · {(comments ?? []).length} message{(comments ?? []).length === 1 ? "" : "s"}
         </div>
       </div>
@@ -257,7 +257,7 @@ function ActiveThread(props: {
       {/* Messages */}
       <div className="flex-1 overflow-y-auto space-y-3 pr-1">
         {(comments ?? []).length === 0 ? (
-          <div className="text-xs text-slate-500 px-2 py-8 text-center">
+          <div className="text-xs text-muted px-2 py-8 text-center">
             No messages yet. Send the first one below.
           </div>
         ) : (
@@ -271,14 +271,14 @@ function ActiveThread(props: {
                 <div
                   className={`max-w-[70%] rounded-lg px-3 py-2 text-sm ${
                     fromCopilot
-                      ? "bg-slate-100 text-slate-900"
-                      : "bg-slate-900 text-white"
+                      ? "bg-bg-warm text-text"
+                      : "bg-accent text-white"
                   }`}
                 >
                   <Markdown source={c.body} compact />
                   <div
                     className={`text-[10px] mt-1 ${
-                      fromCopilot ? "text-slate-500" : "text-slate-300"
+                      fromCopilot ? "text-muted" : "text-white/70"
                     }`}
                   >
                     {fromCopilot ? "copilot" : "you"} ·{" "}
@@ -296,7 +296,7 @@ function ActiveThread(props: {
       </div>
 
       {/* Composer */}
-      <div className="mt-3 pt-3 border-t border-slate-100">
+      <div className="mt-3 pt-3 border-t border-border-subtle">
         {props.error && (
           <div className="mb-2 rounded-md bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-700">
             {props.error}
@@ -314,13 +314,13 @@ function ActiveThread(props: {
               }
             }}
             placeholder="Type a message · ⌘↩ to send"
-            className="flex-1 resize-none rounded-md border border-slate-200 px-3 py-2 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-300"
+            className="flex-1 resize-none rounded-md border border-border px-3 py-2 text-sm placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-accent-tint"
           />
           <button
             type="button"
             disabled={!props.draft.trim() || props.busy}
             onClick={send}
-            className="self-end px-3 py-2 rounded-md bg-slate-900 text-white text-sm hover:bg-slate-800 disabled:opacity-50"
+            className="self-end px-3 py-2 rounded-md bg-accent text-white text-sm hover:bg-accent-light disabled:opacity-50"
           >
             {props.busy ? "..." : "Send"}
           </button>

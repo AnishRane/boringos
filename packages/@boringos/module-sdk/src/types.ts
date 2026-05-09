@@ -397,6 +397,13 @@ export interface ModuleFactoryDeps {
    * factory time.
    */
   realtimeBus?: unknown;
+  /**
+   * The connector / cross-app event bus. Modules cast this to
+   * `EventBus` from `@boringos/core`. Read at call time so module
+   * factories don't need to resolve before the host has built the
+   * bus.
+   */
+  eventBus?: unknown;
 }
 
 export type ModuleFactory = (deps: ModuleFactoryDeps) => Module;
@@ -457,6 +464,12 @@ export interface Module {
   lifecycle?: ModuleLifecycle;
   /** Default permissions; per-tool overrides allowed. */
   permissions?: ModulePermissions;
+  /**
+   * Tenant-level settings this module contributes to the host's
+   * settings manifest. The shell auto-renders each declared key in
+   * Settings → General. See task_17_tenant_settings_manifest.md.
+   */
+  settings?: import("@boringos/shared").SettingDefinition[];
   /**
    * Whether this module should be auto-installed for every
    * tenant at boot (and for new tenants via `onTenantCreate`).

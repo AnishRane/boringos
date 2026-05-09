@@ -544,8 +544,16 @@ async function ensureSchema(db: Db): Promise<void> {
     -- Add model column to agent_runs for tracking which model was used
     ALTER TABLE agent_runs ADD COLUMN IF NOT EXISTS model TEXT;
 
-    -- Add skills column to agents (tag list of capabilities, drives delegation router)
-    ALTER TABLE agents ADD COLUMN IF NOT EXISTS skills JSONB NOT NULL DEFAULT '[]'::jsonb;
+    -- Routing tags column on agents (used by the delegation router for
+    -- keyword matching). Originally named "skills" — task_15 §1 renamed
+    -- it to disambiguate from prompt skills (modules + company_skills).
+    -- This migration is idempotent and handles the transition: add the
+    -- new column, backfill from the old one if present, then drop it.
+    ALTER TABLE agents ADD COLUMN IF NOT EXISTS routing_tags JSONB NOT NULL DEFAULT '[]'::jsonb;
+    DO $$ BEGIN
+      UPDATE agents SET routing_tags = skills WHERE routing_tags = '[]'::jsonb;
+      ALTER TABLE agents DROP COLUMN skills;
+    EXCEPTION WHEN undefined_column THEN NULL; END $$;
 
     -- Task 07: Agent provenance tracking — distinguish shell/user/app agents
     ALTER TABLE agents ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'user';

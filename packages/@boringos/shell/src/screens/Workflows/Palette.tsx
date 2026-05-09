@@ -52,34 +52,34 @@ export function Palette({ open, onOpenChange, tools, onPickKind, onPickTool }: P
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh] bg-slate-900/30 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh] bg-accent/30 backdrop-blur-sm"
       onMouseDown={(e) => {
         if (e.currentTarget === e.target) onOpenChange(false);
       }}
     >
       <Command
         loop
-        className="w-[520px] max-w-[90vw] bg-white rounded-lg border border-slate-200 shadow-2xl overflow-hidden"
+        className="w-[520px] max-w-[90vw] bg-white rounded-lg border border-border shadow-2xl overflow-hidden"
       >
-        <div className="border-b border-slate-100 px-3 py-2 flex items-center gap-2">
-          <span className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">
+        <div className="border-b border-border-subtle px-3 py-2 flex items-center gap-2">
+          <span className="text-[10px] uppercase tracking-wider text-muted font-semibold">
             Insert
           </span>
           <Command.Input
             ref={inputRef}
             placeholder="Search blocks and tools…"
-            className="flex-1 bg-transparent text-sm focus:outline-none placeholder:text-slate-400"
+            className="flex-1 bg-transparent text-sm focus:outline-none placeholder:text-muted"
           />
-          <kbd className="text-[10px] text-slate-400 font-mono">esc</kbd>
+          <kbd className="text-[10px] text-muted font-mono">esc</kbd>
         </div>
         <Command.List className="max-h-[50vh] overflow-y-auto py-1">
-          <Command.Empty className="px-3 py-4 text-xs text-slate-400">
+          <Command.Empty className="px-3 py-4 text-xs text-muted">
             No matches.
           </Command.Empty>
 
           <Command.Group
             heading="Control flow"
-            className="text-[9px] uppercase tracking-wider text-slate-400 font-semibold px-3 pt-2 pb-1"
+            className="text-[9px] uppercase tracking-wider text-muted font-semibold px-3 pt-2 pb-1"
           >
             {CONTROL_FLOW.map((b) => (
               <Command.Item
@@ -89,10 +89,10 @@ export function Palette({ open, onOpenChange, tools, onPickKind, onPickTool }: P
                   onPickKind(b.kind);
                   onOpenChange(false);
                 }}
-                className="px-3 py-1.5 text-sm text-slate-700 cursor-pointer aria-selected:bg-slate-100 flex items-center gap-3"
+                className="px-3 py-1.5 text-sm text-text-secondary cursor-pointer aria-selected:bg-bg-warm flex items-center gap-3"
               >
                 <span className="font-medium w-32 shrink-0">{b.label}</span>
-                <span className="text-[11px] text-slate-400 truncate">{b.hint}</span>
+                <span className="text-[11px] text-muted truncate">{b.hint}</span>
               </Command.Item>
             ))}
           </Command.Group>
@@ -101,7 +101,7 @@ export function Palette({ open, onOpenChange, tools, onPickKind, onPickTool }: P
             <Command.Group
               key={moduleId}
               heading={moduleId}
-              className="text-[9px] uppercase tracking-wider text-slate-400 font-semibold px-3 pt-2 pb-1"
+              className="text-[9px] uppercase tracking-wider text-muted font-semibold px-3 pt-2 pb-1"
             >
               {mt.map((t) => (
                 <Command.Item
@@ -111,12 +111,12 @@ export function Palette({ open, onOpenChange, tools, onPickKind, onPickTool }: P
                     onPickTool(t);
                     onOpenChange(false);
                   }}
-                  className="px-3 py-1.5 text-sm cursor-pointer aria-selected:bg-slate-100 flex items-center gap-3"
+                  className="px-3 py-1.5 text-sm cursor-pointer aria-selected:bg-bg-warm flex items-center gap-3"
                 >
-                  <code className="text-[11px] text-slate-900 w-44 shrink-0 truncate">
+                  <code className="text-[11px] text-text w-44 shrink-0 truncate">
                     {t.fullName}
                   </code>
-                  <span className="text-[11px] text-slate-400 truncate">{t.description}</span>
+                  <span className="text-[11px] text-muted truncate">{t.description}</span>
                 </Command.Item>
               ))}
             </Command.Group>

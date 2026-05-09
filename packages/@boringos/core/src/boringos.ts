@@ -17,7 +17,7 @@ import { createLocalStorage, scaffoldDrive } from "@boringos/drive";
 import type { StorageBackend } from "@boringos/drive";
 import { createDatabase, createMigrationManager, workflows as workflowsSchema } from "@boringos/db";
 import type { Db, DatabaseConnection } from "@boringos/db";
-import { and, eq as eqOp } from "drizzle-orm";
+import { and, eq, eq as eqOp } from "drizzle-orm";
 import { createAgentEngine, ContextPipeline } from "@boringos/agent";
 import type { AgentEngine, ContextProvider, AgentRunJob } from "@boringos/agent";
 import type { QueueAdapter } from "@boringos/pipeline";
@@ -45,12 +45,14 @@ import {
   createSkillsProvider,
   createToolCatalogProvider,
   createInstallManager,
+  createSettingRegistry,
 } from "@boringos/agent";
 import type {
   ToolRegistry as V2ToolRegistry,
   SkillRegistry as V2SkillRegistry,
   ModuleRegistry as V2ModuleRegistry,
   InstallManager as V2InstallManager,
+  SettingRegistry as V2SettingRegistry,
 } from "@boringos/agent";
 import type { Module, ModuleFactory } from "@boringos/module-sdk";
 import { createConnectorRoutes } from "./connector-routes.js";
@@ -283,13 +285,14 @@ export class BoringOS {
       db: dbConn.db,
       memory: this.memoryProvider,
       drive,
-      // engine + workflowEngine are populated later in this
-      // method; built-ins that need them read from the deps
+      // engine + workflowEngine + eventBus are populated later in
+      // this method; built-ins that need them read from the deps
       // object at call time, not at factory time.
       engine: undefined as unknown,
       workflowEngine: undefined as unknown,
       toolRegistry: v2ToolRegistry,
       realtimeBus: undefined as unknown,
+      eventBus: undefined as unknown,
     };
     const v2BoundModules: Module[] = [];
     for (const entry of this.v2Modules) {
@@ -300,6 +303,27 @@ export class BoringOS {
       v2BoundModules.push(mod);
     }
     const v2HasModules = v2BoundModules.length > 0;
+
+    // Tenant settings registry — aggregates SettingDefinition entries
+    // from every registered module + the framework's own well-known
+    // keys. Exposed via GET /api/admin/settings/manifest so the shell
+    // can auto-render Settings → General. See task_17.
+    const settingRegistry: V2SettingRegistry = createSettingRegistry();
+    // Built-in framework settings — keys the host writes/reads itself.
+    settingRegistry.register("framework", "framework", {
+      key: "agents_paused",
+      label: "Pause all agents",
+      description:
+        "When on, every agent run is short-circuited as 'skipped' without spending budget. Wake events still fire and tasks still queue; flipping back to off auto-rewakes anything pending.",
+      type: "boolean",
+      default: false,
+    });
+    // Module-contributed settings.
+    for (const mod of v2BoundModules) {
+      for (const def of mod.settings ?? []) {
+        settingRegistry.register("module", mod.id, def);
+      }
+    }
 
     // Construct the install manager early so the new-tenant hook
     // can fire onTenantCreate during signup. Backfill of existing
@@ -399,6 +423,10 @@ export class BoringOS {
 
     // Populate eventBus on context (was null placeholder before eventBus creation)
     context.eventBus = eventBus;
+    // Same for the v2 factory deps holder — module handlers read
+    // `deps.factoryDeps.eventBus` at dispatch time (the framework
+    // module's inbox.update emits `triage.classified` from there).
+    (v2FactoryDeps as { eventBus: unknown }).eventBus = eventBus;
 
     // Register app event handlers
     for (const { type, handler } of this.eventHandlers) {
@@ -719,7 +747,7 @@ export class BoringOS {
     // per-block events to the canvas.
     (v2FactoryDeps as { realtimeBus: unknown }).realtimeBus = realtimeBus;
 
-    const adminApp = createAdminRoutes(dbConn.db, agentEngine, adminKeyValue, realtimeBus, v2ToolRegistry, runtimes);
+    const adminApp = createAdminRoutes(dbConn.db, agentEngine, adminKeyValue, realtimeBus, v2ToolRegistry, runtimes, eventBus, drive, settingRegistry);
     app.route("/api/admin", adminApp);
 
     // K10/K11 — apps install/uninstall HTTP endpoints. Mounted with an
@@ -1044,71 +1072,233 @@ export class BoringOS {
     // 30 seconds. Replaces the v1 `gmail.gmail-sync` workflow + routine
     // that the deleted workflow engine used to run.
     //
-    // The `onIngest` callback below replaces the v1 `triage-on-inbox`
-    // and `draft-on-inbox` workflow templates: those used `create-task`
-    // + `wake-agent` blocks which the v2 workflow runner doesn't support
-    // yet. Until the runner gains those block kinds, we fan out
-    // directly here. The triage/replier agents are looked up by the
-    // names the default-app catalog seeds them under.
-    const TRIAGE_AGENT_NAMES = new Set([
-      "Generic Inbox Triage",
-      "Generic Email Replier",
+    // Layered fan-out (per docs/coordination.md):
+    //   1. Header-prefilter at ingest time pre-classifies clear
+    //      newsletters / no-reply automated mail. When it fires, we
+    //      skip BOTH agent wakes — paying for an LLM run only to
+    //      discover "this is a newsletter" wastes credits and is the
+    //      origin of the "agent drafts a reply to a noreply@ email"
+    //      bug.
+    //   2. Otherwise we wake the triage agent only. The replier waits
+    //      for `triage.classified` and is woken by the handler below
+    //      so it never drafts on auto-classified noise and never
+    //      drafts before triage's classification is known.
+    //
+    // The triage / replier agents are looked up by the names the
+    // default-app catalog seeds them under.
+    const TRIAGE_AGENT_NAME = "Generic Inbox Triage";
+    const REPLIER_AGENT_NAME = "Generic Email Replier";
+    const REPLIER_MIN_SCORE = 50;
+    const REPLIER_ELIGIBLE_CLASSIFICATIONS = new Set([
+      "lead",
+      "reply",
+      "internal",
     ]);
+    const REPLIER_INELIGIBLE_TRIAGE_SOURCES = new Set([
+      "header-prefilter",
+    ]);
+
+    function describeEmailHeaders(item: import("./inbox-gmail-forward-sync.js").IngestedInboxItem): string {
+      const h = item.headers;
+      const parts: string[] = [];
+      parts.push(`list-unsubscribe: ${h.listUnsubscribe ?? "none"}`);
+      parts.push(`list-id: ${h.listId ?? "none"}`);
+      parts.push(`auto-submitted: ${h.autoSubmitted ?? "none"}`);
+      parts.push(`precedence: ${h.precedence ?? "none"}`);
+      parts.push(`reply-to: ${h.replyTo ?? "none"}`);
+      const flag = item.automated.automated
+        ? `prefilter: automated (${item.automated.kind ?? "?"}; ${item.automated.reasons.join(", ")})`
+        : `prefilter: human`;
+      parts.push(flag);
+      return parts.join("\n");
+    }
+
+    async function createTriageTask(
+      item: import("./inbox-gmail-forward-sync.js").IngestedInboxItem,
+      agentId: string,
+      titlePrefix: string,
+    ): Promise<string | null> {
+      const { tasks: tasksTable } = await import("@boringos/db");
+      const taskId = generateId();
+      try {
+        await dbConn.db.insert(tasksTable).values({
+          id: taskId,
+          tenantId: item.tenantId,
+          title: `${titlePrefix}: ${item.subject}`,
+          description:
+            `inbox-item-id: ${item.itemId}\n` +
+            `source: ${item.source}\n` +
+            `from: ${item.from ?? ""}\n` +
+            `subject: ${item.subject}\n` +
+            `${describeEmailHeaders(item)}\n` +
+            `---\n` +
+            (item.body ?? ""),
+          status: "todo",
+          assigneeAgentId: agentId,
+          originKind: "inbox.item_created",
+          originId: item.itemId,
+        });
+        return taskId;
+      } catch (err) {
+        console.warn(
+          `[inbox-fanout] failed to create task for item=${item.itemId}:`,
+          err instanceof Error ? err.message : err,
+        );
+        return null;
+      }
+    }
+
+    async function findAgentByName(
+      tenantId: string,
+      name: string,
+    ): Promise<{ id: string } | null> {
+      const { agents: agentsTable } = await import("@boringos/db");
+      const rows = await dbConn.db
+        .select({ id: agentsTable.id })
+        .from(agentsTable)
+        .where(
+          and(
+            eqOp(agentsTable.tenantId, tenantId),
+            eqOp(agentsTable.name, name),
+          ),
+        )
+        .limit(1);
+      return rows[0] ?? null;
+    }
+
+    async function wakeAgentSafe(
+      agentId: string,
+      tenantId: string,
+      taskId: string,
+      label: string,
+    ): Promise<void> {
+      try {
+        const outcome = await agentEngine.wake({
+          agentId,
+          tenantId,
+          taskId,
+          reason: "connector_event",
+        });
+        if (outcome.kind === "created") {
+          await agentEngine.enqueue(outcome.wakeupRequestId);
+        }
+      } catch (err) {
+        console.warn(
+          `[inbox-fanout] failed to wake ${label} agent=${agentId} task=${taskId}:`,
+          err instanceof Error ? err.message : err,
+        );
+      }
+    }
+
     const forwardSyncTicker = createInboxGmailForwardSyncTicker(dbConn.db, {
       eventBus,
       async onIngest(item) {
-        const { agents: agentsTable, tasks: tasksTable } = await import("@boringos/db");
-        const candidates = await dbConn.db
-          .select({ id: agentsTable.id, name: agentsTable.name })
-          .from(agentsTable)
-          .where(eqOp(agentsTable.tenantId, item.tenantId));
-        for (const ag of candidates) {
-          if (!TRIAGE_AGENT_NAMES.has(ag.name)) continue;
-          const taskId = generateId();
-          try {
-            await dbConn.db.insert(tasksTable).values({
-              id: taskId,
-              tenantId: item.tenantId,
-              title: `Triage inbox item: ${item.subject}`,
-              description:
-                `inbox-item-id: ${item.itemId}\n` +
-                `source: ${item.source}\n` +
-                `from: ${item.from ?? ""}\n` +
-                `subject: ${item.subject}\n` +
-                `---\n` +
-                (item.body ?? ""),
-              status: "todo",
-              assigneeAgentId: ag.id,
-              originKind: "inbox.item_created",
-              originId: item.itemId,
-            });
-          } catch (err) {
-            console.warn(
-              `[inbox-fanout] failed to create task for agent=${ag.name} item=${item.itemId}:`,
-              err instanceof Error ? err.message : err,
-            );
-            continue;
-          }
-          try {
-            const outcome = await agentEngine.wake({
-              agentId: ag.id,
-              tenantId: item.tenantId,
-              taskId,
-              reason: "connector_event",
-            });
-            if (outcome.kind === "created") {
-              await agentEngine.enqueue(outcome.wakeupRequestId);
-            }
-          } catch (err) {
-            console.warn(
-              `[inbox-fanout] failed to wake agent=${ag.name} item=${item.itemId}:`,
-              err instanceof Error ? err.message : err,
-            );
-          }
+        // Hard skip for items the deterministic prefilter classified.
+        // metadata.triage is already populated; nothing for the triage
+        // agent to do, and no draft is appropriate. The item still
+        // exists in the inbox so the user can see / unsubscribe / read.
+        if (item.automated.automated) {
+          return;
         }
+
+        const triageAgent = await findAgentByName(item.tenantId, TRIAGE_AGENT_NAME);
+        if (!triageAgent) {
+          console.warn(
+            `[inbox-fanout] no '${TRIAGE_AGENT_NAME}' agent for tenant=${item.tenantId}; item ${item.itemId} will not be triaged`,
+          );
+          return;
+        }
+        const taskId = await createTriageTask(
+          item,
+          triageAgent.id,
+          "Triage inbox item",
+        );
+        if (!taskId) return;
+        await wakeAgentSafe(triageAgent.id, item.tenantId, taskId, "triage");
       },
     });
     forwardSyncTicker.start();
+
+    // Replier gating. Waits for `triage.classified` (emitted by the
+    // tools that write `metadata.triage`) and only wakes the replier
+    // for items the user actually wants a draft on. Filters out
+    // newsletters/spam/automated regardless of how `metadata.triage`
+    // got there (LLM triage or header prefilter — though the prefilter
+    // path doesn't fire this event because we hard-skipped above).
+    eventBus.on("triage.classified", async (event) => {
+      const data = event.data ?? {};
+      const itemId = data.itemId as string | undefined;
+      const classification = data.classification as string | undefined;
+      const scoreRaw = data.score;
+      const score =
+        typeof scoreRaw === "number"
+          ? scoreRaw
+          : typeof scoreRaw === "string"
+            ? Number.parseInt(scoreRaw, 10)
+            : NaN;
+      const triageSource = data.source as string | undefined;
+      if (!itemId || !classification) return;
+      if (triageSource && REPLIER_INELIGIBLE_TRIAGE_SOURCES.has(triageSource)) return;
+      if (!REPLIER_ELIGIBLE_CLASSIFICATIONS.has(classification)) return;
+      if (!Number.isFinite(score) || score < REPLIER_MIN_SCORE) return;
+
+      const replier = await findAgentByName(event.tenantId, REPLIER_AGENT_NAME);
+      if (!replier) return;
+
+      // Re-fetch the item so the replier task description is built
+      // from the fresh inbox row (including the headers metadata
+      // ingest wrote). Going through the row keeps the description
+      // identical regardless of whether the event payload included
+      // every field.
+      const { inboxItems } = await import("@boringos/db");
+      const rows = await dbConn.db
+        .select()
+        .from(inboxItems)
+        .where(
+          and(
+            eqOp(inboxItems.id, itemId),
+            eqOp(inboxItems.tenantId, event.tenantId),
+          ),
+        )
+        .limit(1);
+      const row = rows[0];
+      if (!row) return;
+      const meta = (row.metadata ?? {}) as Record<string, unknown>;
+      const emailMeta = (meta.email ?? {}) as { headers?: import("@boringos/connector-google").EmailHeaders; automated?: import("./automated-mail.js").AutomatedClassification };
+      const headers = emailMeta.headers ?? {
+        listUnsubscribe: null,
+        listUnsubscribePost: null,
+        listId: null,
+        autoSubmitted: null,
+        precedence: null,
+        returnPath: null,
+        replyTo: null,
+        messageId: null,
+        inReplyTo: null,
+        references: null,
+      };
+      const automated =
+        emailMeta.automated ??
+        ({ automated: false, kind: null, reasons: [] } as import("./automated-mail.js").AutomatedClassification);
+      const fakeIngested: import("./inbox-gmail-forward-sync.js").IngestedInboxItem = {
+        itemId,
+        tenantId: event.tenantId,
+        source: row.source,
+        sourceId: row.sourceId ?? "",
+        subject: row.subject,
+        body: row.body,
+        from: row.from,
+        headers,
+        automated,
+      };
+      const taskId = await createTriageTask(
+        fakeIngested,
+        replier.id,
+        "Append reply draft to inbox item",
+      );
+      if (!taskId) return;
+      await wakeAgentSafe(replier.id, event.tenantId, taskId, "replier");
+    });
 
     // Reverse sync — pull state changes from Gmail back into Hebbs
     // every 2 minutes. Skipped silently if no Gmail connector is wired

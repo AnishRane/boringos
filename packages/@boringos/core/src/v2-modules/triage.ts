@@ -75,6 +75,9 @@ Conventions:
 
 interface TriageDeps {
   db: Db;
+  /** Read at call time. Lets `classify` emit `triage.classified`
+   *  so the generic-replier knows when to wake. */
+  factoryDeps: { eventBus?: unknown };
 }
 
 function makeNextPending(deps: TriageDeps): Tool {
@@ -179,6 +182,37 @@ function makeClassify(deps: TriageDeps): Tool {
           ),
         );
 
+      const bus = (deps.factoryDeps.eventBus ?? null) as
+        | { emit: (e: { connectorKind: string; type: string; tenantId: string; data: Record<string, unknown>; timestamp: Date }) => Promise<void> | void }
+        | null;
+      if (bus) {
+        try {
+          await bus.emit({
+            connectorKind: "framework",
+            type: "triage.classified",
+            tenantId: ctx.tenantId,
+            timestamp: new Date(),
+            data: {
+              itemId: input.itemId,
+              // The `triage` v2 module uses urgent/important/fyi/noise
+              // labels (its own taxonomy); the replier gate expects
+              // lead/reply/internal/newsletter/spam. Both shapes go
+              // through under their own keys so the gate can match
+              // whichever the writer used.
+              classification: input.label,
+              label: input.label,
+              source: "agent",
+              rationale: input.reason,
+            },
+          });
+        } catch (err) {
+          console.warn(
+            `[triage.classify] triage.classified emit failed for item=${input.itemId}:`,
+            err instanceof Error ? err.message : err,
+          );
+        }
+      }
+
       return {
         ok: true,
         result: { itemId: input.itemId, label: input.label },
@@ -189,7 +223,7 @@ function makeClassify(deps: TriageDeps): Tool {
 
 export const createTriageModule: ModuleFactory = (deps) => {
   const db = deps.db as Db;
-  const triageDeps: TriageDeps = { db };
+  const triageDeps: TriageDeps = { db, factoryDeps: deps };
 
   const module: Module = {
     id: "triage",

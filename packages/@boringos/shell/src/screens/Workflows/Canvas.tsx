@@ -76,7 +76,7 @@ function InsertEdge(props: EdgeProps) {
             transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
             pointerEvents: "all",
           }}
-          className="opacity-0 hover:opacity-100 group-hover:opacity-100 w-4 h-4 rounded-full bg-white border border-slate-300 text-[10px] leading-none text-slate-600 shadow-sm transition-opacity"
+          className="opacity-0 hover:opacity-100 group-hover:opacity-100 w-4 h-4 rounded-full bg-white border border-border text-[10px] leading-none text-muted-strong shadow-sm transition-opacity"
           onClick={(e) => {
             e.stopPropagation();
             const ev = new CustomEvent("workflow:insert-on-edge", { detail: { edgeId: id } });
@@ -323,16 +323,16 @@ function CanvasInner({
         <Background variant={BackgroundVariant.Dots} gap={18} size={1} color="rgb(203 213 225)" />
         <Controls
           showInteractive={false}
-          className="!bg-white !border !border-slate-200 !rounded !shadow-sm [&>button]:!border-slate-100 [&>button]:!w-6 [&>button]:!h-6"
+          className="!bg-white !border !border-border !rounded !shadow-sm [&>button]:!border-border-subtle [&>button]:!w-6 [&>button]:!h-6"
         />
       </ReactFlow>
 
       {/* Empty-state overlay */}
       {blocks.length === 0 && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div className="rounded-md border border-dashed border-slate-300 bg-white/80 px-4 py-3 text-xs text-slate-500 text-center pointer-events-auto">
+          <div className="rounded-md border border-dashed border-border bg-white/80 px-4 py-3 text-xs text-muted text-center pointer-events-auto">
             Empty workflow — press{" "}
-            <kbd className="font-mono px-1 rounded bg-slate-100">⌘K</kbd> to add a block.
+            <kbd className="font-mono px-1 rounded bg-bg-warm">⌘K</kbd> to add a block.
           </div>
         </div>
       )}
@@ -351,7 +351,7 @@ function CanvasInner({
             onChange(next, edges);
             setTimeout(() => rfInstance?.fitView({ padding: 0.18 }), 50);
           }}
-          className="absolute bottom-3 right-3 px-2 py-1 rounded border border-slate-200 bg-white text-[11px] text-slate-600 hover:text-slate-900 shadow-sm"
+          className="absolute bottom-3 right-3 px-2 py-1 rounded border border-border bg-white text-[11px] text-muted-strong hover:text-text shadow-sm"
         >
           Auto-layout
         </button>

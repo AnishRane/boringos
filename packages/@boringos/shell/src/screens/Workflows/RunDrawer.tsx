@@ -34,7 +34,7 @@ export function RunDrawer(p: RunDrawerProps) {
 
   return (
     <div
-      className={`border-t border-slate-200 bg-white shrink-0 transition-[height] ${
+      className={`border-t border-border bg-white shrink-0 transition-[height] ${
         p.open ? "h-[280px]" : "h-7"
       }`}
     >
@@ -42,32 +42,32 @@ export function RunDrawer(p: RunDrawerProps) {
       <button
         type="button"
         onClick={p.onToggle}
-        className="w-full px-4 h-7 flex items-center gap-3 text-[10px] uppercase tracking-wider text-slate-500 hover:bg-slate-50"
+        className="w-full px-4 h-7 flex items-center gap-3 text-[10px] uppercase tracking-wider text-muted hover:bg-bg"
       >
         <span className="font-semibold">Runs</span>
         {p.recentRuns.length > 0 && (
           <>
             <Sparkline runs={p.recentRuns.slice(0, 12)} />
             {successRate !== null && (
-              <span className="text-slate-400">{successRate}% · {p.recentRuns.length}</span>
+              <span className="text-muted">{successRate}% · {p.recentRuns.length}</span>
             )}
             {lastDuration !== null && (
-              <span className="font-mono text-slate-400">{lastDuration}ms</span>
+              <span className="font-mono text-muted">{lastDuration}ms</span>
             )}
           </>
         )}
-        <span className="ml-auto text-slate-400">{p.open ? "▼" : "▲"}</span>
+        <span className="ml-auto text-muted">{p.open ? "▼" : "▲"}</span>
       </button>
 
       {p.open && (
         <div className="h-[calc(280px-1.75rem)] flex">
           {/* Left: recent runs list */}
-          <div className="w-44 shrink-0 border-r border-slate-100 overflow-y-auto">
-            <div className="px-3 py-1.5 text-[9px] uppercase tracking-wider text-slate-400 font-semibold border-b border-slate-100">
+          <div className="w-44 shrink-0 border-r border-border-subtle overflow-y-auto">
+            <div className="px-3 py-1.5 text-[9px] uppercase tracking-wider text-muted font-semibold border-b border-border-subtle">
               Recent
             </div>
             {p.recentRuns.length === 0 ? (
-              <div className="px-3 py-3 text-[11px] text-slate-400">No runs yet.</div>
+              <div className="px-3 py-3 text-[11px] text-muted">No runs yet.</div>
             ) : (
               <ul>
                 {p.recentRuns.map((r) => (
@@ -77,13 +77,13 @@ export function RunDrawer(p: RunDrawerProps) {
                       onClick={() => p.onPickRun(r.id)}
                       className={`w-full text-left px-3 py-1 text-[11px] flex items-center gap-2 ${
                         p.activeRun?.run.id === r.id
-                          ? "bg-slate-100 text-slate-900"
-                          : "text-slate-600 hover:bg-slate-50"
+                          ? "bg-bg-warm text-text"
+                          : "text-muted-strong hover:bg-bg"
                       }`}
                     >
                       <RunStatusDot status={r.status} />
                       <span className="font-mono">{r.id.slice(0, 6)}</span>
-                      <span className="ml-auto font-mono text-[10px] text-slate-400">
+                      <span className="ml-auto font-mono text-[10px] text-muted">
                         {r.durationMs ?? "—"}ms
                       </span>
                     </button>
@@ -96,7 +96,7 @@ export function RunDrawer(p: RunDrawerProps) {
           {/* Right: span tree of active run */}
           <div className="flex-1 overflow-y-auto">
             {!p.activeRun ? (
-              <div className="px-3 py-3 text-[11px] text-slate-400">Pick a run on the left.</div>
+              <div className="px-3 py-3 text-[11px] text-muted">Pick a run on the left.</div>
             ) : (
               <SpanTree
                 run={p.activeRun}
@@ -121,7 +121,7 @@ function RunStatusDot({ status }: { status: string }) {
         ? "bg-rose-500"
         : status === "running"
           ? "bg-amber-400 animate-pulse"
-          : "bg-slate-300";
+          : "bg-border";
   return <span className={`w-1.5 h-1.5 rounded-full ${cls}`} />;
 }
 
@@ -145,18 +145,18 @@ function SpanTree({
 
   return (
     <div>
-      <header className="flex items-center gap-2 px-3 py-1.5 border-b border-slate-100 text-[11px]">
+      <header className="flex items-center gap-2 px-3 py-1.5 border-b border-border-subtle text-[11px]">
         <RunStatusDot status={run.run.status} />
-        <code className="font-mono text-slate-700">{run.run.id.slice(0, 8)}</code>
-        <span className="text-slate-400">·</span>
-        <span className="text-slate-500">{run.run.triggerType ?? "manual"}</span>
+        <code className="font-mono text-text-secondary">{run.run.id.slice(0, 8)}</code>
+        <span className="text-muted">·</span>
+        <span className="text-muted">{run.run.triggerType ?? "manual"}</span>
         {run.run.durationMs !== null && (
-          <span className="font-mono text-slate-400">· {run.run.durationMs}ms</span>
+          <span className="font-mono text-muted">· {run.run.durationMs}ms</span>
         )}
         <button
           type="button"
           onClick={onReplayRun}
-          className="ml-auto text-slate-500 hover:text-slate-900 px-2 py-0.5 rounded border border-slate-200 hover:border-slate-300 text-[10px]"
+          className="ml-auto text-muted hover:text-text px-2 py-0.5 rounded border border-border hover:border-border text-[10px]"
         >
           ↻ Replay
         </button>
@@ -170,7 +170,7 @@ function SpanTree({
 
       <div className="px-2 py-1">
         {run.blocks.length === 0 ? (
-          <div className="px-2 py-2 text-[11px] text-slate-400">
+          <div className="px-2 py-2 text-[11px] text-muted">
             (no per-block records — older runs may not have block-level traces)
           </div>
         ) : (
@@ -186,21 +186,21 @@ function SpanTree({
                 type="button"
                 onClick={() => onPickBlock(br.blockId)}
                 className={`group w-full text-left px-2 py-1 rounded text-[11px] flex items-center gap-2 ${
-                  selectedBlockId === br.blockId ? "bg-slate-100" : "hover:bg-slate-50"
+                  selectedBlockId === br.blockId ? "bg-bg-warm" : "hover:bg-bg"
                 }`}
               >
                 <BlockStatusDot status={br.status} />
                 <span className={`text-[8px] font-semibold tracking-wider ${accent.text} w-12`}>
                   {accent.label}
                 </span>
-                <code className="font-mono text-slate-700 w-28 truncate">{br.blockId}</code>
-                <div className="flex-1 relative h-2 bg-slate-100 rounded-full overflow-hidden">
+                <code className="font-mono text-text-secondary w-28 truncate">{br.blockId}</code>
+                <div className="flex-1 relative h-2 bg-bg-warm rounded-full overflow-hidden">
                   <div
                     className={`absolute top-0 left-0 h-full ${accent.bar}`}
                     style={{ width: `${widthPct}%` }}
                   />
                 </div>
-                <span className="font-mono text-[10px] text-slate-400 w-12 text-right">
+                <span className="font-mono text-[10px] text-muted w-12 text-right">
                   {ms}ms
                 </span>
               </button>
@@ -221,10 +221,10 @@ function BlockStatusDot({ status }: { status: string }) {
         : status === "running"
           ? "bg-amber-400 animate-pulse"
           : status === "skipped"
-            ? "bg-slate-300"
+            ? "bg-border"
             : status === "waiting"
               ? "bg-violet-400"
-              : "bg-slate-300";
+              : "bg-border";
   return <span className={`w-1.5 h-1.5 rounded-full ${cls}`} />;
 }
 
@@ -244,7 +244,7 @@ function Sparkline({ runs }: { runs: RunDetail["run"][] }) {
                 ? "bg-rose-500"
                 : r.status === "running"
                   ? "bg-amber-400"
-                  : "bg-slate-300"
+                  : "bg-border"
           }`}
         />
       ))}

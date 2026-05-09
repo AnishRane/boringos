@@ -32,7 +32,7 @@ export function BudgetsPanel() {
 
   if (!user?.role || user.role !== "admin") {
     return (
-      <div className="rounded-md bg-blue-50 border border-blue-200 px-4 py-3 text-sm text-blue-700">
+      <div className="rounded-md bg-accent-tint border border-accent px-4 py-3 text-sm text-accent">
         <div className="font-medium">Admin access required</div>
         <div className="text-xs mt-1">Only admins can manage budgets.</div>
       </div>
@@ -98,24 +98,24 @@ export function BudgetsPanel() {
       )}
 
       <div className="grid grid-cols-2 gap-4">
-        <div className="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-lg p-4">
-          <div className="text-xs uppercase tracking-wide text-blue-600 font-medium mb-1">This Month (USD)</div>
-          <div className="text-3xl font-bold text-blue-900">${totalSpend.toFixed(2)}</div>
+        <div className="bg-gradient-to-br from-accent-tint to-accent-tint border border-accent rounded-lg p-4">
+          <div className="text-xs uppercase tracking-wide text-accent font-medium mb-1">This Month (USD)</div>
+          <div className="text-3xl font-bold text-accent">${totalSpend.toFixed(2)}</div>
         </div>
         {topAgents.length > 0 && (
-          <div className="bg-gradient-to-br from-slate-50 to-slate-100 border border-slate-200 rounded-lg p-4">
-            <div className="text-xs uppercase tracking-wide text-slate-600 font-medium mb-2">Top Agent</div>
-            <div className="text-sm font-medium text-slate-900">
+          <div className="bg-gradient-to-br from-bg to-bg-warm border border-border rounded-lg p-4">
+            <div className="text-xs uppercase tracking-wide text-muted-strong font-medium mb-2">Top Agent</div>
+            <div className="text-sm font-medium text-text">
               {agents.find((a: any) => a.id === topAgents[0][0])?.name || "Unknown"}
             </div>
-            <div className="text-lg font-bold text-slate-700">${topAgents[0][1].toFixed(2)}</div>
+            <div className="text-lg font-bold text-text-secondary">${topAgents[0][1].toFixed(2)}</div>
           </div>
         )}
       </div>
 
       {topAgents.length > 1 && (
-        <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
-          <div className="text-xs uppercase tracking-wide text-slate-600 font-medium mb-3">Spend by Agent</div>
+        <div className="bg-bg border border-border rounded-lg p-4">
+          <div className="text-xs uppercase tracking-wide text-muted-strong font-medium mb-3">Spend by Agent</div>
           <div className="space-y-2">
             {topAgents.map(([agentId, spend]) => {
               const agent = agents.find((a: any) => a.id === agentId);
@@ -123,11 +123,11 @@ export function BudgetsPanel() {
               return (
                 <div key={agentId}>
                   <div className="flex justify-between mb-1">
-                    <div className="text-sm text-slate-900 font-medium">{agent?.name || "Unknown"}</div>
-                    <div className="text-sm text-slate-600">${spend.toFixed(2)}</div>
+                    <div className="text-sm text-text font-medium">{agent?.name || "Unknown"}</div>
+                    <div className="text-sm text-muted-strong">${spend.toFixed(2)}</div>
                   </div>
-                  <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
-                    <div className="h-full bg-blue-500" style={{ width: `${pct}%` }} />
+                  <div className="w-full h-2 bg-border-subtle rounded-full overflow-hidden">
+                    <div className="h-full bg-accent" style={{ width: `${pct}%` }} />
                   </div>
                 </div>
               );
@@ -138,27 +138,27 @@ export function BudgetsPanel() {
 
       <div className="flex justify-between items-center pt-2">
         <div>
-          <div className="text-sm font-medium text-slate-900">Budget Policies</div>
-          <div className="text-xs text-slate-500 mt-1">Limit spend and receive warnings</div>
+          <div className="text-sm font-medium text-text">Budget Policies</div>
+          <div className="text-xs text-muted mt-1">Limit spend and receive warnings</div>
         </div>
         <button
           onClick={() => setShowForm(!showForm)}
-          className="px-3 py-1.5 rounded-md bg-blue-500 text-white text-xs font-medium hover:bg-blue-600 transition-colors"
+          className="px-3 py-1.5 rounded-md bg-accent text-white text-xs font-medium hover:bg-accent transition-colors"
         >
           {showForm ? "Cancel" : "New Policy"}
         </button>
       </div>
 
       {showForm && (
-        <div className="border border-slate-200 rounded-lg p-4 bg-slate-50">
+        <div className="border border-border rounded-lg p-4 bg-bg">
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs uppercase tracking-wide text-slate-600 mb-1">Scope</label>
+                <label className="block text-xs uppercase tracking-wide text-muted-strong mb-1">Scope</label>
                 <select
                   value={formData.scope}
                   onChange={(e) => setFormData({ ...formData, scope: e.target.value as "tenant" | "agent", agentId: "" })}
-                  className="w-full text-sm border border-slate-200 rounded-md px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                  className="w-full text-sm border border-border rounded-md px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-accent/40"
                 >
                   <option value="tenant">Tenant</option>
                   <option value="agent">Agent</option>
@@ -167,11 +167,11 @@ export function BudgetsPanel() {
 
               {formData.scope === "agent" && (
                 <div>
-                  <label className="block text-xs uppercase tracking-wide text-slate-600 mb-1">Agent</label>
+                  <label className="block text-xs uppercase tracking-wide text-muted-strong mb-1">Agent</label>
                   <select
                     value={formData.agentId}
                     onChange={(e) => setFormData({ ...formData, agentId: e.target.value })}
-                    className="w-full text-sm border border-slate-200 rounded-md px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                    className="w-full text-sm border border-border rounded-md px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-accent/40"
                   >
                     <option value="">Select an agent</option>
                     {agents.map((a: any) => (
@@ -186,11 +186,11 @@ export function BudgetsPanel() {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs uppercase tracking-wide text-slate-600 mb-1">Period</label>
+                <label className="block text-xs uppercase tracking-wide text-muted-strong mb-1">Period</label>
                 <select
                   value={formData.period}
                   onChange={(e) => setFormData({ ...formData, period: e.target.value as "daily" | "weekly" | "monthly" })}
-                  className="w-full text-sm border border-slate-200 rounded-md px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                  className="w-full text-sm border border-border rounded-md px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-accent/40"
                 >
                   {PERIODS.map((p) => (
                     <option key={p.value} value={p.value}>
@@ -201,19 +201,19 @@ export function BudgetsPanel() {
               </div>
 
               <div>
-                <label className="block text-xs uppercase tracking-wide text-slate-600 mb-1">Limit (USD)</label>
+                <label className="block text-xs uppercase tracking-wide text-muted-strong mb-1">Limit (USD)</label>
                 <input
                   type="number"
                   step="0.01"
                   value={formData.limitCents / 100}
                   onChange={(e) => setFormData({ ...formData, limitCents: Math.round(e.target.valueAsNumber * 100) })}
-                  className="w-full text-sm border border-slate-200 rounded-md px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                  className="w-full text-sm border border-border rounded-md px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-accent/40"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs uppercase tracking-wide text-slate-600 mb-1">Warn at ({formData.warnThresholdPct}%)</label>
+              <label className="block text-xs uppercase tracking-wide text-muted-strong mb-1">Warn at ({formData.warnThresholdPct}%)</label>
               <input
                 type="range"
                 min="10"
@@ -227,13 +227,13 @@ export function BudgetsPanel() {
             <div className="flex gap-2 justify-end pt-2">
               <button
                 onClick={() => setShowForm(false)}
-                className="px-3 py-1.5 rounded-md border border-slate-200 text-slate-700 text-xs font-medium hover:bg-slate-50 transition-colors"
+                className="px-3 py-1.5 rounded-md border border-border text-text-secondary text-xs font-medium hover:bg-bg transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={handleCreate}
-                className="px-3 py-1.5 rounded-md bg-blue-500 text-white text-xs font-medium hover:bg-blue-600 transition-colors disabled:opacity-50"
+                className="px-3 py-1.5 rounded-md bg-accent text-white text-xs font-medium hover:bg-accent transition-colors disabled:opacity-50"
                 disabled={formData.scope === "agent" && !formData.agentId}
               >
                 Create Policy
@@ -249,26 +249,26 @@ export function BudgetsPanel() {
           description="Create a policy to limit spend and receive warnings."
         />
       ) : (
-        <div className="border border-slate-200 rounded-lg overflow-hidden">
+        <div className="border border-border rounded-lg overflow-hidden">
           <table className="w-full text-sm">
-            <thead className="bg-slate-50 border-b border-slate-200">
+            <thead className="bg-bg border-b border-border">
               <tr>
-                <th className="px-4 py-2 text-left text-xs font-medium text-slate-600 uppercase">Scope</th>
-                <th className="px-4 py-2 text-left text-xs font-medium text-slate-600 uppercase">Period</th>
-                <th className="px-4 py-2 text-left text-xs font-medium text-slate-600 uppercase">Limit</th>
-                <th className="px-4 py-2 text-left text-xs font-medium text-slate-600 uppercase">Warn At</th>
-                <th className="px-4 py-2 text-left text-xs font-medium text-slate-600 uppercase">Action</th>
+                <th className="px-4 py-2 text-left text-xs font-medium text-muted-strong uppercase">Scope</th>
+                <th className="px-4 py-2 text-left text-xs font-medium text-muted-strong uppercase">Period</th>
+                <th className="px-4 py-2 text-left text-xs font-medium text-muted-strong uppercase">Limit</th>
+                <th className="px-4 py-2 text-left text-xs font-medium text-muted-strong uppercase">Warn At</th>
+                <th className="px-4 py-2 text-left text-xs font-medium text-muted-strong uppercase">Action</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-border-subtle">
               {policies.map((policy: any) => (
-                <tr key={policy.id} className="hover:bg-slate-50">
-                  <td className="px-4 py-3 text-slate-900 font-medium">
+                <tr key={policy.id} className="hover:bg-bg">
+                  <td className="px-4 py-3 text-text font-medium">
                     {policy.scope === "tenant" ? "Tenant" : agents.find((a: any) => a.id === policy.agentId)?.name || "Unknown"}
                   </td>
-                  <td className="px-4 py-3 text-slate-600">{policy.period || "monthly"}</td>
-                  <td className="px-4 py-3 text-slate-600 font-mono">${((policy.limitCents || 0) / 100).toFixed(2)}</td>
-                  <td className="px-4 py-3 text-slate-600">{policy.warnThresholdPct || 80}%</td>
+                  <td className="px-4 py-3 text-muted-strong">{policy.period || "monthly"}</td>
+                  <td className="px-4 py-3 text-muted-strong font-mono">${((policy.limitCents || 0) / 100).toFixed(2)}</td>
+                  <td className="px-4 py-3 text-muted-strong">{policy.warnThresholdPct || 80}%</td>
                   <td className="px-4 py-3">
                     <button
                       onClick={() => handleDelete(policy.id)}
@@ -286,7 +286,7 @@ export function BudgetsPanel() {
 
       {incidents.length > 0 && (
         <div className="pt-4">
-          <div className="text-sm font-medium text-slate-900 mb-3">Recent Budget Incidents (Last 50)</div>
+          <div className="text-sm font-medium text-text mb-3">Recent Budget Incidents (Last 50)</div>
           <div className="space-y-2 max-h-64 overflow-y-auto">
             {incidents.slice(0, 20).map((incident: any) => {
               const isHardStop = incident.type === "hard_stop";
@@ -300,11 +300,11 @@ export function BudgetsPanel() {
                       <div className={`text-xs font-medium ${isHardStop ? "text-red-700" : "text-amber-700"}`}>
                         {isHardStop ? "Hard Stop" : "Warning"}
                       </div>
-                      <div className="text-xs text-slate-600 mt-0.5">
+                      <div className="text-xs text-muted-strong mt-0.5">
                         Spent ${((incident.spentCents || 0) / 100).toFixed(2)} of ${((incident.limitCents || 0) / 100).toFixed(2)} limit
                       </div>
                     </div>
-                    <div className="text-xs text-slate-500">{new Date(incident.createdAt).toLocaleDateString()}</div>
+                    <div className="text-xs text-muted">{new Date(incident.createdAt).toLocaleDateString()}</div>
                   </div>
                 </div>
               );

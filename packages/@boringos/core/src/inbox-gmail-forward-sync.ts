@@ -21,9 +21,13 @@
 
 import { sql } from "drizzle-orm";
 import type { Db } from "@boringos/db";
-import { GmailClient } from "@boringos/connector-google";
+import { GmailClient, type EmailHeaders } from "@boringos/connector-google";
 import { refreshOAuthToken } from "./oauth.js";
 import type { EventBus } from "./event-bus.js";
+import {
+  classifyAutomatedMail,
+  type AutomatedClassification,
+} from "./automated-mail.js";
 
 export interface IngestedInboxItem {
   itemId: string;
@@ -34,6 +38,14 @@ export interface IngestedInboxItem {
   body: string | null;
   from: string | null;
   threadId?: string;
+  /** Headers we pull from every Gmail message. Always present;
+   *  individual fields are null when the header was absent. */
+  headers: EmailHeaders;
+  /** Deterministic prefilter result. When `automated` is true, the
+   *  ingest path also pre-populates `metadata.triage` so the triage
+   *  agent doesn't run; downstream listeners can also use this to
+   *  decide whether to wake the replier. */
+  automated: AutomatedClassification;
 }
 
 const KIND_GMAIL = "google";
@@ -62,7 +74,28 @@ interface GmailMessage {
   from?: string | null;
   snippet?: string | null;
   body?: string | null;
+  /** Raw HTML body when the message had a `text/html` MIME part.
+   *  Persisted into `metadata.bodyHtml` so the shell's sandboxed
+   *  iframe renderer can show it as rich text instead of leaking
+   *  raw markup through the plain-text fallback. */
+  bodyHtml?: string | null;
   date?: string | null;
+  headers?: EmailHeaders;
+}
+
+function emptyHeaders(): EmailHeaders {
+  return {
+    listUnsubscribe: null,
+    listUnsubscribePost: null,
+    listId: null,
+    autoSubmitted: null,
+    precedence: null,
+    returnPath: null,
+    replyTo: null,
+    messageId: null,
+    inReplyTo: null,
+    references: null,
+  };
 }
 
 export interface InboxGmailForwardSyncTicker {
@@ -130,6 +163,41 @@ async function persistCursor(db: Db, row: ConnectorRow, epochSeconds: number): P
     .catch(() => {});
 }
 
+/**
+ * Build the `metadata` JSON payload for a freshly-ingested Gmail
+ * message. Pure — exported for unit tests so we can assert
+ * prefilter behaviour without spinning up Postgres.
+ */
+export function buildIngestMetadata(msg: GmailMessage, opts: { now?: Date } = {}): {
+  metadata: Record<string, unknown>;
+  headers: EmailHeaders;
+  automated: AutomatedClassification;
+} {
+  const headers = msg.headers ?? emptyHeaders();
+  const automated = classifyAutomatedMail({ headers, from: msg.from ?? null });
+  const metadata: Record<string, unknown> = {
+    email: { headers, automated },
+  };
+  if (msg.threadId) metadata.threadId = msg.threadId;
+  if (msg.date) metadata.date = msg.date;
+  // Persist HTML separately from `body` (which is plain ?? html for
+  // back-compat with consumers that only use the column). Shell's
+  // EmailBody reads metadata.bodyHtml and renders it in a sandboxed
+  // iframe; without this, HTML-only emails (Stripe receipts, "Payment
+  // Received" notices) showed up with raw markup as text.
+  if (msg.bodyHtml) metadata.bodyHtml = msg.bodyHtml;
+  if (automated.automated) {
+    metadata.triage = {
+      classification: automated.kind === "newsletter" ? "newsletter" : "spam",
+      score: automated.kind === "newsletter" ? 5 : 1,
+      rationale: `header-prefilter: ${automated.reasons.join("; ")}`,
+      classifiedAt: (opts.now ?? new Date()).toISOString(),
+      source: "header-prefilter",
+    };
+  }
+  return { metadata, headers, automated };
+}
+
 async function ingestMessage(
   db: Db,
   tenantId: string,
@@ -150,9 +218,7 @@ async function ingestMessage(
   const subject = msg.subject ?? "(no subject)";
   const body = msg.body ?? msg.snippet ?? null;
   const from = msg.from ?? null;
-  const metadata: Record<string, unknown> = {};
-  if (msg.threadId) metadata.threadId = msg.threadId;
-  if (msg.date) metadata.date = msg.date;
+  const { metadata, headers, automated } = buildIngestMetadata(msg);
 
   const inserted = await db.execute(sql`
     INSERT INTO inbox_items (
@@ -182,6 +248,8 @@ async function ingestMessage(
     body,
     from,
     threadId: msg.threadId,
+    headers,
+    automated,
   };
 }
 
@@ -283,6 +351,8 @@ export function createInboxGmailForwardSyncTicker(
                   body: item.body,
                   from: item.from,
                   threadId: item.threadId,
+                  headers: item.headers,
+                  automated: item.automated,
                 },
               });
             } catch (e) {

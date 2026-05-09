@@ -40,7 +40,7 @@ export function TaskReplyBox({ task, onPosted }: TaskReplyBoxProps) {
   if (isDone) {
     return (
       <section data-testid="task-reply-box">
-        <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
+        <div className="rounded-lg border border-border bg-bg px-3 py-2 text-xs text-muted">
           This task is closed. Reopen it from the action bar to continue the conversation.
         </div>
       </section>
@@ -106,7 +106,7 @@ export function TaskReplyBox({ task, onPosted }: TaskReplyBoxProps) {
       Waiting on you
     </div>
   ) : agentWorking ? (
-    <div className="rounded-t-lg bg-blue-50 border-b border-blue-200 px-3 py-2 text-xs font-medium text-blue-900">
+    <div className="rounded-t-lg bg-accent-tint border-b border-accent px-3 py-2 text-xs font-medium text-accent">
       Agent working — your note will be queued for the next pass
     </div>
   ) : null;
@@ -119,7 +119,7 @@ export function TaskReplyBox({ task, onPosted }: TaskReplyBoxProps) {
 
   return (
     <section data-testid="task-reply-box">
-      <div className="rounded-lg border border-slate-200 bg-white">
+      <div className="rounded-lg border border-border bg-white">
         {banner}
         <textarea
           value={body}
@@ -130,7 +130,7 @@ export function TaskReplyBox({ task, onPosted }: TaskReplyBoxProps) {
           placeholder={placeholder}
           className="w-full text-sm px-3 py-2.5 focus:outline-none resize-y font-sans"
         />
-        <div className="flex items-center justify-end gap-2 px-2 py-1.5 border-t border-slate-100 bg-slate-50/50 rounded-b-lg">
+        <div className="flex items-center justify-end gap-2 px-2 py-1.5 border-t border-border-subtle bg-bg/50 rounded-b-lg">
           {error && (
             <span className="text-[11px] text-rose-600 max-w-[200px] truncate">{error}</span>
           )}
@@ -140,7 +140,7 @@ export function TaskReplyBox({ task, onPosted }: TaskReplyBoxProps) {
                 type="button"
                 onClick={() => void markDone()}
                 disabled={busy}
-                className="text-xs font-medium px-3 py-1.5 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 disabled:bg-slate-300"
+                className="text-xs font-medium px-3 py-1.5 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 disabled:bg-border"
               >
                 {busy ? "…" : "Mark done"}
               </button>
@@ -148,7 +148,7 @@ export function TaskReplyBox({ task, onPosted }: TaskReplyBoxProps) {
                 type="button"
                 onClick={() => void sendToAgent()}
                 disabled={busy}
-                className="text-xs font-medium px-3 py-1.5 rounded-md bg-slate-900 text-white hover:bg-slate-800 disabled:bg-slate-300"
+                className="text-xs font-medium px-3 py-1.5 rounded-md bg-accent text-white hover:bg-accent-light disabled:bg-border"
               >
                 {busy ? "…" : "Send back to agent"}
               </button>
@@ -158,7 +158,7 @@ export function TaskReplyBox({ task, onPosted }: TaskReplyBoxProps) {
               type="button"
               onClick={() => void sendNote()}
               disabled={busy || !hasContent}
-              className="text-xs font-medium px-3 py-1.5 rounded-md bg-slate-900 text-white hover:bg-slate-800 disabled:bg-slate-300"
+              className="text-xs font-medium px-3 py-1.5 rounded-md bg-accent text-white hover:bg-accent-light disabled:bg-border"
             >
               {busy ? "Sending…" : "Send note"}
             </button>

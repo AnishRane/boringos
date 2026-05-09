@@ -1,9 +1,8 @@
 # Build a Module — v2 quickstart
 
-> **Status:** Working starter (covers Phases 0-5 of `task_12`).
-> The full guide with CRM as the canonical worked example is
-> drafted in [`docs/blockers/task_13_v2_docs_rewrite.md`](docs/blockers/task_13_v2_docs_rewrite.md)
-> and ships alongside cutover. This file is the practical
+> **Status:** Working starter. For canonical field-by-field
+> reference see [`MODULES.md`](MODULES.md), [`TOOLS.md`](TOOLS.md),
+> and [`SKILLS.md`](SKILLS.md). This file is the practical
 > minimum: what works on `branch_modules_skills` today.
 
 This file teaches you to write a v2 Module — the universal

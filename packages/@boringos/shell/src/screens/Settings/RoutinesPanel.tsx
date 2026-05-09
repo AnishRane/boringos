@@ -40,7 +40,7 @@ export function RoutinesPanel() {
 
   if (!user?.role || user.role !== "admin") {
     return (
-      <div className="rounded-md bg-blue-50 border border-blue-200 px-4 py-3 text-sm text-blue-700">
+      <div className="rounded-md bg-accent-tint border border-accent px-4 py-3 text-sm text-accent">
         <div className="font-medium">Admin access required</div>
         <div className="text-xs mt-1">Only admins can manage routines.</div>
       </div>
@@ -104,38 +104,38 @@ export function RoutinesPanel() {
 
       <div className="flex justify-between items-center">
         <div>
-          <div className="text-sm font-medium text-slate-900">Routines</div>
-          <div className="text-xs text-slate-500 mt-1">Automated schedules for agents and workflows</div>
+          <div className="text-sm font-medium text-text">Routines</div>
+          <div className="text-xs text-muted mt-1">Automated schedules for agents and workflows</div>
         </div>
         <button
           onClick={() => setShowForm(!showForm)}
-          className="px-3 py-1.5 rounded-md bg-blue-500 text-white text-xs font-medium hover:bg-blue-600 transition-colors"
+          className="px-3 py-1.5 rounded-md bg-accent text-white text-xs font-medium hover:bg-accent transition-colors"
         >
           {showForm ? "Cancel" : "New Routine"}
         </button>
       </div>
 
       {showForm && (
-        <div className="border border-slate-200 rounded-lg p-4 bg-slate-50">
+        <div className="border border-border rounded-lg p-4 bg-bg">
           <div className="space-y-4">
             <div>
-              <label className="block text-xs uppercase tracking-wide text-slate-600 mb-1">Title</label>
+              <label className="block text-xs uppercase tracking-wide text-muted-strong mb-1">Title</label>
               <input
                 type="text"
                 value={formData.title}
                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                 placeholder="e.g., Gmail sync"
-                className="w-full text-sm border border-slate-200 rounded-md px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                className="w-full text-sm border border-border rounded-md px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-accent/40"
               />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs uppercase tracking-wide text-slate-600 mb-1">Target Type</label>
+                <label className="block text-xs uppercase tracking-wide text-muted-strong mb-1">Target Type</label>
                 <select
                   value={formData.targetType}
                   onChange={(e) => setFormData({ ...formData, targetType: e.target.value as "agent" | "workflow", targetId: "" })}
-                  className="w-full text-sm border border-slate-200 rounded-md px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                  className="w-full text-sm border border-border rounded-md px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-accent/40"
                 >
                   <option value="agent">Agent</option>
                   <option value="workflow">Workflow</option>
@@ -143,13 +143,13 @@ export function RoutinesPanel() {
               </div>
 
               <div>
-                <label className="block text-xs uppercase tracking-wide text-slate-600 mb-1">
+                <label className="block text-xs uppercase tracking-wide text-muted-strong mb-1">
                   {formData.targetType === "agent" ? "Agent" : "Workflow"}
                 </label>
                 <select
                   value={formData.targetId}
                   onChange={(e) => setFormData({ ...formData, targetId: e.target.value })}
-                  className="w-full text-sm border border-slate-200 rounded-md px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                  className="w-full text-sm border border-border rounded-md px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-accent/40"
                 >
                   <option value="">Select {formData.targetType === "agent" ? "an agent" : "a workflow"}</option>
                   {formData.targetType === "agent"
@@ -169,22 +169,22 @@ export function RoutinesPanel() {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs uppercase tracking-wide text-slate-600 mb-1">Cron Expression</label>
+                <label className="block text-xs uppercase tracking-wide text-muted-strong mb-1">Cron Expression</label>
                 <input
                   type="text"
                   value={formData.cronExpression}
                   onChange={(e) => setFormData({ ...formData, cronExpression: e.target.value })}
                   placeholder="0 */6 * * *"
-                  className="w-full text-sm border border-slate-200 rounded-md px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500/40 font-mono text-xs"
+                  className="w-full text-sm border border-border rounded-md px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-accent/40 font-mono text-xs"
                 />
               </div>
 
               <div>
-                <label className="block text-xs uppercase tracking-wide text-slate-600 mb-1">Timezone</label>
+                <label className="block text-xs uppercase tracking-wide text-muted-strong mb-1">Timezone</label>
                 <select
                   value={formData.timezone}
                   onChange={(e) => setFormData({ ...formData, timezone: e.target.value })}
-                  className="w-full text-sm border border-slate-200 rounded-md px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                  className="w-full text-sm border border-border rounded-md px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-accent/40"
                 >
                   <option>UTC</option>
                   <option>America/New_York</option>
@@ -197,11 +197,11 @@ export function RoutinesPanel() {
             </div>
 
             <div>
-              <label className="block text-xs uppercase tracking-wide text-slate-600 mb-1">Concurrency Policy</label>
+              <label className="block text-xs uppercase tracking-wide text-muted-strong mb-1">Concurrency Policy</label>
               <select
                 value={formData.concurrencyPolicy}
                 onChange={(e) => setFormData({ ...formData, concurrencyPolicy: e.target.value })}
-                className="w-full text-sm border border-slate-200 rounded-md px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                className="w-full text-sm border border-border rounded-md px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-accent/40"
               >
                 {CONCURRENCY_POLICIES.map((p) => (
                   <option key={p.value} value={p.value}>
@@ -214,13 +214,13 @@ export function RoutinesPanel() {
             <div className="flex gap-2 justify-end pt-2">
               <button
                 onClick={() => setShowForm(false)}
-                className="px-3 py-1.5 rounded-md border border-slate-200 text-slate-700 text-xs font-medium hover:bg-slate-50 transition-colors"
+                className="px-3 py-1.5 rounded-md border border-border text-text-secondary text-xs font-medium hover:bg-bg transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={handleCreate}
-                className="px-3 py-1.5 rounded-md bg-blue-500 text-white text-xs font-medium hover:bg-blue-600 transition-colors disabled:opacity-50"
+                className="px-3 py-1.5 rounded-md bg-accent text-white text-xs font-medium hover:bg-accent transition-colors disabled:opacity-50"
                 disabled={!formData.title || !formData.targetId}
               >
                 Create Routine
@@ -236,34 +236,34 @@ export function RoutinesPanel() {
           description="Create a routine to automatically run agents or workflows on a schedule."
         />
       ) : (
-        <div className="border border-slate-200 rounded-lg overflow-hidden">
+        <div className="border border-border rounded-lg overflow-hidden">
           <table className="w-full text-sm">
-            <thead className="bg-slate-50 border-b border-slate-200">
+            <thead className="bg-bg border-b border-border">
               <tr>
-                <th className="px-4 py-2 text-left text-xs font-medium text-slate-600 uppercase">Title</th>
-                <th className="px-4 py-2 text-left text-xs font-medium text-slate-600 uppercase">Target</th>
-                <th className="px-4 py-2 text-left text-xs font-medium text-slate-600 uppercase">Schedule</th>
-                <th className="px-4 py-2 text-left text-xs font-medium text-slate-600 uppercase">Status</th>
-                <th className="px-4 py-2 text-left text-xs font-medium text-slate-600 uppercase">Actions</th>
+                <th className="px-4 py-2 text-left text-xs font-medium text-muted-strong uppercase">Title</th>
+                <th className="px-4 py-2 text-left text-xs font-medium text-muted-strong uppercase">Target</th>
+                <th className="px-4 py-2 text-left text-xs font-medium text-muted-strong uppercase">Schedule</th>
+                <th className="px-4 py-2 text-left text-xs font-medium text-muted-strong uppercase">Status</th>
+                <th className="px-4 py-2 text-left text-xs font-medium text-muted-strong uppercase">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-border-subtle">
               {routines.map((routine: any) => {
                 const targetName = routine.assigneeAgentId
                   ? agents.find((a: any) => a.id === routine.assigneeAgentId)?.name || "Unknown"
                   : workflows.find((w: any) => w.id === routine.workflowId)?.name || "Unknown";
 
                 return (
-                  <tr key={routine.id} className="hover:bg-slate-50">
-                    <td className="px-4 py-3 font-medium text-slate-900">{routine.title}</td>
-                    <td className="px-4 py-3 text-slate-600 text-xs">{String(targetName)}</td>
-                    <td className="px-4 py-3 text-slate-600 text-xs font-mono">{routine.cronExpression}</td>
+                  <tr key={routine.id} className="hover:bg-bg">
+                    <td className="px-4 py-3 font-medium text-text">{routine.title}</td>
+                    <td className="px-4 py-3 text-muted-strong text-xs">{String(targetName)}</td>
+                    <td className="px-4 py-3 text-muted-strong text-xs font-mono">{routine.cronExpression}</td>
                     <td className="px-4 py-3">
                       <span
                         className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${
                           routine.status === "active"
                             ? "bg-emerald-50 text-emerald-700"
-                            : "bg-slate-50 text-slate-700"
+                            : "bg-bg text-text-secondary"
                         }`}
                       >
                         {routine.status || "active"}
@@ -273,7 +273,7 @@ export function RoutinesPanel() {
                       <div className="flex gap-2">
                         <button
                           onClick={() => handleTrigger(routine.id)}
-                          className="text-xs px-2 py-1 rounded bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
+                          className="text-xs px-2 py-1 rounded bg-accent-tint text-accent hover:bg-accent-tint transition-colors"
                         >
                           Run Now
                         </button>

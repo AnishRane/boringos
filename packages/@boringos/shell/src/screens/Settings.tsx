@@ -11,9 +11,7 @@ import { SlotRenderer } from "../slots/SlotRenderer.js";
 import { EmptyState, ScreenBody, ScreenHeader } from "./_shared.js";
 import { BrandingPanel } from "./Settings/BrandingPanel.js";
 import { AgentsPanel } from "./Settings/AgentsPanel.js";
-import { RoutinesPanel } from "./Settings/RoutinesPanel.js";
-import { BudgetsPanel } from "./Settings/BudgetsPanel.js";
-import { V2ModulesPanel } from "./Settings/V2ModulesPanel.js";
+import { ManifestSection } from "./Settings/ManifestSection.js";
 import { V2ToolsPanel } from "./Settings/V2ToolsPanel.js";
 import { V2ToolCallsPanel } from "./Settings/V2ToolCallsPanel.js";
 import { V2WorkflowPalettePanel } from "./Settings/V2WorkflowPalettePanel.js";
@@ -31,9 +29,6 @@ export function Settings() {
     ...(isAdmin
       ? [
           { id: "agents", label: "Agents" },
-          { id: "routines", label: "Routines" },
-          { id: "budgets", label: "Budgets" },
-          { id: "v2-modules", label: "Modules" },
           { id: "v2-tools", label: "Tool catalog" },
           { id: "v2-tool-calls", label: "Tool calls" },
           { id: "v2-workflow-palette", label: "Workflow blocks" },
@@ -57,7 +52,7 @@ export function Settings() {
         subtitle="Tenant configuration"
       />
       <div className="flex-1 flex overflow-hidden">
-        <nav className="w-56 border-r border-slate-100 px-2 py-4 overflow-y-auto shrink-0">
+        <nav className="w-56 border-r border-border-subtle px-2 py-4 overflow-y-auto shrink-0">
           {tabs.map((t) => (
             <button
               key={t.id}
@@ -65,8 +60,8 @@ export function Settings() {
               onClick={() => setActive(t.id)}
               className={`block w-full text-left px-3 py-1.5 rounded-md text-sm transition-colors ${
                 active === t.id
-                  ? "bg-slate-100 text-slate-900 font-medium"
-                  : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                  ? "bg-bg-warm text-text font-medium"
+                  : "text-muted-strong hover:bg-bg-warm hover:text-text"
               }`}
             >
               {t.label}
@@ -74,7 +69,7 @@ export function Settings() {
           ))}
 
           {panels.length === 0 && (
-            <div className="mt-4 px-3 text-[11px] text-slate-400">
+            <div className="mt-4 px-3 text-[11px] text-muted">
               Install apps to add their settings panels here.
             </div>
           )}
@@ -82,22 +77,19 @@ export function Settings() {
 
         <ScreenBody>
           {active === "general" && (
-            <div className="max-w-xl space-y-6">
-              <Field label="Tenant name" value={user?.tenantName ?? "—"} />
-              <Field label="Your role" value={user?.role ?? "—"} />
-              <Field label="Email" value={user?.email ?? "—"} />
+            <div className="space-y-8">
+              <div className="max-w-xl space-y-6">
+                <Field label="Tenant name" value={user?.tenantName ?? "—"} />
+                <Field label="Your role" value={user?.role ?? "—"} />
+                <Field label="Email" value={user?.email ?? "—"} />
+              </div>
+              {isAdmin && <ManifestSection />}
             </div>
           )}
 
           {active === "branding" && <BrandingPanel />}
 
           {active === "agents" && <AgentsPanel />}
-
-          {active === "routines" && <RoutinesPanel />}
-
-          {active === "budgets" && <BudgetsPanel />}
-
-          {active === "v2-modules" && <V2ModulesPanel />}
 
           {active === "v2-tools" && <V2ToolsPanel />}
 
@@ -127,10 +119,10 @@ export function Settings() {
 function Field({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <div className="text-xs uppercase tracking-wide text-slate-400">
+      <div className="text-xs uppercase tracking-wide text-muted">
         {label}
       </div>
-      <div className="mt-1 text-sm text-slate-900">{value}</div>
+      <div className="mt-1 text-sm text-text">{value}</div>
     </div>
   );
 }

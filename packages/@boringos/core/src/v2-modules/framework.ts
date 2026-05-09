@@ -575,7 +575,8 @@ function makeReadInbox(db: Db): Tool {
   };
 }
 
-function makeUpdateInbox(db: Db): Tool {
+function makeUpdateInbox(deps: FrameworkDeps): Tool {
+  const db = deps.db;
   return {
     name: "inbox.update",
     description: "Update inbox item metadata or status",
@@ -604,10 +605,56 @@ function makeUpdateInbox(db: Db): Tool {
         };
       }
 
+      const previousMeta = (item.metadata ?? {}) as Record<string, unknown>;
       const updates: Record<string, unknown> = { updatedAt: new Date() };
       if (input.metadata) updates.metadata = input.metadata;
       if (input.status) updates.status = input.status;
       await db.update(inboxItems).set(updates).where(eq(inboxItems.id, input.itemId));
+
+      // Emit `triage.classified` whenever this update set / changed
+      // the `metadata.triage` block. The event is what gates the
+      // generic-replier wake — without it the replier would never
+      // run after the inbox-fanout stopped waking it directly.
+      if (input.metadata) {
+        const nextTriage = (input.metadata.triage ?? null) as
+          | { classification?: unknown; score?: unknown; source?: unknown; rationale?: unknown }
+          | null;
+        const prevTriage = (previousMeta.triage ?? null) as
+          | { classification?: unknown; score?: unknown }
+          | null;
+        const triageChanged =
+          nextTriage !== null &&
+          (prevTriage === null ||
+            nextTriage.classification !== prevTriage.classification ||
+            nextTriage.score !== prevTriage.score);
+        if (triageChanged) {
+          const bus = (deps.factoryDeps.eventBus ?? null) as
+            | { emit: (e: { connectorKind: string; type: string; tenantId: string; data: Record<string, unknown>; timestamp: Date }) => Promise<void> | void }
+            | null;
+          if (bus) {
+            try {
+              await bus.emit({
+                connectorKind: "framework",
+                type: "triage.classified",
+                tenantId: ctx.tenantId,
+                timestamp: new Date(),
+                data: {
+                  itemId: input.itemId,
+                  classification: nextTriage.classification ?? null,
+                  score: nextTriage.score ?? null,
+                  source: nextTriage.source ?? "agent",
+                  rationale: nextTriage.rationale ?? null,
+                },
+              });
+            } catch (err) {
+              console.warn(
+                `[framework.inbox.update] triage.classified emit failed for item=${input.itemId}:`,
+                err instanceof Error ? err.message : err,
+              );
+            }
+          }
+        }
+      }
       return { ok: true, result: { ok: true } };
     },
   };
@@ -658,7 +705,7 @@ export const createFrameworkModule: ModuleFactory = (deps) => {
       makeReportCost(db),
       makeCreateAgent(db),
       makeReadInbox(db),
-      makeUpdateInbox(db),
+      makeUpdateInbox(fwDeps),
       makeWakeAgent(fwDeps),
     ],
   };

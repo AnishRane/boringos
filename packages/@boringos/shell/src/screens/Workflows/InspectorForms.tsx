@@ -25,21 +25,21 @@ function Field({
 }) {
   return (
     <label className="block">
-      <div className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 mb-1">
+      <div className="text-[10px] uppercase tracking-wider font-semibold text-muted mb-1">
         {label}
       </div>
       {children}
-      {hint && <div className="text-[10px] text-slate-400 mt-1 leading-tight">{hint}</div>}
+      {hint && <div className="text-[10px] text-muted mt-1 leading-tight">{hint}</div>}
     </label>
   );
 }
 
 const inputCls =
-  "w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-slate-400";
+  "w-full rounded border border-border bg-white px-2 py-1.5 text-xs text-text focus:outline-none focus:border-accent";
 const monoInputCls =
-  "w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs font-mono text-slate-900 focus:outline-none focus:border-slate-400";
+  "w-full rounded border border-border bg-white px-2 py-1.5 text-xs font-mono text-text focus:outline-none focus:border-accent";
 const textareaCls =
-  "w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-[11px] font-mono text-slate-900 focus:outline-none focus:border-slate-400";
+  "w-full rounded border border-border bg-white px-2 py-1.5 text-[11px] font-mono text-text focus:outline-none focus:border-accent";
 
 export function BlockForm({ block, onChange, tools = [] }: FormProps) {
   const kind = blockKind(block);
@@ -54,7 +54,7 @@ export function BlockForm({ block, onChange, tools = [] }: FormProps) {
         />
       </Field>
       <Field label="Block id">
-        <code className="block text-[11px] font-mono text-slate-500">{block.id}</code>
+        <code className="block text-[11px] font-mono text-muted">{block.id}</code>
       </Field>
 
       {kind === "trigger" && <TriggerForm block={block} onChange={onChange} />}
@@ -70,7 +70,7 @@ export function BlockForm({ block, onChange, tools = [] }: FormProps) {
 
 function TriggerForm(_p: FormProps) {
   return (
-    <div className="rounded border border-slate-100 bg-slate-50 px-2 py-2 text-[11px] text-slate-500 leading-relaxed">
+    <div className="rounded border border-border-subtle bg-bg px-2 py-2 text-[11px] text-muted leading-relaxed">
       Trigger blocks emit the run's <code className="font-mono">payload</code> as their
       output. Reference upstream values as <code className="font-mono">{"{{trigger.field}}"}</code>.
     </div>
@@ -102,7 +102,7 @@ function ToolForm({ block, onChange, tools }: FormProps) {
             </option>
           ))}
         </select>
-        {tool && <div className="text-[10px] text-slate-500 mt-1">{tool.description}</div>}
+        {tool && <div className="text-[10px] text-muted mt-1">{tool.description}</div>}
       </Field>
 
       <Field

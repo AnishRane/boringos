@@ -45,3 +45,6 @@ export type {
   InstallResult,
   InstalledRow,
 } from "./install-manager.js";
+
+export { createSettingRegistry } from "./setting-registry.js";
+export type { SettingRegistry } from "./setting-registry.js";

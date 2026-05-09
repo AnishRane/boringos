@@ -69,8 +69,8 @@ export function V2WorkflowPalettePanel() {
   return (
     <div className="space-y-6 max-w-3xl">
       <div>
-        <h2 className="text-base font-medium text-slate-900">Workflow blocks</h2>
-        <p className="text-xs text-slate-500 mt-1">
+        <h2 className="text-base font-medium text-text">Workflow blocks</h2>
+        <p className="text-xs text-muted mt-1">
           The visual editor offers these blocks. Control-flow primitives are
           built into the workflow runtime; tool blocks are sourced from every
           installed module's tool catalog — install a module to add new blocks.
@@ -84,24 +84,24 @@ export function V2WorkflowPalettePanel() {
       )}
 
       <section>
-        <h3 className="text-xs font-medium text-slate-500 mb-2 uppercase tracking-wide">
+        <h3 className="text-xs font-medium text-muted mb-2 uppercase tracking-wide">
           Control flow ({CONTROL_FLOW.length})
         </h3>
-        <div className="rounded-md border border-slate-200 divide-y divide-slate-100 bg-white">
+        <div className="rounded-md border border-border divide-y divide-border-subtle bg-white">
           {CONTROL_FLOW.map((b) => (
             <div key={b.kind} className="px-4 py-2.5 text-xs">
               <div className="flex items-baseline gap-2">
-                <code className="text-slate-900">{b.kind}</code>
-                <span className="text-slate-500">— {b.label}</span>
+                <code className="text-text">{b.kind}</code>
+                <span className="text-muted">— {b.label}</span>
               </div>
-              <div className="text-slate-600 mt-0.5">{b.description}</div>
+              <div className="text-muted-strong mt-0.5">{b.description}</div>
             </div>
           ))}
         </div>
       </section>
 
       <section>
-        <h3 className="text-xs font-medium text-slate-500 mb-2 uppercase tracking-wide">
+        <h3 className="text-xs font-medium text-muted mb-2 uppercase tracking-wide">
           Tool blocks ({tools.length})
         </h3>
         {tools.length === 0 ? (
@@ -110,14 +110,14 @@ export function V2WorkflowPalettePanel() {
             description="Install a v2 module from the Modules tab to add tool blocks here."
           />
         ) : (
-          <div className="rounded-md border border-slate-200 divide-y divide-slate-100 bg-white">
+          <div className="rounded-md border border-border divide-y divide-border-subtle bg-white">
             {tools.map((t) => (
               <div key={t.fullName} className="px-4 py-2.5 text-xs">
                 <div className="flex items-baseline gap-2">
-                  <code className="text-slate-900">{t.fullName}</code>
-                  <span className="text-slate-500">— {t.moduleId}</span>
+                  <code className="text-text">{t.fullName}</code>
+                  <span className="text-muted">— {t.moduleId}</span>
                 </div>
-                <div className="text-slate-600 mt-0.5">{t.description}</div>
+                <div className="text-muted-strong mt-0.5">{t.description}</div>
               </div>
             ))}
           </div>

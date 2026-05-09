@@ -30,10 +30,10 @@ export function Inspector({
 }: InspectorProps) {
   if (!block) {
     return (
-      <aside className="w-[300px] shrink-0 border-l border-slate-100 overflow-y-auto p-4 text-xs text-slate-400">
-        <div className="rounded border border-dashed border-slate-200 px-3 py-6 text-center">
+      <aside className="w-[300px] shrink-0 border-l border-border-subtle overflow-y-auto p-4 text-xs text-muted">
+        <div className="rounded border border-dashed border-border px-3 py-6 text-center">
           Select a block to inspect.
-          <div className="mt-1 text-[11px] text-slate-300">
+          <div className="mt-1 text-[11px] text-muted">
             <kbd className="font-mono">⌘K</kbd> to insert one.
           </div>
         </div>
@@ -46,17 +46,17 @@ export function Inspector({
   const isPinned = cfg.pinned === true && cfg.pinnedOutput !== undefined;
 
   return (
-    <aside className="w-[300px] shrink-0 border-l border-slate-100 overflow-y-auto flex flex-col">
-      <header className="px-4 pt-4 pb-3 border-b border-slate-100">
+    <aside className="w-[300px] shrink-0 border-l border-border-subtle overflow-y-auto flex flex-col">
+      <header className="px-4 pt-4 pb-3 border-b border-border-subtle">
         <div className="flex items-center gap-2">
           <span
             className={`text-[9px] font-semibold tracking-wider px-1.5 py-0.5 rounded ${accent.bg} ${accent.text}`}
           >
             {accent.label}
           </span>
-          <code className="text-[10px] font-mono text-slate-400 ml-auto">{block.id}</code>
+          <code className="text-[10px] font-mono text-muted ml-auto">{block.id}</code>
         </div>
-        <div className="mt-1.5 text-sm font-medium text-slate-900 truncate">
+        <div className="mt-1.5 text-sm font-medium text-text truncate">
           {block.name || (kind === "tool" ? block.tool : kind)}
         </div>
       </header>
@@ -65,16 +65,16 @@ export function Inspector({
         <BlockForm block={block} onChange={onChange} tools={tools} />
 
         {blockRun && (
-          <section className="mt-5 pt-4 border-t border-slate-100">
+          <section className="mt-5 pt-4 border-t border-border-subtle">
             <div className="flex items-center mb-2">
-              <h3 className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 flex-1">
+              <h3 className="text-[10px] uppercase tracking-wider font-semibold text-muted flex-1">
                 Last run
               </h3>
               {canReplay && (
                 <button
                   type="button"
                   onClick={onReplayFromHere}
-                  className="text-[10px] text-slate-500 hover:text-slate-900 px-2 py-0.5 rounded border border-slate-200 hover:border-slate-300"
+                  className="text-[10px] text-muted hover:text-text px-2 py-0.5 rounded border border-border hover:border-border"
                 >
                   ↻ Replay from here
                 </button>
@@ -86,17 +86,17 @@ export function Inspector({
 
         {/* Pin toggle — works only when there's a last-run output to cache */}
         {(blockRun?.output || isPinned) && (
-          <section className="mt-5 pt-4 border-t border-slate-100">
+          <section className="mt-5 pt-4 border-t border-border-subtle">
             <button
               type="button"
               onClick={onTogglePin}
               className={`w-full text-left flex items-center gap-2 text-[11px] px-2 py-1.5 rounded border ${
                 isPinned
                   ? "bg-amber-50 border-amber-200 text-amber-800"
-                  : "bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100"
+                  : "bg-bg border-border text-text-secondary hover:bg-bg-warm"
               }`}
             >
-              <span className={`w-2 h-2 rounded-full ${isPinned ? "bg-amber-400" : "bg-slate-300"}`} />
+              <span className={`w-2 h-2 rounded-full ${isPinned ? "bg-amber-400" : "bg-border"}`} />
               <span className="flex-1">
                 {isPinned ? "Output pinned (dev runs use cache)" : "Pin last output for dev runs"}
               </span>
@@ -105,7 +105,7 @@ export function Inspector({
         )}
       </div>
 
-      <footer className="px-4 py-3 border-t border-slate-100">
+      <footer className="px-4 py-3 border-t border-border-subtle">
         <button
           type="button"
           onClick={onDelete}
@@ -122,10 +122,10 @@ function RunPanel({ run }: { run: BlockRun }) {
   return (
     <div className="space-y-2 text-[11px]">
       <div className="flex items-center gap-2">
-        <span className="text-slate-500">status</span>
-        <code className="font-mono text-slate-900">{run.status}</code>
+        <span className="text-muted">status</span>
+        <code className="font-mono text-text">{run.status}</code>
         {run.durationMs != null && (
-          <span className="ml-auto font-mono text-slate-400">{run.durationMs}ms</span>
+          <span className="ml-auto font-mono text-muted">{run.durationMs}ms</span>
         )}
       </div>
       {run.error && (
@@ -134,21 +134,21 @@ function RunPanel({ run }: { run: BlockRun }) {
         </div>
       )}
       {run.output && (
-        <details className="rounded border border-slate-100 bg-slate-50 px-2 py-1.5">
-          <summary className="cursor-pointer text-[10px] uppercase tracking-wider text-slate-500 font-semibold">
+        <details className="rounded border border-border-subtle bg-bg px-2 py-1.5">
+          <summary className="cursor-pointer text-[10px] uppercase tracking-wider text-muted font-semibold">
             Output
           </summary>
-          <pre className="mt-1 text-[10px] font-mono text-slate-700 whitespace-pre-wrap break-all max-h-40 overflow-y-auto">
+          <pre className="mt-1 text-[10px] font-mono text-text-secondary whitespace-pre-wrap break-all max-h-40 overflow-y-auto">
             {JSON.stringify(run.output, null, 2)}
           </pre>
         </details>
       )}
       {run.resolvedConfig && (
-        <details className="rounded border border-slate-100 bg-slate-50 px-2 py-1.5">
-          <summary className="cursor-pointer text-[10px] uppercase tracking-wider text-slate-500 font-semibold">
+        <details className="rounded border border-border-subtle bg-bg px-2 py-1.5">
+          <summary className="cursor-pointer text-[10px] uppercase tracking-wider text-muted font-semibold">
             Resolved config
           </summary>
-          <pre className="mt-1 text-[10px] font-mono text-slate-700 whitespace-pre-wrap break-all max-h-40 overflow-y-auto">
+          <pre className="mt-1 text-[10px] font-mono text-text-secondary whitespace-pre-wrap break-all max-h-40 overflow-y-auto">
             {JSON.stringify(run.resolvedConfig, null, 2)}
           </pre>
         </details>

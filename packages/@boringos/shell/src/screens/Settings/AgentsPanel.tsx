@@ -7,6 +7,7 @@ import { useState } from "react";
 
 import { useAuth } from "../../auth/AuthProvider.js";
 import { useAgents, useRuntimes, useSettings, useCosts } from "@boringos/ui";
+import { Switch } from "../../components/ui/switch.js";
 import { LoadingState, EmptyState } from "../_shared.js";
 
 export function AgentsPanel() {
@@ -19,7 +20,7 @@ export function AgentsPanel() {
 
   if (!user?.role || user.role !== "admin") {
     return (
-      <div className="rounded-md bg-blue-50 border border-blue-200 px-4 py-3 text-sm text-blue-700">
+      <div className="rounded-md bg-accent-tint border border-accent px-4 py-3 text-sm text-accent">
         <div className="font-medium">Admin access required</div>
         <div className="text-xs mt-1">Only admins can manage agents.</div>
       </div>
@@ -69,64 +70,57 @@ export function AgentsPanel() {
       <div>
         <div className="flex items-center justify-between mb-2">
           <div>
-            <div className="text-sm font-medium text-slate-900">Global Pause</div>
-            <div className="text-xs text-slate-500 mt-1">
+            <div className="text-sm font-medium text-text">Global Pause</div>
+            <div className="text-xs text-muted mt-1">
               Pausing agents stops new runs from starting. Already-running agents continue.
             </div>
           </div>
-          <button
-            onClick={() => handleGlobalPause(!globalPaused)}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-              globalPaused ? "bg-red-500" : "bg-emerald-500"
-            }`}
-          >
-            <span
-              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                globalPaused ? "translate-x-6" : "translate-x-1"
-              }`}
-            />
-          </button>
+          <Switch
+            checked={globalPaused}
+            onCheckedChange={(v) => handleGlobalPause(!!v)}
+            aria-label="Pause all agents globally"
+          />
         </div>
       </div>
 
       <div>
-        <div className="text-sm font-medium text-slate-900 mb-3">Agents</div>
-        <div className="overflow-x-auto border border-slate-200 rounded-lg">
+        <div className="text-sm font-medium text-text mb-3">Agents</div>
+        <div className="overflow-x-auto border border-border rounded-lg">
           <table className="w-full text-sm">
-            <thead className="bg-slate-50 border-b border-slate-200">
+            <thead className="bg-bg border-b border-border">
               <tr>
-                <th className="px-4 py-2 text-left text-xs font-medium text-slate-600 uppercase">Name</th>
-                <th className="px-4 py-2 text-left text-xs font-medium text-slate-600 uppercase">Status</th>
-                <th className="px-4 py-2 text-left text-xs font-medium text-slate-600 uppercase">Model</th>
-                <th className="px-4 py-2 text-left text-xs font-medium text-slate-600 uppercase">Monthly Spend</th>
-                <th className="px-4 py-2 text-left text-xs font-medium text-slate-600 uppercase">Actions</th>
+                <th className="px-4 py-2 text-left text-xs font-medium text-muted-strong uppercase">Name</th>
+                <th className="px-4 py-2 text-left text-xs font-medium text-muted-strong uppercase">Status</th>
+                <th className="px-4 py-2 text-left text-xs font-medium text-muted-strong uppercase">Model</th>
+                <th className="px-4 py-2 text-left text-xs font-medium text-muted-strong uppercase">Monthly Spend</th>
+                <th className="px-4 py-2 text-left text-xs font-medium text-muted-strong uppercase">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-border-subtle">
               {agents.map((agent) => {
                 const statusColor =
                   agent.status === "paused"
                     ? "bg-amber-50 text-amber-700"
                     : agent.status === "running"
-                      ? "bg-blue-50 text-blue-700"
-                      : "bg-slate-50 text-slate-700";
+                      ? "bg-accent-tint text-accent"
+                      : "bg-bg text-text-secondary";
 
                 return (
-                  <tr key={agent.id} className="hover:bg-slate-50">
-                    <td className="px-4 py-3 font-medium text-slate-900">{agent.name}</td>
+                  <tr key={agent.id} className="hover:bg-bg">
+                    <td className="px-4 py-3 font-medium text-text">{agent.name}</td>
                     <td className="px-4 py-3">
                       <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${statusColor}`}>
                         {agent.status || "idle"}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-slate-600">
+                    <td className="px-4 py-3 text-muted-strong">
                       {agent.runtimeId && runtimes.find((r: any) => r.id === agent.runtimeId)?.model ? (
                         <span>{String(runtimes.find((r: any) => r.id === agent.runtimeId)?.model)}</span>
                       ) : (
-                        <span className="text-slate-400">—</span>
+                        <span className="text-muted">—</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-slate-600">
+                    <td className="px-4 py-3 text-muted-strong">
                       ${(agentSpendMap.get(agent.id) || 0).toFixed(2)}
                     </td>
                     <td className="px-4 py-3">
@@ -148,7 +142,7 @@ export function AgentsPanel() {
                         )}
                         <a
                           href={`/agents/${agent.id}/runs`}
-                          className="text-xs px-2 py-1 rounded bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
+                          className="text-xs px-2 py-1 rounded bg-accent-tint text-accent hover:bg-accent-tint transition-colors"
                         >
                           Runs
                         </a>

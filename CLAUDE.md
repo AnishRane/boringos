@@ -67,11 +67,9 @@ The framework's prompt-side abstraction. Every component (connector, app, agent,
 
 Behavioral teaching goes in `SKILL.md` — not into hand-edited copies of `protocol.ts`.
 
-**Direction (`docs/blockers/task_11_skills_and_tools.md`):** collapse `skillMarkdown()` functions into literal `SKILL.md` files at each package root. One file shape across the framework.
-
 ## v2 architecture (active on `branch_modules_skills`)
 
-Rebuilt around three primitives — see [`docs/new_thesis.md`](docs/new_thesis.md), [`docs/blockers/task_12_greenfield_rebuild.md`](docs/blockers/task_12_greenfield_rebuild.md), [`BUILD-A-MODULE.md`](BUILD-A-MODULE.md), [`MIGRATION-V1-TO-V2.md`](MIGRATION-V1-TO-V2.md).
+Rebuilt around three primitives — see [`docs/new_thesis.md`](docs/new_thesis.md), [`docs/blockers/task_12_greenfield_rebuild.md`](docs/blockers/task_12_greenfield_rebuild.md), [`BUILD-A-MODULE.md`](BUILD-A-MODULE.md), [`MODULES.md`](MODULES.md), [`TOOLS.md`](TOOLS.md), [`SKILLS.md`](SKILLS.md), [`MIGRATION-V1-TO-V2.md`](MIGRATION-V1-TO-V2.md).
 
 | Primitive | What it is |
 |---|---|

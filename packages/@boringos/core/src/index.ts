@@ -41,6 +41,13 @@ export { createAuthMiddleware } from "./auth-middleware.js";
 // installDefaultWorkflows + pauseDefaultWorkflows removed —
 // drove the v1 BlockHandler engine which no longer exists.
 export type { EventBus, ConnectorEvent } from "./event-bus.js";
+export {
+  classifyAutomatedMail,
+  extractEmailAddress,
+  type AutomatedClassification,
+  type AutomatedKind,
+} from "./automated-mail.js";
+export { buildIngestMetadata } from "./inbox-gmail-forward-sync.js";
 export { createRealtimeBus } from "./realtime.js";
 export type { RealtimeBus, RealtimeEvent, EventType } from "./realtime.js";
 

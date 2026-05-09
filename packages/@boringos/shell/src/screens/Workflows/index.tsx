@@ -93,38 +93,26 @@ export function Workflows() {
     setWorkflows((arr) => (arr ?? []).map((w) => (w.id === wf.id ? wf : w)));
   }, []);
 
-  const isAdmin = user?.role === "admin";
-  if (!isAdmin) {
-    return (
-      <>
-        <ScreenHeader title="Workflows" subtitle="DAG-based orchestration" />
-        <div className="px-8 py-6">
-          <div className="rounded-md bg-blue-50 border border-blue-200 px-4 py-3 text-sm text-blue-700">
-            <div className="font-medium">Admin access required</div>
-            <div className="text-xs mt-1">Only admins can manage workflows.</div>
-          </div>
-        </div>
-      </>
-    );
-  }
+  // Admin gating moved to <RequireAdmin> wrapper at the routes table
+  // (App.tsx). The screen now assumes the user is an admin.
 
   return (
     <div className="flex-1 flex min-h-0 bg-white">
       {/* Sidebar list */}
-      <nav className="w-60 shrink-0 border-r border-slate-100 flex flex-col">
-        <div className="px-3 py-2 border-b border-slate-100">
+      <nav className="w-60 shrink-0 border-r border-border-subtle flex flex-col">
+        <div className="px-3 py-2 border-b border-border-subtle">
           <button
             type="button"
             onClick={handleCreate}
-            className="w-full px-2 py-1.5 rounded text-[11px] font-medium bg-slate-900 text-white hover:bg-slate-800"
+            className="w-full px-2 py-1.5 rounded text-[11px] font-medium bg-accent text-white hover:bg-accent-light"
           >
             + New workflow
           </button>
         </div>
         {workflows === null ? (
-          <div className="px-3 py-3 text-[11px] text-slate-400">Loading…</div>
+          <div className="px-3 py-3 text-[11px] text-muted">Loading…</div>
         ) : workflows.length === 0 ? (
-          <div className="px-3 py-3 text-[11px] text-slate-400">
+          <div className="px-3 py-3 text-[11px] text-muted">
             No workflows yet.
           </div>
         ) : (
@@ -136,12 +124,12 @@ export function Workflows() {
                   onClick={() => setActiveId(wf.id)}
                   className={`w-full text-left px-3 py-1.5 text-[12px] border-l-2 transition-colors ${
                     activeId === wf.id
-                      ? "bg-slate-100 text-slate-900 font-medium border-slate-900"
-                      : "text-slate-600 hover:bg-slate-50 border-transparent"
+                      ? "bg-bg-warm text-text font-medium border-accent"
+                      : "text-muted-strong hover:bg-bg border-transparent"
                   }`}
                 >
                   <div className="truncate">{wf.name || "(untitled)"}</div>
-                  <div className="text-[9px] text-slate-400 mt-0.5">
+                  <div className="text-[9px] text-muted mt-0.5">
                     {wf.blocks?.length ?? 0} blocks · {wf.status ?? "draft"}
                   </div>
                 </button>
@@ -149,7 +137,7 @@ export function Workflows() {
                   <button
                     type="button"
                     onClick={() => handleDuplicate(wf)}
-                    className="text-[10px] text-slate-400 hover:text-slate-700 px-1"
+                    className="text-[10px] text-muted hover:text-text-secondary px-1"
                     title="Duplicate"
                   >
                     ⧉
@@ -157,7 +145,7 @@ export function Workflows() {
                   <button
                     type="button"
                     onClick={() => handleDelete(wf.id)}
-                    className="text-[10px] text-slate-400 hover:text-rose-600 px-1"
+                    className="text-[10px] text-muted hover:text-rose-600 px-1"
                     title="Delete"
                   >
                     ×
@@ -179,7 +167,7 @@ export function Workflows() {
         {active ? (
           <Editor key={active.id} auth={auth} workflow={active} tools={tools} onSaved={handleSaved} />
         ) : (
-          <div className="flex-1 flex items-center justify-center text-xs text-slate-400">
+          <div className="flex-1 flex items-center justify-center text-xs text-muted">
             {workflows && workflows.length === 0
               ? "Create a workflow to get started."
               : "Select a workflow on the left."}

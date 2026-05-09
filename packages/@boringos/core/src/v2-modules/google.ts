@@ -28,7 +28,13 @@ const GMAIL_SKILL = `Gmail tools.
   \`query\` field uses Gmail search syntax (e.g. \`"from:boss is:unread"\`).
   Defaults to inbox if no query is given.
 - \`gmail.read_email(messageId)\` — full content of a single email.
-- \`gmail.send_email(to, subject, body)\` — send a plain-text email.
+- \`gmail.send_email(to, subject, body | bodyHtml + bodyText)\` — send
+  an email. Pass \`bodyHtml\` (and ideally a \`bodyText\` fallback) for
+  rich replies; \`body\` alone still works for plain-text.
+- \`gmail.reply_email(messageId, threadId, to, subject, bodyHtml?, bodyText?)\`
+  — reply to an existing message. Adds \`In-Reply-To\` / \`References\`
+  headers and uses the original \`threadId\` so Gmail surfaces the reply
+  inside the thread instead of as a new conversation.
 - \`gmail.search_emails(query, maxResults?)\` — explicit search; same
   query syntax as list_emails but no default.
 
@@ -211,17 +217,82 @@ export const createGoogleModule: ModuleFactory = (deps) => {
 
   const sendEmail: Tool = {
     name: "gmail.send_email",
-    description: "Send an email through the connected Gmail account",
-    inputs: z.object({
-      to: z.string().email(),
-      subject: z.string(),
-      body: z.string(),
-    }),
-    async handler(input: { to: string; subject: string; body: string }, ctx) {
+    description:
+      "Send an email through the connected Gmail account. Pass " +
+      "`bodyHtml` (with an optional `bodyText` fallback) for rich " +
+      "replies; `body` alone still works for plain-text.",
+    inputs: z
+      .object({
+        to: z.string().email(),
+        subject: z.string(),
+        body: z.string().optional(),
+        bodyHtml: z.string().optional(),
+        bodyText: z.string().optional(),
+      })
+      .refine(
+        (v) =>
+          (typeof v.body === "string" && v.body.length > 0) ||
+          (typeof v.bodyHtml === "string" && v.bodyHtml.length > 0) ||
+          (typeof v.bodyText === "string" && v.bodyText.length > 0),
+        { message: "At least one of body / bodyHtml / bodyText is required" },
+      ),
+    async handler(
+      input: {
+        to: string;
+        subject: string;
+        body?: string;
+        bodyHtml?: string;
+        bodyText?: string;
+      },
+      ctx,
+    ) {
       return withGmail(
         ctx,
         async (client) => client.executeAction("send_email", input),
         "gmail.send_email",
+      );
+    },
+  };
+
+  const replyEmail: Tool = {
+    name: "gmail.reply_email",
+    description:
+      "Reply to an existing Gmail message. Sets In-Reply-To / " +
+      "References headers and reuses the thread id so the reply is " +
+      "threaded in Gmail.",
+    inputs: z
+      .object({
+        messageId: z.string(),
+        threadId: z.string(),
+        to: z.string().email(),
+        subject: z.string(),
+        body: z.string().optional(),
+        bodyHtml: z.string().optional(),
+        bodyText: z.string().optional(),
+      })
+      .refine(
+        (v) =>
+          (typeof v.body === "string" && v.body.length > 0) ||
+          (typeof v.bodyHtml === "string" && v.bodyHtml.length > 0) ||
+          (typeof v.bodyText === "string" && v.bodyText.length > 0),
+        { message: "At least one of body / bodyHtml / bodyText is required" },
+      ),
+    async handler(
+      input: {
+        messageId: string;
+        threadId: string;
+        to: string;
+        subject: string;
+        body?: string;
+        bodyHtml?: string;
+        bodyText?: string;
+      },
+      ctx,
+    ) {
+      return withGmail(
+        ctx,
+        async (client) => client.executeAction("reply_email", input),
+        "gmail.reply_email",
       );
     },
   };
@@ -356,6 +427,7 @@ export const createGoogleModule: ModuleFactory = (deps) => {
       listEmails,
       readEmail,
       sendEmail,
+      replyEmail,
       searchEmails,
       listEvents,
       createEvent,

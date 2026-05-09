@@ -36,10 +36,14 @@ import {
 } from "@boringos/db";
 import type { AgentEngine, ToolRegistry } from "@boringos/agent";
 import type { RuntimeRegistry } from "@boringos/runtime";
+import type { StorageBackend } from "@boringos/drive";
 import { generateId } from "@boringos/shared";
 import type { RealtimeBus } from "./realtime.js";
+import type { EventBus } from "./event-bus.js";
 import { syncArchive, syncStatusChange } from "./inbox-gmail-sync.js";
 import { runWorkflow } from "./run-workflow.js";
+import { canAccess, validatePath, type Actor } from "./v2-modules/drive-acl.js";
+import { contentTypeFor } from "./drive-mime.js";
 
 type AdminEnv = {
   Variables: {
@@ -56,6 +60,9 @@ export function createAdminRoutes(
   realtimeBus?: RealtimeBus,
   toolRegistry?: ToolRegistry,
   runtimeRegistry?: RuntimeRegistry,
+  eventBus?: EventBus,
+  drive?: StorageBackend,
+  settingRegistry?: import("@boringos/agent").SettingRegistry,
 ): Hono<AdminEnv> {
 
   function emit(type: string, tenantId: string, data: Record<string, unknown>) {
@@ -127,6 +134,78 @@ export function createAdminRoutes(
     return c.json({ agents: rows });
   });
 
+  // Fleet-wide stats for the cabinet header. Single round trip;
+  // computed server-side so the FleetHeader doesn't have to fan out
+  // to runs + wakeup queue + cost events itself.
+  // Must be before /agents/:id (path order).
+  app.get("/agents/stats", async (c) => {
+    const tenantId = c.get("tenantId");
+    const result = await db.execute(sql`
+      SELECT
+        (SELECT COUNT(*)::int FROM agents WHERE tenant_id = ${tenantId})                                       AS total,
+        (SELECT COUNT(*)::int FROM agents WHERE tenant_id = ${tenantId} AND status = 'running')               AS running_now,
+        (SELECT COUNT(*)::int FROM agents WHERE tenant_id = ${tenantId} AND status = 'paused')                AS paused_now,
+        (SELECT COUNT(*)::int FROM agents WHERE tenant_id = ${tenantId} AND status = 'idle')                  AS idle_now,
+        (SELECT COUNT(*)::int FROM agent_wakeup_requests
+                              WHERE tenant_id = ${tenantId} AND status = 'pending')                            AS queue_depth,
+        (SELECT COUNT(*)::int FROM agent_runs
+                              WHERE tenant_id = ${tenantId}
+                                AND status = 'failed'
+                                AND COALESCE(started_at, created_at) > NOW() - INTERVAL '24 hours')           AS errors_24h,
+        (SELECT COALESCE(SUM((NULLIF(cost_usd,'')::float8) * 100)::int, 0)
+           FROM cost_events
+          WHERE tenant_id = ${tenantId}
+            AND created_at > date_trunc('day', NOW()))                                                         AS spent_today_cents,
+        (SELECT COALESCE(SUM(spent_monthly_cents), 0)::int
+           FROM agents WHERE tenant_id = ${tenantId})                                                          AS spent_month_cents
+    `);
+    const row = (result as unknown as Array<Record<string, number>>)[0] ?? {};
+    return c.json({
+      total: row.total ?? 0,
+      runningNow: row.running_now ?? 0,
+      pausedNow: row.paused_now ?? 0,
+      idleNow: row.idle_now ?? 0,
+      queueDepth: row.queue_depth ?? 0,
+      errors24h: row.errors_24h ?? 0,
+      spentTodayCents: row.spent_today_cents ?? 0,
+      spentMonthCents: row.spent_month_cents ?? 0,
+    });
+  });
+
+  // 7-day activity counts per agent — one row per agent per day,
+  // bucketed in UTC. Used by the cards-grid sparkline. Single round
+  // trip for the whole tenant (typical: 5–15 agents × 7 days = 35–105
+  // buckets) — server formats so the client just renders.
+  // Must be before /agents/:id (path order).
+  app.get("/agents/activity", async (c) => {
+    const tenantId = c.get("tenantId");
+    const window = c.req.query("window");
+    const days = window === "30d" ? 30 : 7;
+    const result = await db.execute(sql`
+      SELECT
+        agent_id::text                                                AS "agentId",
+        TO_CHAR(date_trunc('day', COALESCE(started_at, created_at)),
+                'YYYY-MM-DD')                                          AS "day",
+        COUNT(*)::int                                                  AS "count"
+      FROM agent_runs
+      WHERE tenant_id = ${tenantId}
+        AND COALESCE(started_at, created_at) > NOW() - (${days} || ' days')::interval
+      GROUP BY agent_id, date_trunc('day', COALESCE(started_at, created_at))
+      ORDER BY agent_id, day
+    `);
+    const rows = result as unknown as Array<{ agentId: string; day: string; count: number }>;
+    const out: Record<string, Record<string, number>> = {};
+    for (const r of rows) {
+      let bucket = out[r.agentId];
+      if (!bucket) {
+        bucket = {};
+        out[r.agentId] = bucket;
+      }
+      bucket[r.day] = r.count;
+    }
+    return c.json({ activity: out, days });
+  });
+
   // Must be before /agents/:id to avoid ":id" matching "org-tree"
   app.get("/agents/org-tree", async (c) => {
     try {
@@ -151,7 +230,12 @@ export function createAdminRoutes(
     const body = await c.req.json() as Record<string, unknown>;
     const id = generateId();
     const tenantId = c.get("tenantId");
-    const skills = Array.isArray(body.skills) ? (body.skills as string[]).filter((s) => typeof s === "string") : [];
+    // Accept both `routingTags` (new) and `skills` (legacy) on the create
+    // payload for one release; the column is `routing_tags`.
+    const tagsSrc = body.routingTags ?? body.skills;
+    const routingTags = Array.isArray(tagsSrc)
+      ? (tagsSrc as unknown[]).filter((s): s is string => typeof s === "string")
+      : [];
 
     // Task 07: Provenance tracking
     const source = (body.source as string) ?? "user";
@@ -185,7 +269,7 @@ export function createAdminRoutes(
       reportsTo,
       source,
       sourceAppId: sourceAppId ?? null,
-      skills,
+      routingTags,
     });
     const rows = await db.select().from(agents).where(eq(agents.id, id)).limit(1);
     emit("agent:created", tenantId, { agentId: id, name: body.name });
@@ -220,13 +304,18 @@ export function createAdminRoutes(
     if (body.name !== undefined) values.name = body.name;
     if (body.role !== undefined) values.role = body.role;
     if (body.title !== undefined) values.title = body.title;
+    if (body.icon !== undefined) values.icon = body.icon;
     if (body.instructions !== undefined) values.instructions = body.instructions;
     if (body.status !== undefined) values.status = body.status;
     if (body.runtimeId !== undefined) values.runtimeId = body.runtimeId;
     if (body.fallbackRuntimeId !== undefined) values.fallbackRuntimeId = body.fallbackRuntimeId;
     if (body.budgetMonthlyCents !== undefined) values.budgetMonthlyCents = body.budgetMonthlyCents;
-    if (body.skills !== undefined) {
-      values.skills = Array.isArray(body.skills) ? (body.skills as unknown[]).filter((s) => typeof s === "string") : [];
+    // Accept both keys on PATCH for one release; new = routingTags.
+    const tagsBody = body.routingTags !== undefined ? body.routingTags : body.skills;
+    if (tagsBody !== undefined) {
+      values.routingTags = Array.isArray(tagsBody)
+        ? (tagsBody as unknown[]).filter((s): s is string => typeof s === "string")
+        : [];
     }
 
     // When archiving an agent, reparent reports to the archived agent's manager (grandparent).
@@ -280,28 +369,36 @@ export function createAdminRoutes(
     return c.json(rows[0]);
   });
 
-  // Dedicated skills endpoint: cheaper than round-tripping the whole array for edits
-  app.patch("/agents/:id/skills", async (c) => {
+  // Dedicated routing-tags endpoint: cheaper than round-tripping the
+  // whole array for edits. Originally `/agents/:id/skills`; renamed in
+  // task_15 §1 to disambiguate from prompt skills (modules + curated
+  // company_skills). Both paths point at the same handler for one
+  // release as a deprecation grace period.
+  const patchRoutingTags = async (c: import("hono").Context<AdminEnv>) => {
     const denied = requireAdmin(c); if (denied) return denied;
+    const agentId = c.req.param("id") as string;
     const body = await c.req.json() as { add?: string[]; remove?: string[]; set?: string[] };
     const rows = await db.select().from(agents).where(
-      and(eq(agents.id, c.req.param("id")), eq(agents.tenantId, c.get("tenantId"))),
+      and(eq(agents.id, agentId), eq(agents.tenantId, c.get("tenantId"))),
     ).limit(1);
     if (!rows[0]) return c.json({ error: "Agent not found" }, 404);
     let next: string[];
     if (Array.isArray(body.set)) {
       next = body.set.filter((s) => typeof s === "string");
     } else {
-      const current = Array.isArray(rows[0].skills) ? rows[0].skills as string[] : [];
+      const current = Array.isArray(rows[0].routingTags) ? rows[0].routingTags as string[] : [];
       const afterRemove = Array.isArray(body.remove)
         ? current.filter((s) => !body.remove!.includes(s))
         : current;
       const add = Array.isArray(body.add) ? body.add.filter((s) => typeof s === "string" && !afterRemove.includes(s)) : [];
       next = [...afterRemove, ...add];
     }
-    await db.update(agents).set({ skills: next, updatedAt: new Date() }).where(eq(agents.id, c.req.param("id")));
-    return c.json({ agentId: c.req.param("id"), skills: next });
-  });
+    await db.update(agents).set({ routingTags: next, updatedAt: new Date() }).where(eq(agents.id, agentId));
+    // Return both keys so legacy clients keep working.
+    return c.json({ agentId, routingTags: next, skills: next });
+  };
+  app.patch("/agents/:id/routing-tags", patchRoutingTags);
+  app.patch("/agents/:id/skills", patchRoutingTags); // deprecated alias
 
   app.post("/agents/:id/wake", async (c) => {
     const denied = requireAdmin(c); if (denied) return denied;
@@ -1780,11 +1877,35 @@ export function createAdminRoutes(
     return c.json({ settings });
   });
 
+  // GET /settings/manifest — every SettingDefinition declared by an
+  // installed module + the framework's own keys. The shell uses this
+  // to auto-render Settings → General. See task_17.
+  app.get("/settings/manifest", (c) => {
+    if (!settingRegistry) {
+      return c.json({ settings: [], defaults: {} });
+    }
+    return c.json({
+      settings: settingRegistry.list(),
+      defaults: settingRegistry.defaults(),
+    });
+  });
+
   app.patch("/settings", async (c) => {
     const denied = requireAdmin(c); if (denied) return denied;
     const body = await c.req.json() as Record<string, unknown>;
     const { tenantSettings } = await import("@boringos/db");
     const tenantId = c.get("tenantId");
+
+    // Validate against the manifest. Unknown keys pass through (the
+    // host writes ad-hoc keys today — be permissive); declared keys
+    // must match their type / select / etc.
+    if (settingRegistry) {
+      for (const [key, value] of Object.entries(body)) {
+        if (value === null) continue;
+        const err = settingRegistry.validateValue(key, value);
+        if (err) return c.json({ error: err }, 400);
+      }
+    }
 
     for (const [key, value] of Object.entries(body)) {
       const strValue = value === null ? null : String(value);
@@ -1860,8 +1981,101 @@ export function createAdminRoutes(
     const prefix = c.req.query("path");
     const rows = await db.select().from(driveFiles).where(eq(driveFiles.tenantId, c.get("tenantId")));
     let filtered = rows;
-    if (prefix) filtered = rows.filter((r) => r.path.startsWith(prefix));
+    if (prefix) {
+      const p = prefix.replace(/^\/+|\/+$/g, "");
+      filtered = rows.filter((r) => r.path.startsWith(p));
+    }
+    // ACL — hide other users' private folders from non-admins.
+    const userId = c.get("userId");
+    const role = c.get("role");
+    if (userId && role !== "admin") {
+      filtered = filtered.filter((r) => {
+        if (!r.path.startsWith("users/")) return true;
+        const seg = r.path.split("/")[1] ?? "";
+        return seg === userId;
+      });
+    }
     return c.json({ files: filtered });
+  });
+
+  // GET /api/admin/drive/file/<path>  →  streams the file bytes.
+  // The browser can use this URL directly in <img>/<a>/<iframe>;
+  // the auth middleware accepts session via Authorization header
+  // OR `?token=<session>` query param so img tags work without
+  // JS-fetched blobs.
+  app.get("/drive/file/*", async (c) => {
+    if (!drive) {
+      return c.json({ error: "drive backend not configured" }, 503);
+    }
+    // Hono's wildcard captures the rest of the path. We strip the
+    // route prefix manually because c.req.param("*") behaviour
+    // varies between Hono versions.
+    const url = new URL(c.req.url);
+    const fullPath = decodeURIComponent(url.pathname);
+    const marker = "/drive/file/";
+    const idx = fullPath.indexOf(marker);
+    const rawPath = idx >= 0 ? fullPath.slice(idx + marker.length) : "";
+
+    const v = validatePath(rawPath);
+    if (!v.ok) {
+      return c.json({ error: `invalid path: ${v.reason}` }, 400);
+    }
+    const path = v.path;
+
+    const tenantId = c.get("tenantId");
+    const userId = c.get("userId");
+    const role = c.get("role");
+    // API-key callers (machine actors) are treated as admins for
+    // the purposes of cross-user reads — they're the framework's
+    // own service identity, not an end user.
+    const actor: Actor = userId
+      ? { kind: "user", userId, role: role ?? "member" }
+      : { kind: "user", userId: "system", role: "admin" };
+
+    const decision = canAccess(actor, "read", path);
+    if (!decision.ok) {
+      return c.json({ error: decision.reason }, 403);
+    }
+
+    const tenantPath = `${tenantId}/${path}`;
+
+    // ETag from the driveFiles index — lets browsers skip re-fetching
+    // an unchanged image embedded in many comments.
+    const fileRow = (
+      await db
+        .select()
+        .from(driveFiles)
+        .where(and(eq(driveFiles.tenantId, tenantId), eq(driveFiles.path, path)))
+        .limit(1)
+    )[0];
+
+    const etag = fileRow?.hash ? `"${fileRow.hash}"` : null;
+    if (etag && c.req.header("If-None-Match") === etag) {
+      return new Response(null, { status: 304, headers: { ETag: etag } });
+    }
+
+    let bytes: Uint8Array;
+    try {
+      bytes = await drive.read(tenantPath);
+    } catch (err) {
+      // Distinguish missing file from other failures so a clean 404
+      // arrives at the browser.
+      const msg = err instanceof Error ? err.message : String(err);
+      const code = /ENOENT|not found|no such file/i.test(msg) ? 404 : 500;
+      return c.json({ error: msg }, code);
+    }
+
+    const ct = contentTypeFor(path);
+    const filename = path.split("/").pop() ?? "file";
+    const headers: Record<string, string> = {
+      "Content-Type": ct,
+      "Content-Length": String(bytes.byteLength),
+      "Cache-Control": "private, max-age=60, must-revalidate",
+      "Content-Disposition": `inline; filename="${filename.replace(/"/g, "")}"`,
+    };
+    if (etag) headers["ETag"] = etag;
+
+    return new Response(bytes, { status: 200, headers });
   });
 
   app.get("/drive/skill", async (c) => {
@@ -2047,6 +2261,25 @@ export function createAdminRoutes(
 
     const itemId = c.req.param("id");
     const tenantId = c.get("tenantId");
+
+    // Snapshot prior triage so we can decide whether to fire
+    // `triage.classified` after the write below. Without this the
+    // generic-replier never wakes for items written via this route
+    // (e.g. CRM email-lens / shell direct edits).
+    let priorTriageSig: string | null = null;
+    if (eventBus && body.metadata !== undefined) {
+      const priorRows = await db
+        .select({ metadata: inboxItems.metadata })
+        .from(inboxItems)
+        .where(and(eq(inboxItems.id, itemId), eq(inboxItems.tenantId, tenantId)))
+        .limit(1);
+      const priorMeta = (priorRows[0]?.metadata ?? null) as Record<string, unknown> | null;
+      const priorTriage = priorMeta?.triage as { classification?: unknown; score?: unknown } | undefined;
+      priorTriageSig = priorTriage
+        ? `${String(priorTriage.classification ?? "")}|${String(priorTriage.score ?? "")}`
+        : null;
+    }
+
     await db.update(inboxItems).set(values).where(
       and(eq(inboxItems.id, itemId), eq(inboxItems.tenantId, tenantId)),
     );
@@ -2058,6 +2291,39 @@ export function createAdminRoutes(
     }
     const rows = await db.select().from(inboxItems).where(eq(inboxItems.id, itemId)).limit(1);
     if (!rows[0]) return c.json({ error: "Inbox item not found" }, 404);
+
+    if (eventBus && body.metadata !== undefined) {
+      const nextMeta = body.metadata as Record<string, unknown> | null;
+      const nextTriage = nextMeta?.triage as
+        | { classification?: unknown; score?: unknown; rationale?: unknown; source?: unknown }
+        | undefined;
+      if (nextTriage) {
+        const nextSig = `${String(nextTriage.classification ?? "")}|${String(nextTriage.score ?? "")}`;
+        if (nextSig !== priorTriageSig) {
+          try {
+            await eventBus.emit({
+              connectorKind: "framework",
+              type: "triage.classified",
+              tenantId,
+              timestamp: new Date(),
+              data: {
+                itemId,
+                classification: nextTriage.classification ?? null,
+                score: nextTriage.score ?? null,
+                source: nextTriage.source ?? "admin",
+                rationale: nextTriage.rationale ?? null,
+              },
+            });
+          } catch (err) {
+            console.warn(
+              `[admin /inbox PATCH] triage.classified emit failed for item=${itemId}:`,
+              err instanceof Error ? err.message : err,
+            );
+          }
+        }
+      }
+    }
+
     return c.json(rows[0]);
   });
 

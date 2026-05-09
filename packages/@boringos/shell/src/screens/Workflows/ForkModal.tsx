@@ -28,27 +28,27 @@ export function ForkModal({ open, blockRun, onClose, onConfirm }: ForkModalProps
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/30 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-accent/30 backdrop-blur-sm"
       onMouseDown={(e) => {
         if (e.currentTarget === e.target) onClose();
       }}
     >
-      <div className="w-[560px] max-w-[90vw] bg-white rounded-lg border border-slate-200 shadow-2xl">
-        <header className="px-4 py-3 border-b border-slate-100 flex items-center gap-2">
-          <span className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">
+      <div className="w-[560px] max-w-[90vw] bg-white rounded-lg border border-border shadow-2xl">
+        <header className="px-4 py-3 border-b border-border-subtle flex items-center gap-2">
+          <span className="text-[10px] uppercase tracking-wider text-muted font-semibold">
             Fork from step
           </span>
-          <code className="font-mono text-[11px] text-slate-700 ml-2">{blockRun.blockId}</code>
+          <code className="font-mono text-[11px] text-text-secondary ml-2">{blockRun.blockId}</code>
           <button
             type="button"
             onClick={onClose}
-            className="ml-auto text-slate-400 hover:text-slate-700 text-sm"
+            className="ml-auto text-muted hover:text-text-secondary text-sm"
           >
             ×
           </button>
         </header>
         <div className="px-4 py-3">
-          <p className="text-[11px] text-slate-500 leading-relaxed mb-2">
+          <p className="text-[11px] text-muted leading-relaxed mb-2">
             Upstream block outputs from the original run will be reused. The
             inputs below replace the resolved inputs for this step. Downstream
             steps re-execute from here.
@@ -66,19 +66,19 @@ export function ForkModal({ open, blockRun, onClose, onConfirm }: ForkModalProps
                 setError(err instanceof Error ? err.message : String(err));
               }
             }}
-            className={`w-full rounded border px-3 py-2 text-[12px] font-mono focus:outline-none focus:border-slate-400 ${
-              error ? "border-rose-300 bg-rose-50" : "border-slate-200"
+            className={`w-full rounded border px-3 py-2 text-[12px] font-mono focus:outline-none focus:border-accent ${
+              error ? "border-rose-300 bg-rose-50" : "border-border"
             }`}
           />
           {error && (
             <div className="mt-2 text-[11px] text-rose-600">{error}</div>
           )}
         </div>
-        <footer className="px-4 py-3 border-t border-slate-100 flex justify-end gap-2">
+        <footer className="px-4 py-3 border-t border-border-subtle flex justify-end gap-2">
           <button
             type="button"
             onClick={onClose}
-            className="text-[11px] px-3 py-1 rounded border border-slate-200 text-slate-600 hover:bg-slate-50"
+            className="text-[11px] px-3 py-1 rounded border border-border text-muted-strong hover:bg-bg"
           >
             Cancel
           </button>
@@ -97,7 +97,7 @@ export function ForkModal({ open, blockRun, onClose, onConfirm }: ForkModalProps
                 setBusy(false);
               }
             }}
-            className="text-[11px] px-3 py-1 rounded bg-slate-900 text-white hover:bg-slate-800 disabled:opacity-50"
+            className="text-[11px] px-3 py-1 rounded bg-accent text-white hover:bg-accent-light disabled:opacity-50"
           >
             {busy ? "Forking…" : "↻ Fork run"}
           </button>

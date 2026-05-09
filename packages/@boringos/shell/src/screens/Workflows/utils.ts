@@ -109,15 +109,15 @@ export function kindAccent(kind: V2BlockKind): {
     case "for_each":
       return { bar: "bg-amber-500", text: "text-amber-700", bg: "bg-amber-50", ring: "ring-amber-200", label: "LOOP" };
     case "delay":
-      return { bar: "bg-slate-400", text: "text-slate-600", bg: "bg-slate-50", ring: "ring-slate-200", label: "WAIT" };
+      return { bar: "bg-muted", text: "text-muted-strong", bg: "bg-bg", ring: "ring-border", label: "WAIT" };
     case "transform":
-      return { bar: "bg-slate-400", text: "text-slate-600", bg: "bg-slate-50", ring: "ring-slate-200", label: "MAP" };
+      return { bar: "bg-muted", text: "text-muted-strong", bg: "bg-bg", ring: "ring-border", label: "MAP" };
     case "sticky":
       return { bar: "bg-yellow-400", text: "text-yellow-800", bg: "bg-yellow-50", ring: "ring-yellow-300", label: "NOTE" };
     case "branch":
       return { bar: "bg-amber-500", text: "text-amber-700", bg: "bg-amber-50", ring: "ring-amber-200", label: "BRANCH" };
     default:
-      return { bar: "bg-slate-400", text: "text-slate-600", bg: "bg-slate-50", ring: "ring-slate-200", label: "BLOCK" };
+      return { bar: "bg-muted", text: "text-muted-strong", bg: "bg-bg", ring: "ring-border", label: "BLOCK" };
   }
 }
 

@@ -91,8 +91,8 @@ export function V2ToolsPanel() {
   return (
     <div className="space-y-4 max-w-3xl">
       <div className="flex items-baseline justify-between">
-        <h2 className="text-base font-medium text-slate-900">Tool catalog</h2>
-        <span className="text-xs text-slate-500">{tools.length} tools</span>
+        <h2 className="text-base font-medium text-text">Tool catalog</h2>
+        <span className="text-xs text-muted">{tools.length} tools</span>
       </div>
 
       <input
@@ -100,7 +100,7 @@ export function V2ToolsPanel() {
         placeholder="Filter by name, module, or description"
         value={filter}
         onChange={(e) => setFilter(e.target.value)}
-        className="w-full rounded-md border border-slate-200 px-3 py-1.5 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-300"
+        className="w-full rounded-md border border-border px-3 py-1.5 text-sm placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-accent-tint"
       />
 
       {error && (
@@ -112,22 +112,22 @@ export function V2ToolsPanel() {
       <div className="space-y-4">
         {grouped.map(([moduleId, entries]) => (
           <div key={moduleId}>
-            <div className="text-xs font-medium text-slate-500 mb-1.5">{moduleId}</div>
-            <div className="rounded-md border border-slate-200 divide-y divide-slate-100 bg-white">
+            <div className="text-xs font-medium text-muted mb-1.5">{moduleId}</div>
+            <div className="rounded-md border border-border divide-y divide-border-subtle bg-white">
               {entries.map((t) => (
                 <div key={t.fullName} className="px-4 py-2.5">
                   <div className="flex items-baseline gap-2">
-                    <code className="text-xs text-slate-900">{t.fullName}</code>
+                    <code className="text-xs text-text">{t.fullName}</code>
                     {t.idempotency === "key" && (
-                      <span className="text-[10px] uppercase tracking-wide text-slate-500 bg-slate-100 px-1 py-0.5 rounded">
+                      <span className="text-[10px] uppercase tracking-wide text-muted bg-bg-warm px-1 py-0.5 rounded">
                         idempotent
                       </span>
                     )}
                     {t.costHint && (
-                      <span className="text-[10px] text-slate-500">{t.costHint}</span>
+                      <span className="text-[10px] text-muted">{t.costHint}</span>
                     )}
                   </div>
-                  <div className="text-xs text-slate-600 mt-0.5">{t.description}</div>
+                  <div className="text-xs text-muted-strong mt-0.5">{t.description}</div>
                 </div>
               ))}
             </div>

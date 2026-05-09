@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: BUSL-1.1
 //
-// Settings → v2 Modules panel. Lists every Module the host has
-// registered, marks installed/not for the active tenant, and
-// gives admins install/uninstall buttons.
+// Apps → Modules tab. Lists every Module the host has registered,
+// marks installed/not for the active tenant, and lets admins install
+// or uninstall. Moved here from Settings → Modules in task_16
+// phase 4: Apps and Modules are the same shape (per task_12), so we
+// stop surfacing them in two places.
 //
 // Data:
 //  - GET  /api/admin/v2/modules           (host-registered)
@@ -39,7 +41,7 @@ function authHeaders(token: string | null, tenantId: string | undefined) {
   return h;
 }
 
-export function V2ModulesPanel() {
+export function Modules() {
   const { user, token } = useAuth();
   const [modules, setModules] = useState<ModuleRow[] | null>(null);
   const [installs, setInstalls] = useState<InstallRow[] | null>(null);
@@ -55,7 +57,6 @@ export function V2ModulesPanel() {
         fetch("/api/admin/v2/installs", { headers: authHeaders(token, user.tenantId) }),
       ]);
       if (modulesRes.status === 404) {
-        // v2 not mounted on this host — no modules registered.
         setModules([]);
         setInstalls([]);
         return;
@@ -75,21 +76,12 @@ export function V2ModulesPanel() {
     refresh();
   }, [refresh]);
 
-  if (!user?.role || user.role !== "admin") {
-    return (
-      <div className="rounded-md bg-blue-50 border border-blue-200 px-4 py-3 text-sm text-blue-700">
-        <div className="font-medium">Admin access required</div>
-        <div className="text-xs mt-1">Only admins can manage modules.</div>
-      </div>
-    );
-  }
-
   if (modules === null) return <LoadingState />;
   if (modules.length === 0) {
     return (
       <EmptyState
-        title="No v2 modules registered"
-        description="The host application hasn't registered any v2 modules. v2 is opt-in via app.module(...) — see BUILD-A-MODULE.md."
+        title="No modules registered"
+        description="The host application hasn't registered any modules. v2 is opt-in via app.module(...) — see BUILD-A-MODULE.md."
       />
     );
   }
@@ -97,7 +89,7 @@ export function V2ModulesPanel() {
   const installedIds = new Set(installs?.map((r) => r.moduleId) ?? []);
 
   const action = async (moduleId: string, kind: "install" | "uninstall") => {
-    if (!user.tenantId) return;
+    if (!user?.tenantId) return;
     setBusy(moduleId);
     setError(null);
     try {
@@ -125,10 +117,9 @@ export function V2ModulesPanel() {
   return (
     <div className="space-y-4 max-w-3xl">
       <div className="flex items-baseline justify-between">
-        <h2 className="text-base font-medium text-slate-900">Modules</h2>
-        <span className="text-xs text-slate-500">
+        <div className="text-xs text-muted">
           {modules.length} registered · {installedIds.size} installed for this tenant
-        </span>
+        </div>
       </div>
 
       {error && (
@@ -143,15 +134,15 @@ export function V2ModulesPanel() {
           return (
             <div
               key={m.id}
-              className="rounded-md border border-slate-200 px-4 py-3 bg-white"
+              className="rounded-md border border-border px-4 py-3 bg-white"
             >
               <div className="flex items-baseline justify-between">
                 <div>
-                  <div className="text-sm font-medium text-slate-900">
+                  <div className="text-sm font-medium text-text">
                     {m.name}{" "}
-                    <span className="text-xs text-slate-400">v{m.version}</span>
+                    <span className="text-xs text-muted">v{m.version}</span>
                   </div>
-                  <div className="text-xs text-slate-500 font-mono">{m.id}</div>
+                  <div className="text-xs text-muted font-mono">{m.id}</div>
                 </div>
                 <button
                   type="button"
@@ -159,8 +150,8 @@ export function V2ModulesPanel() {
                   onClick={() => action(m.id, installed ? "uninstall" : "install")}
                   className={`text-xs px-2.5 py-1 rounded-md transition-colors ${
                     installed
-                      ? "border border-slate-300 text-slate-700 hover:bg-slate-50"
-                      : "bg-slate-900 text-white hover:bg-slate-800"
+                      ? "border border-border text-text-secondary hover:bg-bg"
+                      : "bg-accent text-white hover:bg-accent-light"
                   } disabled:opacity-50`}
                 >
                   {busy === m.id
@@ -170,7 +161,7 @@ export function V2ModulesPanel() {
                       : "Install"}
                 </button>
               </div>
-              <p className="text-xs text-slate-600 mt-1.5">{m.description}</p>
+              <p className="text-xs text-muted-strong mt-1.5">{m.description}</p>
               <div className="mt-2 flex flex-wrap gap-1.5 text-[11px]">
                 {m.provides.map((cap) => (
                   <span
@@ -187,20 +178,20 @@ export function V2ModulesPanel() {
                   return (
                     <span
                       key={`${i}-${label}`}
-                      className="rounded bg-slate-100 text-slate-600 px-1.5 py-0.5"
+                      className="rounded bg-bg-warm text-muted-strong px-1.5 py-0.5"
                     >
                       {label}
                     </span>
                   );
                 })}
               </div>
-              <div className="mt-2 grid grid-cols-2 gap-2 text-[11px] text-slate-500">
+              <div className="mt-2 grid grid-cols-2 gap-2 text-[11px] text-muted">
                 <div>
-                  <span className="font-medium text-slate-700">{m.tools.length}</span>{" "}
+                  <span className="font-medium text-text-secondary">{m.tools.length}</span>{" "}
                   tools
                 </div>
                 <div>
-                  <span className="font-medium text-slate-700">{m.skills.length}</span>{" "}
+                  <span className="font-medium text-text-secondary">{m.skills.length}</span>{" "}
                   skills
                 </div>
               </div>
