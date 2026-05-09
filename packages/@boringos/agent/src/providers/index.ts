@@ -7,6 +7,7 @@
 // tool catalog cover everything they did.
 
 export { headerProvider } from "./header.js";
+export { createCurrentTimeProvider } from "./current-time.js";
 export { personaProvider } from "./persona.js";
 export { createTenantGuidelinesProvider } from "./tenant-guidelines.js";
 export { agentInstructionsProvider } from "./agent-instructions.js";

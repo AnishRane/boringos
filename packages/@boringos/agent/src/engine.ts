@@ -26,6 +26,7 @@ import { createWakeup } from "./wakeup.js";
 import { createRunLifecycle } from "./run-lifecycle.js";
 import {
   headerProvider,
+  createCurrentTimeProvider,
   personaProvider,
   agentInstructionsProvider,
   sessionProvider,
@@ -52,6 +53,10 @@ function registerDefaultProviders(pipeline: ContextPipeline, config: AgentEngine
   // and the v2 tool catalog (added separately by core/boringos.ts)
   // cover the rest of the prompt surface.
   pipeline.add(headerProvider);
+  // Inject the current time near the top of the system prompt so
+  // every agent can reason about "today", scheduling, recency, etc.
+  // without the "I don't have access to the current time" failure.
+  pipeline.add(createCurrentTimeProvider({ db: config.db }));
   pipeline.add(createHierarchyProvider({ db: config.db }));
   pipeline.add(personaProvider);
   pipeline.add(createTenantGuidelinesProvider({ db: config.db }));

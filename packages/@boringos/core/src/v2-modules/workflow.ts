@@ -517,8 +517,25 @@ function resolveTemplates(
 ): Record<string, unknown> {
   const PLACEHOLDER = /\{\{([a-zA-Z0-9_.-]+)\}\}/g;
 
+  // Synthetic time vars — `{{now}}` (ISO timestamp) and `{{today}}`
+  // (YYYY-MM-DD) — available in any workflow node's inputs/templates
+  // without the workflow author having to wire a node for them.
+  // Time-conditional workflows ("if today is Monday" / "schedule for
+  // 2 hours from now") get this for free.
+  const nowDate = new Date();
+  const synth: Record<string, unknown> = {
+    now: nowDate.toISOString(),
+    today: nowDate.toISOString().slice(0, 10),
+  };
+
   const lookup = (path: string): { found: boolean; value: unknown } => {
     const segs = path.split(".");
+    // Top-level synthetic var? Resolve from `synth` first; node
+    // outputs win over synthetics if a node happens to be named
+    // "now" / "today" (unlikely but explicit).
+    if (segs.length === 1 && !(segs[0]! in outputs) && segs[0]! in synth) {
+      return { found: true, value: synth[segs[0]!] };
+    }
     let cursor: unknown = outputs;
     for (const seg of segs) {
       if (cursor === null || cursor === undefined) return { found: false, value: undefined };
