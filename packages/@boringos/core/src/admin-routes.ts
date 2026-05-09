@@ -828,23 +828,33 @@ export function createAdminRoutes(
     emit("task:comment_added", tenantId, { taskId, commentId: id });
     await logActivity(tenantId, "comment.created", "task_comment", id, { taskId });
 
-    // Auto-wake on user comment — gated on next_actor='agent'.
+    // Auto-wake on user comment.
     //
-    // When next_actor='human' the comment is a note for the next pass
-    // (the user explicitly clicks "Send back to agent" to re-engage).
-    // When next_actor='agent' the user is mid-conversation with the
-    // agent, so a comment legitimately drops into context — wake the
-    // assignee (or, for human_todo tasks where the agent proposed the
-    // follow-up, wake the creator).
+    // Posting a comment on an open task with an agent assignee always
+    // wakes the agent. This is what copilot's chat UX rides on — the
+    // comment IS the message, the wake IS the response trigger.
     //
-    // This is the loop fix: a comment can't accidentally re-engage
-    // an agent on a task that's already handed back to the human.
+    // Loop safety lives one layer up: agent runs flip next_actor to
+    // 'human' on completion (afterRun hook), and the auto-rewake check
+    // in boringos.ts only re-fires on next_actor='agent'. So a single
+    // user comment produces one run, then the task hands back. The
+    // agent's own comment is excluded by the !authorAgentId guard.
+    //
+    // We also flip next_actor='agent' here so the just-woken run sees
+    // the task in the right handoff state (the explicit
+    // /send-to-agent endpoint does the same thing, plus a banner-
+    // friendly response shape).
     if (!body.authorAgentId) {
       const taskRows = await db.select().from(tasks).where(eq(tasks.id, taskId)).limit(1);
       const task = taskRows[0];
-      if (task && task.nextActor === "agent") {
+      if (task && task.status !== "done" && task.status !== "cancelled") {
         const wakeTargetAgentId = task.assigneeAgentId ?? task.createdByAgentId ?? null;
         if (wakeTargetAgentId) {
+          if (task.nextActor !== "agent") {
+            await db.update(tasks)
+              .set({ nextActor: "agent", updatedAt: new Date() })
+              .where(eq(tasks.id, taskId));
+          }
           const outcome = await engine.wake({
             agentId: wakeTargetAgentId,
             tenantId,
