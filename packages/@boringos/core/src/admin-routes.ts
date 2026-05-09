@@ -1442,6 +1442,38 @@ export function createAdminRoutes(
   });
 
   /**
+   * Fork a past run from a specific block. Reuses upstream block outputs
+   * from the source run, optionally overrides the fork-block's resolved
+   * inputs, and re-runs the rest of the DAG. Powers the shell's
+   * "Replay from this step" UX.
+   */
+  app.post("/workflow-runs/:id/fork", async (c) => {
+    if (!toolRegistry) return c.json({ error: "v2 dispatcher not available" }, 503);
+    const tenantId = c.get("tenantId") as string;
+    const body = (await c.req.json().catch(() => ({}))) as {
+      fromBlockId?: string;
+      editedInputs?: Record<string, unknown>;
+    };
+    if (!body.fromBlockId) {
+      return c.json({ error: "fromBlockId required" }, 400);
+    }
+    const dispatched = await (await import("@boringos/agent")).dispatch(
+      { registry: toolRegistry, db },
+      "workflow.fork_run",
+      {
+        runId: c.req.param("id"),
+        fromBlockId: body.fromBlockId,
+        editedInputs: body.editedInputs,
+      },
+      { tenantId, invokedBy: "admin" },
+    );
+    if (!dispatched.result.ok) {
+      return c.json({ error: dispatched.result.error.message, details: dispatched.result.error.details }, 400);
+    }
+    return c.json(dispatched.result.result);
+  });
+
+  /**
    * Replay a past run. Loads the original run's workflowId + triggerPayload
    * and re-executes against the *current* workflow definition. That matters
    * for debugging: after you fix a block you can re-run the scenario that

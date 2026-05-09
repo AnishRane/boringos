@@ -6,6 +6,6 @@ export { Inbox } from "./Inbox/index.js";
 export { Calendar } from "./Calendar.js";
 export { Tasks } from "./Tasks/index.js";
 export { Agents } from "./Agents.js";
-export { Workflows } from "./Workflows.js";
+export { Workflows } from "./Workflows/index.js";
 export { Settings } from "./Settings.js";
 export { Connectors } from "./Connectors/index.js";

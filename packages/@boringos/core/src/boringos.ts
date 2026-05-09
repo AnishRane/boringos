@@ -289,6 +289,7 @@ export class BoringOS {
       engine: undefined as unknown,
       workflowEngine: undefined as unknown,
       toolRegistry: v2ToolRegistry,
+      realtimeBus: undefined as unknown,
     };
     const v2BoundModules: Module[] = [];
     for (const entry of this.v2Modules) {
@@ -714,6 +715,9 @@ export class BoringOS {
     const realtimeBus = createRealtimeBus();
     // Now that the bus exists, connect the workflow engine's event sink.
     realtimeBusRef = realtimeBus;
+    // Lazy-populate v2 module factory deps so workflow.run can emit
+    // per-block events to the canvas.
+    (v2FactoryDeps as { realtimeBus: unknown }).realtimeBus = realtimeBus;
 
     const adminApp = createAdminRoutes(dbConn.db, agentEngine, adminKeyValue, realtimeBus, v2ToolRegistry, runtimes);
     app.route("/api/admin", adminApp);

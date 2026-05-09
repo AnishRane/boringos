@@ -388,6 +388,15 @@ export interface ModuleFactoryDeps {
    * `@boringos/agent`.
    */
   toolRegistry?: unknown;
+  /**
+   * The realtime SSE bus. Modules that emit live events (workflow
+   * block_started/completed for the canvas, run progress for the
+   * shell) cast this to `RealtimeBus` from `@boringos/core`.
+   *
+   * Populated lazily by the host — read at call time, not at
+   * factory time.
+   */
+  realtimeBus?: unknown;
 }
 
 export type ModuleFactory = (deps: ModuleFactoryDeps) => Module;

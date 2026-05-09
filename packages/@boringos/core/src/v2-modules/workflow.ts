@@ -9,7 +9,7 @@
 
 import { eq } from "drizzle-orm";
 import type { Db } from "@boringos/db";
-import { workflows, workflowRuns } from "@boringos/db";
+import { workflows, workflowRuns, workflowBlockRuns } from "@boringos/db";
 import { z } from "@boringos/module-sdk";
 import { dispatch } from "@boringos/agent";
 import type { ToolRegistry } from "@boringos/agent";
@@ -20,6 +20,7 @@ import type {
   ToolContext,
   ToolResult,
 } from "@boringos/module-sdk";
+import type { RealtimeBus } from "../realtime.js";
 
 const WORKFLOW_SKILL = `Workflows are saved DAGs of tool calls. Use these
 when you need to:
@@ -52,10 +53,28 @@ async function runWorkflowDag(
     workflow: { id: string; blocks: unknown[]; edges: unknown[] };
     triggerPayload: Record<string, unknown>;
     ctx: ToolContext;
+    /** When provided, per-block runs are persisted + SSE events are emitted. */
+    runId?: string;
+    realtimeBus?: RealtimeBus | null;
+    /**
+     * Pre-seeded outputs (e.g. from a fork: upstream blocks copied
+     * forward from the source run). Blocks with ids in this map
+     * skip dispatch and reuse the cached output.
+     */
+    seedOutputs?: Record<string, unknown>;
+    /**
+     * If set, blocks are skipped until we reach `startAtBlockId`.
+     * Used by fork-from-here. The seedOutputs feed downstream
+     * templates so their resolved configs match the original run.
+     */
+    startAtBlockId?: string;
+    /** When forking from a block, the inputs override for that block. */
+    startAtInputsOverride?: Record<string, unknown>;
   },
 ): Promise<{ outputs: Record<string, unknown>; visited: string[]; failed?: { blockId: string; error: unknown } }> {
   type Block = {
     id: string;
+    name?: string;
     kind?: string;
     type?: string;
     tool?: string;
@@ -77,7 +96,7 @@ async function runWorkflowDag(
     incoming.get(e.targetBlockId)?.add(e.sourceBlockId);
   }
 
-  const outputs: Record<string, unknown> = {};
+  const outputs: Record<string, unknown> = { ...(args.seedOutputs ?? {}) };
   const visited: string[] = [];
 
   // Seed: every block with no incoming edges. There may be more
@@ -105,6 +124,89 @@ async function runWorkflowDag(
   // pruned.
   const selectedHandle = new Map<string, string>();
 
+  // ── per-block trace + event helpers ────────────────────────────────────
+  const realtimeBus = args.realtimeBus ?? null;
+  const persistBlockRuns = !!args.runId;
+
+  const emitEvent = (type: string, data: Record<string, unknown>) => {
+    if (!realtimeBus) return;
+    realtimeBus.publish({
+      type,
+      tenantId: args.ctx.tenantId,
+      data: { runId: args.runId, ...data },
+      timestamp: new Date().toISOString(),
+    });
+  };
+
+  const recordBlockStart = async (
+    block: Block,
+    inputContext: Record<string, unknown>,
+    resolvedConfig: Record<string, unknown>,
+  ): Promise<string | null> => {
+    if (!persistBlockRuns) return null;
+    const startedAt = new Date();
+    const inserted = await args.db
+      .insert(workflowBlockRuns)
+      .values({
+        workflowRunId: args.runId!,
+        tenantId: args.ctx.tenantId,
+        blockId: block.id,
+        blockName: block.name ?? block.id,
+        blockType: block.kind ?? block.type ?? "tool",
+        status: "running",
+        resolvedConfig,
+        inputContext,
+        startedAt,
+      })
+      .returning({ id: workflowBlockRuns.id });
+    return inserted[0]?.id ?? null;
+  };
+
+  const recordBlockEnd = async (
+    blockRunId: string | null,
+    block: Block,
+    status: "completed" | "failed" | "skipped" | "waiting",
+    output: unknown,
+    error: unknown,
+    startedAtMs: number,
+    selectedHandleVal?: string,
+  ): Promise<void> => {
+    const finishedAt = new Date();
+    const durationMs = finishedAt.getTime() - startedAtMs;
+    if (persistBlockRuns && blockRunId) {
+      await args.db
+        .update(workflowBlockRuns)
+        .set({
+          status,
+          output: (output ?? null) as Record<string, unknown> | null,
+          error: error ? (typeof error === "string" ? error : JSON.stringify(error)) : null,
+          selectedHandle: selectedHandleVal ?? null,
+          finishedAt,
+          durationMs,
+        })
+        .where(eq(workflowBlockRuns.id, blockRunId));
+    }
+    const eventType =
+      status === "completed"
+        ? "workflow:block_completed"
+        : status === "failed"
+          ? "workflow:block_failed"
+          : status === "waiting"
+            ? "workflow:block_waiting"
+            : "workflow:block_skipped";
+    emitEvent(eventType, {
+      blockId: block.id,
+      blockType: block.kind ?? block.type ?? "tool",
+      durationMs,
+      status,
+      error: error ?? undefined,
+    });
+  };
+
+  // Reached the start-at-block flag, used by fork mode to skip
+  // walking blocks that should reuse their seedOutputs as-is.
+  let reachedStart = !args.startAtBlockId;
+
   while (ready.length > 0) {
     const id = ready.shift()!;
     const block = blockMap.get(id);
@@ -123,17 +225,67 @@ async function runWorkflowDag(
     }
     visited.push(id);
 
+    // Fork-from-here gate: until we reach the start-at block,
+    // every block with a seeded output skips dispatch and uses the
+    // seed; blocks without a seed still dispatch normally so we
+    // can fork from a side branch.
+    if (!reachedStart && id === args.startAtBlockId) {
+      reachedStart = true;
+    }
+
     const kind = block.kind ?? block.type ?? "tool";
     let blockOutput: unknown = {};
+    let blockHandled = false;
+
+    // Check pinned-output / seeded-output short-circuits.
+    const pinnedCfg = (block.config as { pinned?: boolean; pinnedOutput?: unknown } | undefined) ?? {};
+    const seededOutput =
+      Object.prototype.hasOwnProperty.call(args.seedOutputs ?? {}, id) ? (args.seedOutputs as Record<string, unknown>)[id] : undefined;
+    const isPinned = pinnedCfg.pinned === true && pinnedCfg.pinnedOutput !== undefined;
+    const useShortCircuit = seededOutput !== undefined || isPinned;
+
+    const startedAtMs = Date.now();
+
+    if (useShortCircuit) {
+      blockOutput = seededOutput !== undefined ? seededOutput : pinnedCfg.pinnedOutput;
+      blockHandled = true;
+      emitEvent("workflow:block_started", {
+        blockId: id,
+        blockType: kind,
+        cached: true,
+      });
+      const blockRunId = persistBlockRuns
+        ? await recordBlockStart(block, {}, { cachedOutputUsed: true })
+        : null;
+      await recordBlockEnd(blockRunId, block, "skipped", blockOutput, null, startedAtMs);
+    }
+
+    let blockRunId: string | null = null;
+    let inputSnapshot: Record<string, unknown> = {};
+    let resolvedConfigSnap: Record<string, unknown> = {};
 
     try {
-      if (kind === "trigger") {
+      if (blockHandled) {
+        // already short-circuited
+      } else if (kind === "trigger") {
+        inputSnapshot = { trigger: args.triggerPayload };
+        resolvedConfigSnap = {};
+        blockRunId = await recordBlockStart(block, inputSnapshot, resolvedConfigSnap);
+        emitEvent("workflow:block_started", { blockId: id, blockType: kind });
         blockOutput = args.triggerPayload;
       } else if (kind === "tool") {
         if (!block.tool) {
           throw new Error(`Block ${id}: kind=tool requires a 'tool' field`);
         }
-        const resolvedInputs = resolveTemplates(block.inputs ?? {}, outputs);
+        const inputsToUse =
+          args.startAtInputsOverride && id === args.startAtBlockId
+            ? args.startAtInputsOverride
+            : block.inputs ?? {};
+        const resolvedInputs = resolveTemplates(inputsToUse, outputs);
+        inputSnapshot = { ...outputs };
+        resolvedConfigSnap = { tool: block.tool, inputs: resolvedInputs };
+        blockRunId = await recordBlockStart(block, inputSnapshot, resolvedConfigSnap);
+        emitEvent("workflow:block_started", { blockId: id, blockType: kind, tool: block.tool });
         const dispatched = await dispatch(
           { registry: args.registry, db: args.db },
           block.tool,
@@ -141,6 +293,7 @@ async function runWorkflowDag(
           { ...args.ctx, invokedBy: "workflow" },
         );
         if (!dispatched.result.ok) {
+          await recordBlockEnd(blockRunId, block, "failed", null, dispatched.result.error, startedAtMs);
           return {
             outputs,
             visited,
@@ -157,6 +310,10 @@ async function runWorkflowDag(
           operator?: string;
           value?: unknown;
         };
+        inputSnapshot = { ...outputs };
+        resolvedConfigSnap = { ...cfg };
+        blockRunId = await recordBlockStart(block, inputSnapshot, resolvedConfigSnap);
+        emitEvent("workflow:block_started", { blockId: id, blockType: kind });
         const lhs = resolveTemplates({ x: cfg.field }, outputs).x;
         const op = cfg.operator ?? "truthy";
         const rhs = cfg.value;
@@ -213,6 +370,10 @@ async function runWorkflowDag(
         if (!cfg.tool) {
           throw new Error(`Block ${id}: kind=for_each requires config.tool`);
         }
+        inputSnapshot = { ...outputs };
+        resolvedConfigSnap = { tool: cfg.tool, items, count: items.length };
+        blockRunId = await recordBlockStart(block, inputSnapshot, resolvedConfigSnap);
+        emitEvent("workflow:block_started", { blockId: id, blockType: kind, count: items.length });
         const itemResults: unknown[] = [];
         for (let i = 0; i < items.length; i += 1) {
           const item = items[i];
@@ -225,6 +386,14 @@ async function runWorkflowDag(
             { ...args.ctx, invokedBy: "workflow" },
           );
           if (!dispatched.result.ok) {
+            await recordBlockEnd(
+              blockRunId,
+              block,
+              "failed",
+              { results: itemResults, failedAt: i },
+              { iteration: i, item, ...dispatched.result.error },
+              startedAtMs,
+            );
             return {
               outputs,
               visited,
@@ -241,6 +410,10 @@ async function runWorkflowDag(
         // config: { ms }
         const cfg = (block.config ?? {}) as { ms?: number };
         const ms = typeof cfg.ms === "number" && cfg.ms >= 0 ? cfg.ms : 0;
+        inputSnapshot = { ...outputs };
+        resolvedConfigSnap = { ms };
+        blockRunId = await recordBlockStart(block, inputSnapshot, resolvedConfigSnap);
+        emitEvent("workflow:block_started", { blockId: id, blockType: kind, ms });
         if (ms > 0) {
           await new Promise((r) => setTimeout(r, ms));
         }
@@ -250,26 +423,50 @@ async function runWorkflowDag(
         const cfg = (block.config ?? {}) as {
           mapping?: Record<string, unknown>;
         };
+        inputSnapshot = { ...outputs };
+        resolvedConfigSnap = { mapping: cfg.mapping ?? {} };
+        blockRunId = await recordBlockStart(block, inputSnapshot, resolvedConfigSnap);
+        emitEvent("workflow:block_started", { blockId: id, blockType: kind });
         blockOutput = resolveTemplates(cfg.mapping ?? {}, outputs);
       } else if (kind === "branch") {
         // Like condition but doesn't compute truth — the upstream
         // node sets selectedHandle, this just acts as a router.
         // For now, treat identically to a passthrough.
+        inputSnapshot = { ...outputs };
+        blockRunId = await recordBlockStart(block, inputSnapshot, {});
+        emitEvent("workflow:block_started", { blockId: id, blockType: kind });
         blockOutput = args.triggerPayload;
+      } else if (kind === "sticky") {
+        // Sticky notes never execute — record as skipped, no output.
+        inputSnapshot = {};
+        blockRunId = await recordBlockStart(block, inputSnapshot, {});
+        emitEvent("workflow:block_started", { blockId: id, blockType: kind });
+        blockOutput = null;
+        await recordBlockEnd(blockRunId, block, "skipped", null, null, startedAtMs);
+        blockHandled = true;
       } else {
         // Unknown kinds — skip, mark for visibility, downstream
         // continues unblocked.
+        inputSnapshot = {};
+        blockRunId = await recordBlockStart(block, inputSnapshot, { reason: `unknown kind ${kind}` });
+        emitEvent("workflow:block_started", { blockId: id, blockType: kind });
         blockOutput = { skipped: true, reason: `unknown kind ${kind}` };
+        await recordBlockEnd(blockRunId, block, "skipped", blockOutput, null, startedAtMs);
+        blockHandled = true;
       }
     } catch (e) {
+      const err = { code: "internal", message: e instanceof Error ? e.message : String(e), retryable: false };
+      await recordBlockEnd(blockRunId, block, "failed", null, err, startedAtMs);
       return {
         outputs,
         visited,
-        failed: {
-          blockId: id,
-          error: { code: "internal", message: e instanceof Error ? e.message : String(e), retryable: false },
-        },
+        failed: { blockId: id, error: err },
       };
+    }
+
+    if (!blockHandled) {
+      const sel = selectedHandle.get(id);
+      await recordBlockEnd(blockRunId, block, "completed", blockOutput, null, startedAtMs, sel);
     }
 
     outputs[id] = blockOutput;
@@ -381,6 +578,15 @@ function resolveTemplates(
 export const createWorkflowModule: ModuleFactory = (deps) => {
   const db = deps.db as Db;
   const toolRegistry = deps.toolRegistry as ToolRegistry | undefined;
+  // Read realtimeBus lazily — populated by the host after the
+  // module factory runs.
+  const getRealtimeBus = () => (deps.realtimeBus as RealtimeBus | null | undefined) ?? null;
+
+  const emit = (type: string, tenantId: string, data: Record<string, unknown>) => {
+    const bus = getRealtimeBus();
+    if (!bus) return;
+    bus.publish({ type, tenantId, data, timestamp: new Date().toISOString() });
+  };
 
   const listTool: Tool = {
     name: "list",
@@ -496,6 +702,11 @@ export const createWorkflowModule: ModuleFactory = (deps) => {
         .returning({ id: workflowRuns.id });
       const runId = inserted[0]?.id;
 
+      emit("workflow:run_started", ctx.tenantId, {
+        runId,
+        workflowId: workflow.id,
+      });
+
       const result = await runWorkflowDag({
         db,
         registry: toolRegistry,
@@ -506,6 +717,8 @@ export const createWorkflowModule: ModuleFactory = (deps) => {
         },
         triggerPayload: input.triggerPayload ?? {},
         ctx,
+        runId,
+        realtimeBus: getRealtimeBus(),
       });
 
       const finishedAt = new Date();
@@ -523,6 +736,12 @@ export const createWorkflowModule: ModuleFactory = (deps) => {
             })
             .where(eq(workflowRuns.id, runId));
         }
+        emit("workflow:run_failed", ctx.tenantId, {
+          runId,
+          workflowId: workflow.id,
+          failedBlockId: result.failed.blockId,
+          durationMs,
+        });
         return {
           ok: false,
           error: {
@@ -540,11 +759,141 @@ export const createWorkflowModule: ModuleFactory = (deps) => {
           .set({ status: "completed", finishedAt, durationMs })
           .where(eq(workflowRuns.id, runId));
       }
+      emit("workflow:run_completed", ctx.tenantId, {
+        runId,
+        workflowId: workflow.id,
+        durationMs,
+      });
 
       return {
         ok: true,
         result: { runId, outputs: result.outputs, visited: result.visited },
       };
+    },
+  };
+
+  // ── workflow.fork_run — time-travel replay ─────────────────────────────
+  // Fork a past run from a specific block with edited inputs. Upstream
+  // block outputs are copied forward from the source run; downstream
+  // blocks (including the fork point) re-execute against the fresh
+  // outputs map. Powers the "Replay from this step" UX.
+  const forkRunTool: Tool = {
+    name: "fork_run",
+    description:
+      "Fork a past workflow run from a specific block, optionally overriding that block's inputs. Reuses upstream outputs from the source run.",
+    inputs: z.object({
+      runId: z.string().uuid(),
+      fromBlockId: z.string(),
+      editedInputs: z.record(z.unknown()).optional(),
+    }),
+    async handler(
+      input: { runId: string; fromBlockId: string; editedInputs?: Record<string, unknown> },
+      ctx: ToolContext,
+    ): Promise<ToolResult> {
+      if (!toolRegistry) {
+        return {
+          ok: false,
+          error: { code: "internal", message: "workflow.fork_run requires toolRegistry", retryable: false },
+        };
+      }
+      // Load source run + its workflow definition (current).
+      const srcRows = await db
+        .select()
+        .from(workflowRuns)
+        .where(eq(workflowRuns.id, input.runId))
+        .limit(1);
+      const srcRun = srcRows[0];
+      if (!srcRun || srcRun.tenantId !== ctx.tenantId) {
+        return { ok: false, error: { code: "not_found", message: "Source run not found", retryable: false } };
+      }
+      const wfRows = await db
+        .select()
+        .from(workflows)
+        .where(eq(workflows.id, srcRun.workflowId))
+        .limit(1);
+      const wf = wfRows[0];
+      if (!wf || wf.tenantId !== ctx.tenantId) {
+        return { ok: false, error: { code: "not_found", message: "Workflow not found", retryable: false } };
+      }
+      // Pull upstream block outputs from source run's block_runs.
+      const blockRows = await db
+        .select()
+        .from(workflowBlockRuns)
+        .where(eq(workflowBlockRuns.workflowRunId, srcRun.id));
+      const seedOutputs: Record<string, unknown> = {};
+      for (const br of blockRows) {
+        if (br.blockId === input.fromBlockId) continue;
+        if (br.status === "completed" && br.output != null) {
+          seedOutputs[br.blockId] = br.output;
+        }
+      }
+
+      const runStartedAt = new Date();
+      const inserted = await db
+        .insert(workflowRuns)
+        .values({
+          tenantId: ctx.tenantId,
+          workflowId: wf.id,
+          triggerType: "fork",
+          triggerPayload: { forkedFromRunId: srcRun.id, fromBlockId: input.fromBlockId },
+          status: "running",
+          startedAt: runStartedAt,
+        })
+        .returning({ id: workflowRuns.id });
+      const runId = inserted[0]?.id;
+      emit("workflow:run_started", ctx.tenantId, {
+        runId,
+        workflowId: wf.id,
+        forkedFromRunId: srcRun.id,
+      });
+
+      const result = await runWorkflowDag({
+        db,
+        registry: toolRegistry,
+        workflow: {
+          id: wf.id,
+          blocks: wf.blocks ?? [],
+          edges: wf.edges ?? [],
+        },
+        triggerPayload: (srcRun.triggerPayload as Record<string, unknown> | null) ?? {},
+        ctx,
+        runId,
+        realtimeBus: getRealtimeBus(),
+        seedOutputs,
+        startAtBlockId: input.fromBlockId,
+        startAtInputsOverride: input.editedInputs,
+      });
+
+      const finishedAt = new Date();
+      const durationMs = finishedAt.getTime() - runStartedAt.getTime();
+
+      if (result.failed) {
+        if (runId) {
+          await db
+            .update(workflowRuns)
+            .set({ status: "failed", error: JSON.stringify(result.failed.error), finishedAt, durationMs })
+            .where(eq(workflowRuns.id, runId));
+        }
+        emit("workflow:run_failed", ctx.tenantId, { runId, workflowId: wf.id, durationMs });
+        return {
+          ok: false,
+          error: {
+            code: "upstream_unavailable",
+            message: `Forked workflow block ${result.failed.blockId} failed`,
+            retryable: false,
+            details: { runId, blockId: result.failed.blockId, error: result.failed.error },
+          },
+        };
+      }
+
+      if (runId) {
+        await db
+          .update(workflowRuns)
+          .set({ status: "completed", finishedAt, durationMs })
+          .where(eq(workflowRuns.id, runId));
+      }
+      emit("workflow:run_completed", ctx.tenantId, { runId, workflowId: wf.id, durationMs });
+      return { ok: true, result: { runId, forkedFromRunId: srcRun.id, outputs: result.outputs } };
     },
   };
 
@@ -562,7 +911,7 @@ export const createWorkflowModule: ModuleFactory = (deps) => {
         priority: 70,
       },
     ],
-    tools: [listTool, getTool, getRunTool, runTool],
+    tools: [listTool, getTool, getRunTool, runTool, forkRunTool],
   };
 
   return module;

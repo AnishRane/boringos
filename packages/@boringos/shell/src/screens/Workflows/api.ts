@@ -58,6 +58,14 @@ export async function deleteWorkflow(a: Auth, id: string): Promise<void> {
   if (!res.ok) throw new Error(`delete: ${res.status}`);
 }
 
+export async function duplicateWorkflow(a: Auth, src: WorkflowSummary): Promise<WorkflowSummary> {
+  return createWorkflow(a, {
+    name: `${src.name} (copy)`,
+    blocks: src.blocks ?? [],
+    edges: src.edges ?? [],
+  });
+}
+
 export async function runWorkflow(
   a: Auth,
   id: string,
@@ -125,6 +133,33 @@ export async function getRun(a: Auth, runId: string): Promise<RunDetail> {
       };
     }),
   };
+}
+
+export async function forkRun(
+  a: Auth,
+  runId: string,
+  fromBlockId: string,
+  editedInputs?: Record<string, unknown>,
+): Promise<{ runId: string; forkedFromRunId: string }> {
+  const res = await fetch(`/api/admin/workflow-runs/${runId}/fork`, {
+    method: "POST",
+    headers: authHeaders(a.token, a.tenantId),
+    body: JSON.stringify({ fromBlockId, editedInputs }),
+  });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(body.error ?? `fork: ${res.status}`);
+  }
+  return (await res.json()) as { runId: string; forkedFromRunId: string };
+}
+
+export async function replayRun(a: Auth, runId: string): Promise<{ runId: string }> {
+  const res = await fetch(`/api/admin/workflow-runs/${runId}/replay`, {
+    method: "POST",
+    headers: authHeaders(a.token, a.tenantId),
+  });
+  if (!res.ok) throw new Error(`replay: ${res.status}`);
+  return (await res.json()) as { runId: string };
 }
 
 export async function listRuns(a: Auth, workflowId: string, limit = 25): Promise<RunDetail["run"][]> {

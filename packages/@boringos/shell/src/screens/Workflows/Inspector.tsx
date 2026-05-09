@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 //
-// Right-pane inspector. v2.1: per-kind form + raw config preview.
-// Future (v2.2): three-tab Inputs / Params / Output with drag-to-template.
+// Right-pane inspector. Three sections — Inputs (form), Last run
+// (resolved I/O), and per-block actions: pin output, replay from here.
 
 import type { BlockRun, ToolRow, V2Block } from "./types.js";
 import { BlockForm } from "./InspectorForms.js";
@@ -12,11 +12,22 @@ export interface InspectorProps {
   tools: ToolRow[];
   onChange: (patch: Partial<V2Block>) => void;
   onDelete: () => void;
-  /** When in run mode, the run's per-block detail. */
   blockRun?: BlockRun | null;
+  onTogglePin: () => void;
+  onReplayFromHere: () => void;
+  canReplay: boolean;
 }
 
-export function Inspector({ block, tools, onChange, onDelete, blockRun }: InspectorProps) {
+export function Inspector({
+  block,
+  tools,
+  onChange,
+  onDelete,
+  blockRun,
+  onTogglePin,
+  onReplayFromHere,
+  canReplay,
+}: InspectorProps) {
   if (!block) {
     return (
       <aside className="w-[300px] shrink-0 border-l border-slate-100 overflow-y-auto p-4 text-xs text-slate-400">
@@ -31,6 +42,8 @@ export function Inspector({ block, tools, onChange, onDelete, blockRun }: Inspec
   }
   const kind = blockKind(block);
   const accent = kindAccent(kind);
+  const cfg = (block.config ?? {}) as { pinned?: boolean; pinnedOutput?: unknown };
+  const isPinned = cfg.pinned === true && cfg.pinnedOutput !== undefined;
 
   return (
     <aside className="w-[300px] shrink-0 border-l border-slate-100 overflow-y-auto flex flex-col">
@@ -53,10 +66,41 @@ export function Inspector({ block, tools, onChange, onDelete, blockRun }: Inspec
 
         {blockRun && (
           <section className="mt-5 pt-4 border-t border-slate-100">
-            <h3 className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 mb-2">
-              Last run
-            </h3>
+            <div className="flex items-center mb-2">
+              <h3 className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 flex-1">
+                Last run
+              </h3>
+              {canReplay && (
+                <button
+                  type="button"
+                  onClick={onReplayFromHere}
+                  className="text-[10px] text-slate-500 hover:text-slate-900 px-2 py-0.5 rounded border border-slate-200 hover:border-slate-300"
+                >
+                  ↻ Replay from here
+                </button>
+              )}
+            </div>
             <RunPanel run={blockRun} />
+          </section>
+        )}
+
+        {/* Pin toggle — works only when there's a last-run output to cache */}
+        {(blockRun?.output || isPinned) && (
+          <section className="mt-5 pt-4 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={onTogglePin}
+              className={`w-full text-left flex items-center gap-2 text-[11px] px-2 py-1.5 rounded border ${
+                isPinned
+                  ? "bg-amber-50 border-amber-200 text-amber-800"
+                  : "bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100"
+              }`}
+            >
+              <span className={`w-2 h-2 rounded-full ${isPinned ? "bg-amber-400" : "bg-slate-300"}`} />
+              <span className="flex-1">
+                {isPinned ? "Output pinned (dev runs use cache)" : "Pin last output for dev runs"}
+              </span>
+            </button>
           </section>
         )}
       </div>
