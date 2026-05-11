@@ -337,8 +337,16 @@ export interface BoringOSClient {
    * `file` field. Does NOT throw on non-2xx — returns the structured
    * error envelope so the UI can render specific messages (e.g. the
    * 409 `version_exists` / `duplicate` path).
+   *
+   * `force: true` adds `?force=true` to the URL — overwrites an
+   * existing package at the same id@version. Use when iterating in
+   * dev on a fixed version, or when the host rejected a no-op
+   * re-upload (same sha) and you actually want the bytes refreshed.
    */
-  uploadModulePackage(file: File | Blob): Promise<ModuleUploadResult>;
+  uploadModulePackage(
+    file: File | Blob,
+    opts?: { force?: boolean },
+  ): Promise<ModuleUploadResult>;
   /**
    * Delete a package row + remove its extracted store directory. Does
    * NOT throw on non-2xx — the 409 `installed` path returns the list
@@ -653,7 +661,10 @@ export function createBoringOSClient(config: BoringOSClientConfig): BoringOSClie
       );
       return res.packages;
     },
-    uploadModulePackage: async (file: File | Blob) => {
+    uploadModulePackage: async (
+      file: File | Blob,
+      opts?: { force?: boolean },
+    ) => {
       const form = new FormData();
       form.append("file", file);
       // Build headers manually — do NOT set Content-Type. The browser
@@ -663,9 +674,10 @@ export function createBoringOSClient(config: BoringOSClientConfig): BoringOSClie
       if (config.apiKey) h["X-API-Key"] = config.apiKey;
       if (config.tenantId) h["X-Tenant-Id"] = config.tenantId;
       if (config.token) h["Authorization"] = `Bearer ${config.token}`;
+      const qs = opts?.force ? "?force=true" : "";
       let res: Response;
       try {
-        res = await fetch(`${baseUrl}${api}/modules/upload`, {
+        res = await fetch(`${baseUrl}${api}/modules/upload${qs}`, {
           method: "POST",
           headers: h,
           body: form,

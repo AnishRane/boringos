@@ -23,6 +23,24 @@
 import type { PluginUI } from "@boringos/ui";
 import { pluginHost } from "./registry.js";
 
+// task_22 debug instrumentation — every load step also POSTs to the
+// framework so we can read it in the dev-server log. Remove once the
+// browser-side flow is verified working.
+function dbg(stage: string, data: Record<string, unknown> = {}): void {
+  // eslint-disable-next-line no-console
+  console.info(`[runtime-loader] ${stage}`, data);
+  try {
+    fetch("/api/debug/runtime-loader", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ stage, ...data, at: Date.now() }),
+      keepalive: true,
+    }).catch(() => {});
+  } catch {
+    /* fire-and-forget */
+  }
+}
+
 export interface RuntimeLoadResult {
   moduleId: string;
   loaded: boolean;
@@ -91,18 +109,67 @@ function findPluginUiExport(
 export async function loadRuntimePlugin(
   moduleId: string,
 ): Promise<RuntimeLoadResult> {
+  dbg("loadRuntimePlugin:start", { moduleId });
+
   // Already registered? Bail.
   const already = pluginHost.modules.find((m) => m.moduleId === moduleId);
-  if (already) return { moduleId, loaded: false };
+  if (already) {
+    dbg("loadRuntimePlugin:already-registered", { moduleId });
+    return { moduleId, loaded: false };
+  }
 
   const url = `/modules/${encodeURIComponent(moduleId)}/ui/index.mjs`;
+  const cssUrl = `/modules/${encodeURIComponent(moduleId)}/ui/index.css`;
+
+  // Probe with a HEAD request first — built-in modules have no UI
+  // bundle (404), and we want to skip them silently rather than
+  // flood the log with "import failed". Only proceed to the dynamic
+  // import when the bundle is actually present.
+  try {
+    const head = await fetch(url, { method: "HEAD" });
+    if (head.status === 404) {
+      dbg("loadRuntimePlugin:no-ui-bundle", { moduleId });
+      return { moduleId, loaded: false };
+    }
+  } catch {
+    // Network error during HEAD — let the import attempt below
+    // produce the real diagnostic.
+  }
+
+  // CSS sidecar — Vite library mode emits the bundle's stylesheet
+  // as a separate file (the JS bundle has no `<style>` blocks).
+  // If the module ships one, inject it as a <link> before the JS
+  // runs so styles are applied on first paint. Idempotent: tag
+  // the link with a data attribute keyed by moduleId.
+  try {
+    const cssHead = await fetch(cssUrl, { method: "HEAD" });
+    if (cssHead.status === 200) {
+      const linkId = `boringos-plugin-css-${moduleId}`;
+      if (!document.getElementById(linkId)) {
+        const link = document.createElement("link");
+        link.id = linkId;
+        link.rel = "stylesheet";
+        link.href = cssUrl;
+        link.setAttribute("data-plugin-module-id", moduleId);
+        document.head.appendChild(link);
+        dbg("loadRuntimePlugin:css-injected", { moduleId, cssUrl });
+      }
+    }
+  } catch {
+    // Missing/inaccessible CSS isn't fatal — many modules ship JS
+    // only. Continue.
+  }
+
   let mod: Record<string, unknown>;
   try {
     mod = (await import(/* @vite-ignore */ url)) as Record<string, unknown>;
+    dbg("loadRuntimePlugin:import-ok", {
+      moduleId,
+      exportKeys: Object.keys(mod),
+    });
   } catch (e) {
     const error = e instanceof Error ? e.message : String(e);
-    // eslint-disable-next-line no-console
-    console.warn(`[runtime-loader] import failed for ${moduleId}: ${error}`);
+    dbg("loadRuntimePlugin:import-failed", { moduleId, error });
     return { moduleId, loaded: false, error };
   }
 
@@ -111,8 +178,10 @@ export async function loadRuntimePlugin(
     const error = `no PluginUI export found in ${url} (exports: ${Object.keys(
       mod,
     ).join(", ")})`;
-    // eslint-disable-next-line no-console
-    console.warn(`[runtime-loader] ${error}`);
+    dbg("loadRuntimePlugin:no-pluginui-export", {
+      moduleId,
+      exports: Object.keys(mod),
+    });
     return { moduleId, loaded: false, error };
   }
 
@@ -121,16 +190,19 @@ export async function loadRuntimePlugin(
   // ends up registered with `pluginHost`. Cross-check.
   if (ui.moduleId !== moduleId) {
     const error = `moduleId mismatch: requested "${moduleId}", bundle declares "${ui.moduleId}"`;
-    // eslint-disable-next-line no-console
-    console.warn(`[runtime-loader] ${error}`);
+    dbg("loadRuntimePlugin:moduleid-mismatch", {
+      moduleId,
+      bundleModuleId: ui.moduleId,
+    });
     return { moduleId, loaded: false, error };
   }
 
   pluginHost.register(ui);
-  // eslint-disable-next-line no-console
-  console.info(
-    `[runtime-loader] registered ${ui.moduleId} (${ui.navItems?.length ?? 0} nav items)`,
-  );
+  dbg("loadRuntimePlugin:registered", {
+    moduleId: ui.moduleId,
+    navItems: ui.navItems?.length ?? 0,
+    settingsPanels: ui.settingsPanels?.length ?? 0,
+  });
   return { moduleId, loaded: true };
 }
 
@@ -143,7 +215,12 @@ export async function syncRuntimePlugins(
   installedIds: Set<string>,
 ): Promise<RuntimeLoadResult[]> {
   const ids = Array.from(installedIds);
-  return Promise.all(ids.map((id) => loadRuntimePlugin(id)));
+  dbg("syncRuntimePlugins:enter", { ids });
+  const out = await Promise.all(ids.map((id) => loadRuntimePlugin(id)));
+  dbg("syncRuntimePlugins:done", {
+    results: out.map((r) => ({ id: r.moduleId, loaded: r.loaded, error: r.error })),
+  });
+  return out;
 }
 
 /**
@@ -154,4 +231,9 @@ export async function syncRuntimePlugins(
  */
 export function unloadRuntimePlugin(moduleId: string): void {
   pluginHost.unregister(moduleId);
+  // Drop the injected stylesheet so a re-install doesn't accumulate
+  // duplicate <link> tags or keep stale styles applied after the
+  // route tree no longer references this module.
+  const link = document.getElementById(`boringos-plugin-css-${moduleId}`);
+  if (link) link.remove();
 }

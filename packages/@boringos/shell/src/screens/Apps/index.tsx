@@ -316,8 +316,13 @@ export function Modules() {
   // Upload flow.
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [dragOver, setDragOver] = useState(false);
-  const uploadMut = useMutation<ModuleUploadResult, Error, File | Blob>({
-    mutationFn: (file: File | Blob) => client.uploadModulePackage(file),
+  const uploadMut = useMutation<
+    ModuleUploadResult,
+    Error,
+    { file: File | Blob; force?: boolean }
+  >({
+    mutationFn: ({ file, force }) =>
+      client.uploadModulePackage(file, force ? { force: true } : undefined),
     onSettled: () => refetchAll(),
   });
 
@@ -331,7 +336,17 @@ export function Modules() {
       return;
     }
     const t = toast.loading(`Uploading ${file.name}…`);
-    const res = await uploadMut.mutateAsync(file);
+    let res = await uploadMut.mutateAsync({ file });
+    // Iteration ergonomics: if the host already has this exact
+    // bundle (duplicate) or this id@version (version_exists),
+    // transparently retry with ?force=true. Same intent as
+    // `npm publish --force` for a fixed dev version.
+    if (
+      !res.ok &&
+      (res.error?.code === "duplicate" || res.error?.code === "version_exists")
+    ) {
+      res = await uploadMut.mutateAsync({ file, force: true });
+    }
     if (res.ok) {
       toast.success(
         `Installed ${res.id}@${res.version} — ${res.toolsAdded} tool${

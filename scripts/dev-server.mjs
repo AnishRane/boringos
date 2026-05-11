@@ -7,6 +7,7 @@
 import { existsSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 
+import { Hono } from "hono";
 import {
   BoringOS,
   createFrameworkModule,
@@ -56,6 +57,18 @@ app.module(createGoogleModule);
 app.module(createTriageModule);
 app.module(createInboxTriageModule);
 app.module(createInboxReplierModule);
+
+// Debug route used by the shell's runtime-loader to report what the
+// browser actually does during plugin hot-load. Helpful when nav items
+// fail to appear; prints to stdout so we can read it without DevTools.
+const debugApp = new Hono();
+debugApp.post("/runtime-loader", async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  // eslint-disable-next-line no-console
+  console.log(`[shell-debug] runtime-loader: ${JSON.stringify(body)}`);
+  return c.json({ ok: true });
+});
+app.route("/api/debug", debugApp);
 
 const server = await app.listen(port);
 

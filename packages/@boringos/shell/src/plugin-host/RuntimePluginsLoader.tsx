@@ -10,7 +10,7 @@
 // Render-side: returns null. Side effects only.
 
 import { useEffect } from "react";
-import { useInstalledModules, useRealtimeEvent } from "@boringos/ui";
+import { useInstalledModules, useInstallEventSync, useRealtimeEvent } from "@boringos/ui";
 import {
   loadRuntimePlugin,
   syncRuntimePlugins,
@@ -18,6 +18,14 @@ import {
 } from "./runtime-loader.js";
 
 export function RuntimePluginsLoader(): null {
+  // Subscribe to module:installed / module:uninstalled SSE events
+  // and invalidate the react-query ["installs"] cache. Without this,
+  // clicking Install in the Apps screen wouldn't propagate to the
+  // sidebar / route tree until a full page reload — the upstream
+  // useInstalledModules() hook would keep serving the cached
+  // "not installed" set forever.
+  useInstallEventSync();
+
   const installed = useInstalledModules();
 
   // Initial sync + any time the installed set changes (install /
