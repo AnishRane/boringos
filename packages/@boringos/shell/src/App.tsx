@@ -12,10 +12,10 @@ import {
 } from "react-router-dom";
 
 import { Layout } from "./chrome/Layout.js";
-import { SlotRegistryProvider } from "./slots/context.js";
 import { AuthProvider, Login, RequireAdmin, RequireAuth, Signup } from "./auth/index.js";
 import { BoringOSClientProvider } from "./providers/BoringOSClientProvider.js";
 import { BrandProvider } from "./branding/BrandProvider.js";
+import { DynamicPluginRoutes } from "./plugin-host/index.js";
 import {
   Activity,
   Agents,
@@ -32,14 +32,13 @@ import {
   Team,
   Workflows,
 } from "./screens/index.js";
-import { Apps } from "./screens/Apps/index.js";
+import { Modules } from "./screens/Apps/index.js";
 
 export function App() {
   return (
     <AuthProvider>
       <BoringOSClientProvider>
         <BrandProvider>
-        <SlotRegistryProvider>
           <BrowserRouter>
             <Routes>
               {/* Public auth routes */}
@@ -94,13 +93,15 @@ export function App() {
                   }
                 />
                 <Route
-                  path="apps"
+                  path="modules"
                   element={
-                    <RequireAdmin title="Apps">
-                      <Apps />
+                    <RequireAdmin title="Modules">
+                      <Modules />
                     </RequireAdmin>
                   }
                 />
+                {/* Backward-compat: /apps redirects to /modules. */}
+                <Route path="apps" element={<Navigate to="/modules" replace />} />
                 <Route
                   path="routines"
                   element={
@@ -133,10 +134,11 @@ export function App() {
                     </RequireAdmin>
                   }
                 />
+
+                {DynamicPluginRoutes()}
               </Route>
             </Routes>
           </BrowserRouter>
-        </SlotRegistryProvider>
         </BrandProvider>
       </BoringOSClientProvider>
     </AuthProvider>

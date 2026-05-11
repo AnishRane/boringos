@@ -1,4 +1,4 @@
-// Local type — the v1 connector framework was deleted.
+// Local connector-protocol types (formerly in /connector).
 export interface ActionResult {
   success: boolean;
   data?: Record<string, unknown>;

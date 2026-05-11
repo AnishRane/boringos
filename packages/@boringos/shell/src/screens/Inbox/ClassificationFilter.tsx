@@ -5,16 +5,16 @@
 // matching that classification.
 
 import {
-  classificationChipClass,
-  type Classification,
+  labelChipClass,
+  type TriageLabel,
 } from "./presenter.js";
 
-const CLASSIFICATIONS: Classification[] = ["lead", "reply", "internal", "newsletter", "spam"];
+const CLASSIFICATIONS: TriageLabel[] = ["urgent", "important", "fyi", "noise"];
 
 export interface ClassificationFilterProps {
-  active: Set<Classification>;
-  counts: Record<Classification, number>;
-  onToggle: (c: Classification) => void;
+  active: Set<TriageLabel>;
+  counts: Record<TriageLabel, number>;
+  onToggle: (c: TriageLabel) => void;
   onClear: () => void;
 }
 
@@ -45,7 +45,7 @@ export function ClassificationFilter({ active, counts, onToggle, onClear }: Clas
             type="button"
             onClick={() => onToggle(c)}
             className={`flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full ring-1 ${
-              isOn ? classificationChipClass(c) : "ring-border text-muted hover:text-text"
+              isOn ? labelChipClass(c) : "ring-border text-muted hover:text-text"
             }`}
           >
             <span className="capitalize">{c}</span>

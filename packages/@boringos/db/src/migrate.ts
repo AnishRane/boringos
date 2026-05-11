@@ -544,6 +544,12 @@ async function ensureSchema(db: Db): Promise<void> {
     -- Add model column to agent_runs for tracking which model was used
     ALTER TABLE agent_runs ADD COLUMN IF NOT EXISTS model TEXT;
 
+    -- Per-agent model override. When set, takes priority over the
+    -- runtime row's model column at execution time. Lets the operator
+    -- pick Sonnet vs Opus vs Haiku per agent without spinning up a
+    -- separate runtime row for each model variant.
+    ALTER TABLE agents ADD COLUMN IF NOT EXISTS model TEXT;
+
     -- Routing tags column on agents (used by the delegation router for
     -- keyword matching). Originally named "skills" — task_15 §1 renamed
     -- it to disambiguate from prompt skills (modules + company_skills).
@@ -652,41 +658,15 @@ async function ensureSchema(db: Db): Promise<void> {
       FOR EACH ROW
       EXECUTE FUNCTION tasks_set_next_actor();
 
-    -- Phase 2 K4: workflow rows know which app they belong to so re-install can
-    -- replace cleanly. ALTER is idempotent via IF NOT EXISTS.
+    -- Workflow metadata column (kept).
     ALTER TABLE workflows ADD COLUMN IF NOT EXISTS metadata JSONB;
 
-    -- Phase 2 K1: tenant_apps records which apps are installed in which tenants.
-    CREATE TABLE IF NOT EXISTS tenant_apps (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      tenant_id UUID NOT NULL REFERENCES tenants(id),
-      app_id TEXT NOT NULL,
-      version TEXT NOT NULL,
-      status TEXT NOT NULL DEFAULT 'active',
-      capabilities JSONB NOT NULL DEFAULT '[]'::jsonb,
-      manifest_hash TEXT,
-      installed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-    );
-    CREATE INDEX IF NOT EXISTS tenant_apps_tenant_app_idx ON tenant_apps(tenant_id, app_id);
+    -- Legacy install tables (tenant_apps, tenant_app_links) dropped.
+    -- Single Module install pipeline lives in module_installs below.
+    DROP TABLE IF EXISTS tenant_app_links;
+    DROP TABLE IF EXISTS tenant_apps;
 
-    -- Phase 2 K7: tenant_app_links records cross-app capability approvals,
-    -- consulted by the uninstall cascade-warning logic.
-    CREATE TABLE IF NOT EXISTS tenant_app_links (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      tenant_id UUID NOT NULL REFERENCES tenants(id),
-      source_app_id TEXT NOT NULL,
-      target_app_id TEXT NOT NULL,
-      capability TEXT NOT NULL,
-      approved_at TIMESTAMPTZ NOT NULL DEFAULT now()
-    );
-    CREATE UNIQUE INDEX IF NOT EXISTS tenant_app_links_uniq_idx
-      ON tenant_app_links(tenant_id, source_app_id, target_app_id, capability);
-
-    -- v2 (Skills + Tools + Modules) — additive scaffolding for the
-    -- audited tool dispatcher. Phase 1 of task_12. Unused until the
-    -- v2 dispatcher lands in Phase 2; safe to ship now because the
-    -- v1 code paths never read or write this table.
+    -- Module-system audited tool dispatcher.
     CREATE TABLE IF NOT EXISTS tool_calls (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
@@ -712,8 +692,8 @@ async function ensureSchema(db: Db): Promise<void> {
     CREATE INDEX IF NOT EXISTS tool_calls_run_idx
       ON tool_calls(run_id);
 
-    -- v2 CRM module schema. Tables prefixed hebbs_crm__ per the
-    -- v2 naming convention. Phase 8 of task_12. Additive: v1 CRM
+    -- CRM module schema. Tables prefixed hebbs_crm__ per the
+    -- Module naming convention. Coexists with the legacy CRM
     -- in the separate repo (with crm_* tables) is unaffected.
     CREATE TABLE IF NOT EXISTS hebbs_crm__pipelines (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -783,7 +763,7 @@ async function ensureSchema(db: Db): Promise<void> {
     CREATE INDEX IF NOT EXISTS hebbs_crm__activities_tenant_entity_idx
       ON hebbs_crm__activities(tenant_id, entity_kind, entity_id);
 
-    -- v2 module install state. One row per (tenant, module). The
+    -- module install state. One row per (tenant, module). The
     -- framework registry knows which modules the host has imported;
     -- this table records which of those a given tenant has actually
     -- installed (via the admin UI or auto-install at signup).
@@ -800,7 +780,7 @@ async function ensureSchema(db: Db): Promise<void> {
     CREATE UNIQUE INDEX IF NOT EXISTS module_installs_tenant_module_idx
       ON module_installs(tenant_id, module_id);
 
-    -- v2 module-shipped schema migrations applied per-tenant.
+    -- module-shipped schema migrations applied per-tenant.
     -- Tracks which Module.schema[].id has been applied for which
     -- (tenant, module). Enables idempotent re-install + clean
     -- rollback at uninstall. Chunk C of the final session.

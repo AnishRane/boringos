@@ -1,41 +1,69 @@
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@600;700&display=swap");
 @import "tailwindcss";
 
+/* task_19 — scan external plugin packages so their Tailwind classes
+ * (including arbitrary values like bg-[#04080a]) get compiled into
+ * the shell's stylesheet. We scan via node_modules/<pkg>/src/** so
+ * Tailwind follows the pnpm symlinks the same way Vite does for
+ * imports. Add one line per plugin web package. */
+@source "../node_modules/@boringos-crm/web/src/**/*.{ts,tsx}";
+
 /* ── Semantic tokens ────────────────────────────────────────────────────────
- *  See docs/blockers/task_18_shell_theme_and_ux.md.
- *  Defaults match Hebbs's amber-on-warm idiom; BrandProvider rewrites
- *  --color-accent / --color-navy at runtime when a tenant sets brand.* keys.
- *  Productivity-density tuning: warmer than slate, cooler than the
- *  marketing site's beige.
+ *  The "awake palette": calm by default, vivid on purpose.
+ *
+ *    Sun     #B45309   accent — agent working, attention
+ *    Ink     #0B1220   text/canvas anchor — depth, focus
+ *    Paper   #F8F6F1   background — warm but not orange
+ *    Moss    #4F6B57   success/resting — "all clear"
+ *    Signal  #F43F5E   danger — "you're needed"
+ *    Spark   #06B6D4   info/new — "something just happened"
+ *
+ *  Color carries state, not branding. The canvas (paper + ink) holds the
+ *  room; the brights are reserved for moments that earn them.
+ *
+ *  BrandProvider rewrites --color-accent / --color-navy at runtime when
+ *  tenant_settings carries brand.* keys.
  */
 @theme {
-  --color-bg: #FAF9F7;
-  --color-bg-warm: #F5F3EE;
+  /* Awake palette — named anchors, also exposed as Tailwind utilities. */
+  --color-sun: #B45309;
+  --color-ink: #0B1220;
+  --color-paper: #F8F6F1;
+  --color-moss: #4F6B57;
+  --color-signal: #F43F5E;
+  --color-spark: #06B6D4;
+
+  /* Surfaces — paper anchors the canvas; surfaces lift via white, not warmth. */
+  --color-bg: #F8F6F1;
+  --color-bg-warm: #F1ECE3;
   --color-surface: #FFFFFF;
   --color-surface-raised: #FFFFFF;
-  --color-surface-tint: rgba(180, 83, 9, 0.04);
-  --color-border: #E2DED5;
-  --color-border-subtle: #ECE9E2;
+  --color-surface-tint: rgba(11, 18, 32, 0.03);
+  --color-border: #E6E1D6;
+  --color-border-subtle: #EFEAE0;
 
-  --color-text: #1C1917;
-  --color-text-secondary: #44403C;
-  --color-muted: #78716C;
-  --color-muted-strong: #57534E;
+  /* Text — ink-blue, deeper than slate; muted reads cool, not warm. */
+  --color-text: #0B1220;
+  --color-text-secondary: #2A3447;
+  --color-muted: #5C6478;
+  --color-muted-strong: #3D4456;
 
+  /* Accent (Sun) — only one accent. Hover/bright derive lighter, tint stays subtle. */
   --color-accent: #B45309;
   --color-accent-light: #D97706;
   --color-accent-bright: #F59E0B;
   --color-accent-tint: rgba(180, 83, 9, 0.10);
 
-  --color-cyan: #0E7490;
-  --color-green: #047857;
-  --color-red: #B91C1C;
-  --color-navy: #1E293B;
+  /* State channels — each maps to a palette anchor. */
+  --color-cyan: #06B6D4;
+  --color-green: #4F6B57;
+  --color-red: #F43F5E;
+  --color-navy: #0B1220;
 
-  --color-success: #047857;
+  --color-success: #4F6B57;
   --color-warning: #D97706;
-  --color-danger: #B91C1C;
-  --color-info: #0E7490;
+  --color-danger: #F43F5E;
+  --color-info: #06B6D4;
 
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, "Cascadia Code", monospace;
@@ -56,24 +84,25 @@
     color: var(--color-text);
   }
 
-  /* Subtle dot grid on the body — restraint vs the website. */
+  /* Subtle dot grid on the body — ink-toned, not warm-stone. */
   body {
-    background-image: radial-gradient(circle, rgba(120, 113, 108, 0.04) 1px, transparent 1px);
+    background-image: radial-gradient(circle, rgba(11, 18, 32, 0.045) 1px, transparent 1px);
     background-size: 24px 24px;
   }
 }
 
-/* Marketing-style "dark band" used on Login + onboarding only. */
+/* Marketing-style "dark band" used on Login + onboarding only. Anchored
+ * on Ink so brand.secondaryColor overrides flow through naturally. */
 .band-dark {
-  background: linear-gradient(180deg, #1E293B 0%, #050510 100%);
+  background: linear-gradient(180deg, #0B1220 0%, #04060B 100%);
   color: #E2E8F0;
 }
 .band-dark h1, .band-dark h2 { color: #F8FAFC; }
 .band-dark p { color: #CBD5E1; }
 
-/* Drifting orb backdrop — login/onboarding only. Defined here so the
- * same idiom in the marketing site (hebbs-website/src/styles/global.css)
- * stays visually familiar. */
+/* Drifting orb backdrop — login/onboarding only. Three orbs map to the
+ * three "alive" anchors (Sun / Spark / Moss) so the band feels populated
+ * rather than monochrome. */
 .orb {
   position: absolute;
   border-radius: 50%;
@@ -87,13 +116,13 @@
 }
 .orb-cyan {
   width: 460px; height: 460px;
-  background: radial-gradient(circle, rgba(14, 116, 144, 0.16) 0%, rgba(14, 116, 144, 0.03) 50%, transparent 70%);
+  background: radial-gradient(circle, rgba(6, 182, 212, 0.18) 0%, rgba(6, 182, 212, 0.04) 50%, transparent 70%);
   animation-delay: -10s;
   animation-duration: 30s;
 }
 .orb-green {
   width: 400px; height: 400px;
-  background: radial-gradient(circle, rgba(4, 120, 87, 0.12) 0%, transparent 60%);
+  background: radial-gradient(circle, rgba(79, 107, 87, 0.16) 0%, transparent 60%);
   animation-delay: -16s;
   animation-duration: 26s;
 }

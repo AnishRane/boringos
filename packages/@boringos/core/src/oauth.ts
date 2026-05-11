@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 //
 // OAuth machinery — moved here from `@boringos/connector` when the
-// v1 connector framework was deleted. OAuth isn't a "connector"
+// OAuth callbacks live on the framework HTTP surface (not a "connector")
 // concept; it's how the framework brokers tenant credentials for
 // any 3rd-party API.
 //
 // Three pieces:
 //   1. `refreshOAuthToken` — exchange a stored refresh token for
-//      a fresh access token. v2 connector modules call this when
+//      a fresh access token. Connector modules call this when
 //      they get a 401 from the upstream API.
 //   2. `createOAuthManager` — typed wrapper for the authorize +
 //      exchange flow. The connector-routes uses one per provider.
@@ -282,13 +282,13 @@ export function isSafeReturnTo(raw: string, allowedOrigins: string[]): boolean {
 
 /**
  * Connection providers the framework knows how to OAuth against.
- * Replaces the v1 `ConnectorRegistry` walk — there are only ever
+ * There are only ever
  * a handful of OAuth providers, hardcoding them is fine.
  *
  * Adding a new provider:
  *   1. Add an entry here with its OAuth config + scopes
  *   2. Set `<KIND>_CLIENT_ID` + `<KIND>_CLIENT_SECRET` env vars
- *   3. Optionally ship a v2 connector module (Module manifest)
+ *   3. Optionally ship a connector module (Module manifest)
  *      that wraps the HTTP client + tools
  */
 export const OAUTH_PROVIDERS: Record<string, OAuthConfig> = {

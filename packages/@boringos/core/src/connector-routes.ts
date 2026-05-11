@@ -2,8 +2,8 @@
 //
 // Connection routes — OAuth dance + tenant-connection listing.
 //
-// v1 mounted: OAuth flow, webhook receivers, action invocation,
-// connector definition listing. The v1 framework is gone; this
+// Legacy connector routes mounted: OAuth flow, webhook receivers, action invocation,
+// connector definition listing. The legacy framework is gone; this
 // file now mounts ONLY:
 //
 //   - GET  /oauth/:kind/authorize — start the OAuth dance
@@ -16,7 +16,7 @@
 // Action invocation and webhook receivers moved to:
 //   - /api/tools/<module>.<action> for actions
 //   - /api/webhooks/<module-id>/<event> for inbound webhooks
-//     (mounted by the v2 Module registry)
+//     (mounted by the Module registry)
 
 import { Hono, type Context } from "hono";
 import { eq, and, sql } from "drizzle-orm";

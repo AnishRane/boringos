@@ -6,7 +6,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import type { ToolRow, V2Block, V2Edge, WorkflowSummary, BlockRun, BlockRunStatus } from "./types.js";
+import type { ToolRow, Block, Edge, WorkflowSummary, BlockRun, BlockRunStatus } from "./types.js";
 import { Canvas } from "./Canvas.js";
 import { Inspector } from "./Inspector.js";
 import { Palette } from "./Palette.js";
@@ -45,8 +45,8 @@ export interface EditorProps {
 export function Editor({ auth, workflow, tools, onSaved }: EditorProps) {
   const [tab, setTab] = useState<Tab>("canvas");
   const [name, setName] = useState(workflow.name);
-  const [blocks, setBlocks] = useState<V2Block[]>(workflow.blocks ?? []);
-  const [edges, setEdges] = useState<V2Edge[]>(workflow.edges ?? []);
+  const [blocks, setBlocks] = useState<Block[]>(workflow.blocks ?? []);
+  const [edges, setEdges] = useState<Edge[]>(workflow.edges ?? []);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [paletteEdgeId, setPaletteEdgeId] = useState<string | undefined>();
@@ -146,13 +146,13 @@ export function Editor({ auth, workflow, tools, onSaved }: EditorProps) {
     return activeRun.blocks.find((b) => b.blockId === selectedId) ?? null;
   }, [activeRun, selectedId]);
 
-  const handleCanvasChange = useCallback((nextBlocks: V2Block[], nextEdges: V2Edge[]) => {
+  const handleCanvasChange = useCallback((nextBlocks: Block[], nextEdges: Edge[]) => {
     setBlocks(nextBlocks);
     setEdges(nextEdges);
   }, []);
 
   const handleBlockChange = useCallback(
-    (patch: Partial<V2Block>) => {
+    (patch: Partial<Block>) => {
       if (!selectedId) return;
       setBlocks((bs) => bs.map((b) => (b.id === selectedId ? { ...b, ...patch } : b)));
     },
@@ -192,13 +192,13 @@ export function Editor({ auth, workflow, tools, onSaved }: EditorProps) {
   }, [selectedId, blocks, activeRun]);
 
   const insertBlock = useCallback(
-    (blk: V2Block) => {
+    (blk: Block) => {
       const eId = paletteEdgeId;
       if (eId) {
         const orig = edges.find((e) => edgeId(e) === eId || e.id === eId);
         if (orig) {
           const remaining = edges.filter((e) => e !== orig);
-          const newEdges: V2Edge[] = [
+          const newEdges: Edge[] = [
             ...remaining,
             {
               id: `${orig.sourceBlockId}-${blk.id}-${orig.sourceHandle ?? ""}`,
@@ -510,9 +510,9 @@ function SourceTab({
   edges,
   onChange,
 }: {
-  blocks: V2Block[];
-  edges: V2Edge[];
-  onChange: (b: V2Block[], e: V2Edge[]) => void;
+  blocks: Block[];
+  edges: Edge[];
+  onChange: (b: Block[], e: Edge[]) => void;
 }) {
   const [text, setText] = useState(() => JSON.stringify({ blocks, edges }, null, 2));
   const [error, setError] = useState<string | null>(null);
@@ -530,7 +530,7 @@ function SourceTab({
         onChange={(e) => {
           setText(e.target.value);
           try {
-            const parsed = JSON.parse(e.target.value) as { blocks?: V2Block[]; edges?: V2Edge[] };
+            const parsed = JSON.parse(e.target.value) as { blocks?: Block[]; edges?: Edge[] };
             if (!Array.isArray(parsed.blocks) || !Array.isArray(parsed.edges)) {
               setError("blocks and edges must be arrays");
               return;

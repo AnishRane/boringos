@@ -22,8 +22,7 @@ import { createAgentEngine, ContextPipeline } from "@boringos/agent";
 import type { AgentEngine, ContextProvider, AgentRunJob } from "@boringos/agent";
 import type { QueueAdapter } from "@boringos/pipeline";
 import { createInProcessQueue } from "@boringos/pipeline";
-// v1 @boringos/workflow engine deleted — workflows execute through
-// the v2 `workflow.run` tool dispatcher. See run-workflow.ts.
+// Workflows execute through the workflow.run tool dispatcher (run-workflow.ts).
 import { createEventBus } from "./event-bus.js";
 import type {
   BoringOSConfig,
@@ -34,10 +33,9 @@ import type {
   LifecycleHook,
   StartedServer,
 } from "./types.js";
-// v1 callback routes deleted — agents now call /api/tools/*
 import { runWorkflow } from "./run-workflow.js";
-import { createV2Routes } from "./v2-routes.js";
-import { createV2AdminRoutes } from "./v2-admin-routes.js";
+import { createToolRoutes } from "./tool-routes.js";
+import { createModuleAdminRoutes } from "./module-admin-routes.js";
 import {
   createToolRegistry,
   createSkillRegistry,
@@ -48,11 +46,11 @@ import {
   createSettingRegistry,
 } from "@boringos/agent";
 import type {
-  ToolRegistry as V2ToolRegistry,
-  SkillRegistry as V2SkillRegistry,
-  ModuleRegistry as V2ModuleRegistry,
-  InstallManager as V2InstallManager,
-  SettingRegistry as V2SettingRegistry,
+  ToolRegistry,
+  SkillRegistry,
+  ModuleRegistry,
+  InstallManager,
+  SettingRegistry,
 } from "@boringos/agent";
 import type { Module, ModuleFactory } from "@boringos/module-sdk";
 import { createConnectorRoutes } from "./connector-routes.js";
@@ -67,22 +65,10 @@ import { createRoutineScheduler } from "./scheduler.js";
 import { createInboxSnoozeTicker } from "./inbox-snooze-ticker.js";
 import { createInboxGmailReverseSyncTicker } from "./inbox-gmail-reverse-sync.js";
 import { createInboxGmailForwardSyncTicker } from "./inbox-gmail-forward-sync.js";
-// v1 copilot routes deleted — copilot is a v2 module, conversations
-// go through /api/admin/tasks/* with originKind="copilot"
 import { createPluginRegistry } from "./plugin-system.js";
 import type { PluginDefinition } from "./plugin-system.js";
 import { createPluginWebhookRoutes, createPluginAdminRoutes } from "./plugin-routes.js";
 import { githubPlugin } from "./plugins/github.js";
-import { provisionDefaultApps, type DefaultAppCatalogEntry } from "./tenant-provisioning.js";
-import { createAppsAdminRoutes } from "./admin/apps.js";
-import {
-  createKernelInstallContext,
-  loadCatalogFromDisk,
-  type SlotInstallRuntime,
-  type InstallEventBus,
-  type AppRouteRegistry,
-} from "@boringos/control-plane";
-import { createAppRouteRegistry } from "@boringos/control-plane";
 
 export class BoringOS {
   private config: BoringOSConfig;
@@ -92,22 +78,16 @@ export class BoringOS {
   private personas: Map<string, PersonaBundle> = new Map();
   private plugins: PluginManifest[] = [];
   private pluginDefs: PluginDefinition[] = [];
-  // v1 ConnectorDefinition[] removed — connectors are v2 modules now.
   private beforeStartHooks: LifecycleHook[] = [];
   private afterStartHooks: LifecycleHook[] = [];
   private beforeShutdownHooks: LifecycleHook[] = [];
   private extraRoutes: Array<{ path: string; app: Hono; agentDocs?: string | ((callbackUrl: string) => string) }> = [];
-  // BlockHandler API removed with the v1 workflow engine. Custom
-  // workflow blocks should ship as v2 tools instead.
   private queueAdapter: QueueAdapter<AgentRunJob> | undefined;
   private userSchemaStatements: string[] = [];
   private inboxRoutes: Array<{ filter: (event: Record<string, unknown>) => boolean; transform: (event: Record<string, unknown>) => { source: string; subject: string; body?: string; from?: string; assigneeUserId?: string } }> = [];
   private tenantProvisionedHook: ((db: Db, tenantId: string) => Promise<void>) | undefined;
   private eventHandlers: Array<{ type: string | null; handler: (event: import("./event-bus.js").ConnectorEvent) => void | Promise<void> }> = [];
-  // v2 — Skills + Tools + Modules. Empty in v1-only deployments.
-  // Populated via `app.module(myModule)`. The boot sequence skips
-  // mounting the v2 routes when this is empty, so v1 deployments
-  // are unaffected.
+  // Modules registered via `app.module(myModule)`.
   //
   // Two registration shapes:
   //   - inline `Module` — the manifest is plain data (typical for
@@ -116,7 +96,7 @@ export class BoringOS {
   //     services after boot and returns a `Module`. Used by
   //     built-ins (framework / memory / inbox / copilot / etc.)
   //     and by hybrid modules that own their own schema.
-  private v2Modules: Array<Module | ModuleFactory> = [];
+  private moduleEntries: Array<Module | ModuleFactory> = [];
 
   constructor(config: BoringOSConfig = {}) {
     this.config = config;
@@ -210,23 +190,17 @@ export class BoringOS {
   }
 
   /**
-   * Register a v2 Module (Skills + Tools + Modules architecture).
+   * Register a Module (Skills + Tools + Modules architecture).
    *
-   * In v2, every component — connectors, apps, plugins, built-in
-   * subsystems — implements the `Module` interface from
-   * `@boringos/module-sdk`. The framework collects them, walks
-   * their tools into the tool registry, walks their skills into
-   * the skill registry, runs migrations + lifecycle hooks per
-   * tenant install, and exposes the unified
-   * `POST /api/tools/<module-id>.<tool-name>` dispatch endpoint.
-   *
-   * v1 connectors / apps / plugins continue to work in parallel
-   * during the phased migration. The v2 routes are mounted only
-   * if at least one Module is registered, so v1-only hosts boot
-   * exactly as before.
+   * Every component — connectors, apps, plugins, built-in subsystems —
+   * implements the `Module` interface from `@boringos/module-sdk`. The
+   * framework collects them, walks their tools into the tool registry,
+   * walks their skills into the skill registry, runs migrations +
+   * lifecycle hooks per tenant install, and exposes
+   * `POST /api/tools/<module-id>.<tool-name>` for dispatch.
    */
   module(mod: Module | ModuleFactory): this {
-    this.v2Modules.push(mod);
+    this.moduleEntries.push(mod);
     return this;
   }
 
@@ -265,15 +239,15 @@ export class BoringOS {
       runtimes.register(rt);
     }
 
-    // 5. v2 — build Skills + Tools + Modules registries (always
+    // 5. Build Skills + Tools + Modules registries (always
     //    constructed; only populated + mounted when modules
     //    exist). Doing this before the pipeline build means the
-    //    v2 providers can be added to the pipeline alongside v1's.
-    const v2ToolRegistry: V2ToolRegistry = createToolRegistry();
-    const v2SkillRegistry: V2SkillRegistry = createSkillRegistry();
-    const v2ModuleRegistry: V2ModuleRegistry = createModuleRegistry({
-      tools: v2ToolRegistry,
-      skills: v2SkillRegistry,
+    //    Module providers feed into the context pipeline.
+    const toolRegistry: ToolRegistry = createToolRegistry();
+    const skillRegistry: SkillRegistry = createSkillRegistry();
+    const moduleRegistry: ModuleRegistry = createModuleRegistry({
+      tools: toolRegistry,
+      skills: skillRegistry,
     });
     // ModuleFactory functions are resolved here, after the DB +
     // drive are available (memory provider, agent + workflow
@@ -281,7 +255,7 @@ export class BoringOS {
     // need them close over the deps object). The factory pattern
     // lets built-ins access framework services without leaking
     // those types into the SDK's Module shape.
-    const v2FactoryDeps = {
+    const factoryDeps = {
       db: dbConn.db,
       memory: this.memoryProvider,
       drive,
@@ -290,25 +264,25 @@ export class BoringOS {
       // object at call time, not at factory time.
       engine: undefined as unknown,
       workflowEngine: undefined as unknown,
-      toolRegistry: v2ToolRegistry,
+      toolRegistry: toolRegistry,
       realtimeBus: undefined as unknown,
       eventBus: undefined as unknown,
     };
-    const v2BoundModules: Module[] = [];
-    for (const entry of this.v2Modules) {
+    const boundModules: Module[] = [];
+    for (const entry of this.moduleEntries) {
       const mod = typeof entry === "function"
-        ? entry(v2FactoryDeps)
+        ? entry(factoryDeps)
         : entry;
-      v2ModuleRegistry.register(mod);
-      v2BoundModules.push(mod);
+      moduleRegistry.register(mod);
+      boundModules.push(mod);
     }
-    const v2HasModules = v2BoundModules.length > 0;
+    const hasModules = boundModules.length > 0;
 
     // Tenant settings registry — aggregates SettingDefinition entries
     // from every registered module + the framework's own well-known
     // keys. Exposed via GET /api/admin/settings/manifest so the shell
     // can auto-render Settings → General. See task_17.
-    const settingRegistry: V2SettingRegistry = createSettingRegistry();
+    const settingRegistry: SettingRegistry = createSettingRegistry();
     // Built-in framework settings — keys the host writes/reads itself.
     settingRegistry.register("framework", "framework", {
       key: "agents_paused",
@@ -319,7 +293,7 @@ export class BoringOS {
       default: false,
     });
     // Module-contributed settings.
-    for (const mod of v2BoundModules) {
+    for (const mod of boundModules) {
       for (const def of mod.settings ?? []) {
         settingRegistry.register("module", mod.id, def);
       }
@@ -328,8 +302,17 @@ export class BoringOS {
     // Construct the install manager early so the new-tenant hook
     // can fire onTenantCreate during signup. Backfill of existing
     // tenants happens later (fire-and-forget) once routes mount.
-    const v2InstallManagerEarly: V2InstallManager | undefined = v2HasModules
-      ? createInstallManager({ db: dbConn.db, modules: v2BoundModules })
+    // realtimeBusRef is assigned later in the boot sequence (line ~745).
+    // Pass a closure-bound proxy so install/uninstall events emitted
+    // from this manager land on the bus as soon as it exists.
+    const installManagerEarly: InstallManager | undefined = hasModules
+      ? createInstallManager({
+          db: dbConn.db,
+          modules: boundModules,
+          realtimeBus: {
+            publish: (event) => realtimeBusRef?.publish(event as Parameters<NonNullable<typeof realtimeBusRef>["publish"]>[0]),
+          },
+        })
       : undefined;
 
     // 6. Build context pipeline
@@ -338,15 +321,10 @@ export class BoringOS {
       pipeline.add(provider);
     }
 
-    // v2 prompt sections — additive. Registered alongside v1's
-    // providers when modules are present, so the agent's prompt
-    // shows BOTH v1 sections (drive-skill, memory-skill, etc.)
-    // AND v2 sections (## Skills + ## Available tools). Cutover
-    // removes the v1 providers; until then this overlap is
-    // intentional and gives us the parity safety net.
-    if (v2HasModules) {
-      pipeline.add(createSkillsProvider({ registry: v2SkillRegistry }));
-      pipeline.add(createToolCatalogProvider({ registry: v2ToolRegistry }));
+    // Module-driven prompt sections (## Skills + ## Available tools).
+    if (hasModules) {
+      pipeline.add(createSkillsProvider({ registry: skillRegistry }));
+      pipeline.add(createToolCatalogProvider({ registry: toolRegistry }));
     }
 
     // 6. Create agent engine
@@ -360,9 +338,8 @@ export class BoringOS {
       this.queueAdapter ??
       createInProcessQueue<AgentRunJob>({ concurrency: this.config.queue?.concurrency });
 
-    // Connector registry: kept for OAuth + webhook dispatch
-    // (v2 modules wrap connector clients). The agent prompt
-    // surfaces tools through the v2 tool-catalog provider, not
+    // Connector registry: kept for OAuth + webhook dispatch.
+    // The agent prompt surfaces tools through the tool-catalog provider.
     const agentEngine = createAgentEngine({
       db: dbConn.db,
       runtimes,
@@ -374,16 +351,14 @@ export class BoringOS {
       queue: resolvedQueue,
     });
 
-    // Now that the agent engine exists, populate the deps holder
-    // so v2 module handlers (e.g. framework.agents.wake) can
-    // call into it. Module factories captured `v2FactoryDeps` by
-    // reference at registration; reading `deps.engine` inside a
-    // handler at dispatch time sees this value.
-    (v2FactoryDeps as { engine: unknown }).engine = agentEngine;
+    // Populate the deps holder so module handlers (e.g.
+    // framework.agents.wake) can reach the engine. Module factories
+    // captured `factoryDeps` by reference at registration; reading
+    // `deps.engine` inside a handler at dispatch time sees this value.
+    (factoryDeps as { engine: unknown }).engine = agentEngine;
 
-    // 7. Workflow engine — replaced by v2 dispatcher. Workflows
-    // execute via `workflow.run` tool (see run-workflow.ts). The
-    // realtime bus is still needed below for connector events.
+    // 7. Workflows execute via `workflow.run` tool (see run-workflow.ts).
+    //    The realtime bus is needed below for connector events.
     let realtimeBusRef: import("./realtime.js").RealtimeBus | null = null;
 
     // 8. Build app context (eventBus added after creation below)
@@ -394,7 +369,6 @@ export class BoringOS {
       drive,
       runtimes,
       agentEngine,
-      // workflowEngine: removed — use the v2 `workflow.run` tool.
       eventBus: null as any, // populated below after eventBus creation
     };
 
@@ -418,15 +392,14 @@ export class BoringOS {
     // 10. Setup connectors. The registry was created earlier so it
     // could be passed into the agent engine; here we populate it.
     const eventBus = createEventBus();
-    // (v1 ConnectorRegistry + ActionRunner removed —
-    // OAuth lives in core/oauth.ts, action invocation in /api/tools/*.)
+    // OAuth lives in core/oauth.ts, action invocation in /api/tools/*.
 
     // Populate eventBus on context (was null placeholder before eventBus creation)
     context.eventBus = eventBus;
-    // Same for the v2 factory deps holder — module handlers read
+    // Same for the factory deps holder — module handlers read
     // `deps.factoryDeps.eventBus` at dispatch time (the framework
     // module's inbox.update emits `triage.classified` from there).
-    (v2FactoryDeps as { eventBus: unknown }).eventBus = eventBus;
+    (factoryDeps as { eventBus: unknown }).eventBus = eventBus;
 
     // Register app event handlers
     for (const { type, handler } of this.eventHandlers) {
@@ -484,9 +457,9 @@ export class BoringOS {
             const trigger = blocks.find((b) => b.type === "trigger");
             const triggerEventType = trigger?.config?.eventType;
             if (typeof triggerEventType !== "string" || triggerEventType !== event.type) continue;
-            // Fire-and-forget — runs through v2 dispatch.
+            // Fire-and-forget.
             await runWorkflow(
-              { db: dbConn.db, toolRegistry: v2ToolRegistry },
+              { db: dbConn.db, toolRegistry: toolRegistry },
               {
                 workflowId: w.id,
                 tenantId: event.tenantId,
@@ -506,176 +479,46 @@ export class BoringOS {
     // 11. Build Hono app
     const app = new Hono();
 
-    // Health endpoint — also surfaces v2 module count so a quick
-    // curl tells you whether v2 is wired up for this deployment.
+    // Health endpoint — surfaces module count so a quick curl tells
+    // you which modules are loaded.
     app.get("/health", (c) =>
       c.json({
         status: "ok",
         timestamp: new Date().toISOString(),
-        v2: {
-          modules: v2BoundModules.map((m) => ({
+        modules: boundModules.map((m) => ({
             id: m.id,
             name: m.name,
             version: m.version,
             tools: m.tools?.length ?? 0,
             skills: m.skills?.length ?? 0,
           })),
-          totalTools: v2ToolRegistry.list().length,
-          totalSkills: v2SkillRegistry.list().length,
-        },
+        toolCount: toolRegistry.list().length,
+        skillCount: skillRegistry.list().length,
       }),
     );
 
-    // Phase 2 K7/K8/K9 wiring — kernel install context + default-app
-    // catalog. Built once at boot and shared by /api/admin/apps (manual
-    // installs) and the tenantProvisionedHook (auto-install of default
-    // apps on signup).
-    const appRouteRegistry: AppRouteRegistry = createAppRouteRegistry();
-    // Note: appRouteRegistry.attachTo(app) is called AT THE END of route
-    // mounting, so the per-app dispatcher catches /api/{appId}/* AFTER
-    // all framework /api/* routes have been registered (otherwise the
-    // dispatcher's catch-all 404 wins over framework routes).
+    // Modules with `defaultInstall: true` auto-install via
+    // install-manager.onTenantCreated().
 
-    const installSlotRuntime: SlotInstallRuntime = {
-      installApp: ({ appId }) => ({ appId }),
-      uninstallApp: () => {},
-    };
-    const installEventBus: InstallEventBus = {
-      emit: () => {},
-    };
-    const kernelInstallContext = createKernelInstallContext({
-      db: dbConn.db,
-      slotRuntime: installSlotRuntime,
-      events: installEventBus,
-      routeRegistry: appRouteRegistry,
-    });
-
-    let defaultAppsCatalog: DefaultAppCatalogEntry[] = [];
-    if (this.config.defaultAppsDir) {
-      try {
-        const loaded = loadCatalogFromDisk(this.config.defaultAppsDir, {
-          skipMalformed: true,
-        });
-        if (loaded.errors.length > 0) {
-          console.warn(
-            `[boringos] default-app catalog skipped ${loaded.errors.length} malformed entries:`,
-            loaded.errors.map((x) => `${x.appDir}: ${x.message}`).join("; "),
-          );
-        }
-        // Enrich each entry with the live AppDefinition by dynamic-importing
-        // the compiled bundle. Without this, K3's agent registrar has
-        // nothing to register (manifest alone doesn't carry agents/workflows).
-        const { resolve: resolvePath } = await import("node:path");
-        const { pathToFileURL } = await import("node:url");
-        const { readFileSync, existsSync } = await import("node:fs");
-        const { createHash } = await import("node:crypto");
-        const enriched: DefaultAppCatalogEntry[] = [];
-        for (const entry of loaded.entries) {
-          const candidate = entry as unknown as DefaultAppCatalogEntry & { bundleDir?: string };
-          let definition = candidate.definition;
-          // Compute bundleDir from the catalog root + app id when the
-          // loader didn't supply one (current K8 loader doesn't).
-          const bundleDir =
-            candidate.bundleDir ?? resolvePath(this.config.defaultAppsDir!, entry.id);
-          const indexPath = resolvePath(bundleDir, "dist", "index.js");
-          if (!definition) {
+    // composedTenantHook fires the user hook (if any) and the
+    // install-manager.s onTenantCreated for Modules.
+    const userHook = this.tenantProvisionedHook;
+    const composedTenantHook = userHook || installManagerEarly
+      ? async (db: Db, tenantId: string) => {
+          if (userHook) await userHook(db, tenantId);
+          if (installManagerEarly) {
             try {
-              const mod = await import(pathToFileURL(indexPath).href);
-              definition =
-                (mod.default as typeof candidate.definition) ??
-                (mod as typeof candidate.definition);
+              await installManagerEarly.onTenantCreated(tenantId);
             } catch (err) {
               console.warn(
-                `[boringos] could not load bundle for default app ${entry.id}:`,
-                err instanceof Error ? err.message : err,
+                "[boringos] onTenantCreated hooks failed for tenant",
+                tenantId,
+                err,
               );
             }
           }
-          // Re-hash to include the agents bundle (dist/index.js). The
-          // disk-catalog loader only sees the UI bundle (dist/ui.js)
-          // and the manifest; instruction edits in src/agents/*.ts go
-          // through dist/index.js, which it never reads. Without this
-          // step, edits to agent instructions don't invalidate the
-          // re-install-protection cache and silently never reach the
-          // DB on a re-install.
-          let manifestHash = entry.manifestHash;
-          if (existsSync(indexPath)) {
-            const indexBytes = readFileSync(indexPath);
-            manifestHash = createHash("sha256")
-              .update(entry.manifestHash ?? "")
-              .update(" ")
-              .update(indexBytes)
-              .digest("hex");
-          }
-          enriched.push({ ...candidate, bundleDir, definition, manifestHash });
         }
-        defaultAppsCatalog = enriched;
-      } catch (err) {
-        console.warn(
-          "[boringos] failed to load default-app catalog from",
-          this.config.defaultAppsDir,
-          err,
-        );
-      }
-    }
-
-    // Compose the tenantProvisionedHook: default-apps first, then any
-    // host-supplied hook. If the host registered its own hook we still
-    // run default-apps before it so the app entries exist when the
-    // host's hook runs.
-    const userHook = this.tenantProvisionedHook;
-    const composedTenantHook =
-      defaultAppsCatalog.length > 0 || userHook
-        ? async (db: Db, tenantId: string) => {
-            if (defaultAppsCatalog.length > 0) {
-              try {
-                await provisionDefaultApps({
-                  db,
-                  tenantId,
-                  catalog: defaultAppsCatalog,
-                  routeRegistry: appRouteRegistry,
-                  slotRuntime: installSlotRuntime,
-                  events: installEventBus,
-                  kernelContext: kernelInstallContext,
-                });
-              } catch (err) {
-                console.warn(
-                  "[boringos] default-app provisioning failed for tenant",
-                  tenantId,
-                  err,
-                );
-              }
-            }
-            if (userHook) await userHook(db, tenantId);
-            // v2: fire onTenantCreate hooks + write install rows
-            // for every default-install module. Runs LAST so any
-            // schema/data the user-hook created is in place
-            // before module hooks read it.
-            if (v2InstallManagerEarly) {
-              try {
-                await v2InstallManagerEarly.onTenantCreated(tenantId);
-              } catch (err) {
-                console.warn(
-                  "[boringos] v2 onTenantCreated hooks failed for tenant",
-                  tenantId,
-                  err,
-                );
-              }
-            }
-          }
-        : v2InstallManagerEarly
-          ? async (_db: Db, tenantId: string) => {
-              try {
-                await v2InstallManagerEarly.onTenantCreated(tenantId);
-              } catch (err) {
-                console.warn(
-                  "[boringos] v2 onTenantCreated hooks failed for tenant",
-                  tenantId,
-                  err,
-                );
-              }
-            }
-          : undefined;
+      : undefined;
 
     // Auth routes (login, signup, session)
     const authApp = createAuthRoutes(dbConn.db, jwtSecret, composedTenantHook);
@@ -685,50 +528,52 @@ export class BoringOS {
     const deviceAuthApp = createDeviceAuthRoutes(dbConn.db);
     app.route("/api/auth/device", deviceAuthApp);
 
-    // The host MUST register at least one v2 module (typically
+    // The host MUST register at least one module (typically
     // createFrameworkModule) for the agent surface to exist —
     // without modules, /api/tools/* serves only 404s.
-    if (!v2HasModules) {
+    if (!hasModules) {
       console.warn(
-        "[boringos] no v2 modules are registered. " +
+        "[boringos] no modules are registered. " +
           "Agents will have no callable surface. Register createFrameworkModule + " +
           "any other modules you need via app.module(...).",
       );
     }
 
-    // v2 — mount the unified dispatch endpoint + admin views when
-    // modules are present. The registries themselves were built
-    // earlier (step 5) so the context pipeline could add the v2
-    // providers.
-    if (v2HasModules && v2InstallManagerEarly) {
+    // Mount the unified dispatch endpoint + admin views when modules
+    // are present. The registries themselves were built earlier
+    // (step 5) so the context pipeline could add their providers.
+    if (hasModules && installManagerEarly) {
       // Backfill install rows for every existing tenant ×
       // default-install module. Idempotent. Fire-and-forget on
       // boot so a slow backfill doesn't block listen().
-      void v2InstallManagerEarly.backfill(v2BoundModules).catch((e) => {
+      void installManagerEarly.backfill(boundModules).catch((e) => {
         // eslint-disable-next-line no-console
-        console.error("[v2] install-manager backfill failed:", e);
+        console.error("[install-manager] backfill failed:", e);
       });
 
-      const v2App = createV2Routes({
+      const toolsApp = createToolRoutes({
         db: dbConn.db,
-        registry: v2ToolRegistry,
+        registry: toolRegistry,
         jwtSecret,
-        installManager: v2InstallManagerEarly,
+        installManager: installManagerEarly,
       });
-      app.route("/api/tools", v2App);
+      app.route("/api/tools", toolsApp);
 
-      const v2AdminApp = createV2AdminRoutes({
+      const moduleAdminApp = createModuleAdminRoutes({
         db: dbConn.db,
-        toolRegistry: v2ToolRegistry,
-        skillRegistry: v2SkillRegistry,
-        modules: v2BoundModules,
-        installManager: v2InstallManagerEarly,
+        toolRegistry: toolRegistry,
+        skillRegistry: skillRegistry,
+        modules: boundModules,
+        installManager: installManagerEarly,
         resolveTenantId: (req) => req.headers.get("x-tenant-id"),
       });
-      app.route("/api/admin/v2", v2AdminApp);
+      // Unversioned admin surface — /api/admin/{modules,installs,
+      // modules/:id/install, modules/:id/uninstall, tools, tool-calls}.
+      //
+      app.route("/api/admin", moduleAdminApp);
     }
 
-    // Connector routes (v1 actions surface — gated by v2-only flag).
+    // Connector routes (legacy actions surface — gated by  flag).
     // The OAuth + webhook pieces of /api/connectors stay mounted so
     // OAuth flows and 3rd-party webhooks keep working — the gating
     // is specifically the actions invocation paths.
@@ -743,47 +588,13 @@ export class BoringOS {
     const realtimeBus = createRealtimeBus();
     // Now that the bus exists, connect the workflow engine's event sink.
     realtimeBusRef = realtimeBus;
-    // Lazy-populate v2 module factory deps so workflow.run can emit
+    // Lazy-populate module factory deps so workflow.run can emit
     // per-block events to the canvas.
-    (v2FactoryDeps as { realtimeBus: unknown }).realtimeBus = realtimeBus;
+    (factoryDeps as { realtimeBus: unknown }).realtimeBus = realtimeBus;
 
-    const adminApp = createAdminRoutes(dbConn.db, agentEngine, adminKeyValue, realtimeBus, v2ToolRegistry, runtimes, eventBus, drive, settingRegistry);
+    const adminApp = createAdminRoutes(dbConn.db, agentEngine, adminKeyValue, realtimeBus, toolRegistry, runtimes, eventBus, drive, settingRegistry);
     app.route("/api/admin", adminApp);
 
-    // K10/K11 — apps install/uninstall HTTP endpoints. Mounted with an
-    // auth resolver that reads the session token (same pattern as the
-    // connector disconnect endpoint) so the shell's Apps screen can
-    // call /api/admin/apps/install directly.
-    const appsAdminApp = createAppsAdminRoutes({
-      db: dbConn.db,
-      kernelContext: kernelInstallContext,
-      auth: {
-        resolve: async (c) => {
-          const bearer = c.req
-            .header("Authorization")
-            ?.replace("Bearer ", "");
-          if (!bearer) return null;
-          const { sql } = await import("drizzle-orm");
-          const result = await dbConn.db.execute(sql`
-            SELECT ut.tenant_id, ut.role, ut.user_id
-            FROM auth_sessions s
-            JOIN user_tenants ut ON ut.user_id = s.user_id
-            WHERE s.token = ${bearer} AND s.expires_at > NOW()
-            LIMIT 1
-          `);
-          const row = (
-            result as unknown as Array<{
-              tenant_id: string;
-              role: string;
-              user_id: string;
-            }>
-          )[0];
-          if (!row) return null;
-          return { tenantId: row.tenant_id, userId: row.user_id, role: row.role };
-        },
-      },
-    });
-    app.route("/api/admin/apps", appsAdminApp);
     const sseApp = createSSERoutes(realtimeBus, adminKeyValue);
     app.route("/api", sseApp);
 
@@ -955,7 +766,7 @@ export class BoringOS {
       app.route(path, routeApp);
     }
 
-    // 10b. Copilot — v2 only. Browser shell talks to
+    // 10b. Copilot — . Browser shell talks to
     // /api/admin/tasks/* (creating tasks with originKind=
     // "copilot") and uses the copilot.start_session tool. The
     // per-tenant copilot agent provisioning still happens here.
@@ -1045,11 +856,7 @@ export class BoringOS {
       console.error("[boringos] recoverPending failed:", err);
     }
 
-    // K7 — installed apps' /api/{appId}/* dispatcher. Mounted LAST so
-    // it only catches paths the framework itself didn't claim. The
-    // dispatcher is empty at boot; tenant_apps installs add per-app
-    // sub-routers via kernelInstallContext.
-    appRouteRegistry.attachTo(app);
+    //
 
     // 11. Start HTTP server
     const server = serve({ fetch: app.fetch, port: listenPort });
@@ -1059,7 +866,7 @@ export class BoringOS {
     const actualPort = typeof address === "object" && address ? address.port : listenPort;
 
     // 13. Start routine scheduler
-    const scheduler = createRoutineScheduler(dbConn.db, agentEngine, v2ToolRegistry);
+    const scheduler = createRoutineScheduler(dbConn.db, agentEngine, toolRegistry);
     scheduler.start();
 
     // Inbox snooze ticker: flips snoozed rows back to unread when their
@@ -1069,34 +876,27 @@ export class BoringOS {
     snoozeTicker.start();
 
     // Forward sync — ingest new Gmail messages into inbox_items every
-    // 30 seconds. Replaces the v1 `gmail.gmail-sync` workflow + routine
+    // 30 seconds. Replaces the legacy gmail.gmail-sync workflow + routine
     // that the deleted workflow engine used to run.
     //
     // Layered fan-out (per docs/coordination.md):
     //   1. Header-prefilter at ingest time pre-classifies clear
     //      newsletters / no-reply automated mail. When it fires, we
-    //      skip BOTH agent wakes — paying for an LLM run only to
-    //      discover "this is a newsletter" wastes credits and is the
-    //      origin of the "agent drafts a reply to a noreply@ email"
-    //      bug.
-    //   2. Otherwise we wake the triage agent only. The replier waits
-    //      for `triage.classified` and is woken by the handler below
-    //      so it never drafts on auto-classified noise and never
-    //      drafts before triage's classification is known.
+    //      skip the triage wake — paying for an LLM run only to
+    //      discover "this is a newsletter" wastes credits.
+    //   2. Otherwise we wake the triage agent. After it writes
+    //      `metadata.triage`, the `triage.classified` listener below
+    //      wakes the replier on every classified item — the replier
+    //      itself decides whether to draft or skip. Centralising that
+    //      decision in the replier (which has the full email + headers
+    //      + triage label) avoids the legacy gate's brittleness, where
+    //      the framework had to keep its allow-list in sync with the
+    //      triage taxonomy and the score schema.
     //
     // The triage / replier agents are looked up by the names the
     // default-app catalog seeds them under.
     const TRIAGE_AGENT_NAME = "Generic Inbox Triage";
     const REPLIER_AGENT_NAME = "Generic Email Replier";
-    const REPLIER_MIN_SCORE = 50;
-    const REPLIER_ELIGIBLE_CLASSIFICATIONS = new Set([
-      "lead",
-      "reply",
-      "internal",
-    ]);
-    const REPLIER_INELIGIBLE_TRIAGE_SOURCES = new Set([
-      "header-prefilter",
-    ]);
 
     function describeEmailHeaders(item: import("./inbox-gmail-forward-sync.js").IngestedInboxItem): string {
       const h = item.headers;
@@ -1219,28 +1019,16 @@ export class BoringOS {
     });
     forwardSyncTicker.start();
 
-    // Replier gating. Waits for `triage.classified` (emitted by the
-    // tools that write `metadata.triage`) and only wakes the replier
-    // for items the user actually wants a draft on. Filters out
-    // newsletters/spam/automated regardless of how `metadata.triage`
-    // got there (LLM triage or header prefilter — though the prefilter
-    // path doesn't fire this event because we hard-skipped above).
+    // Wake the replier on every `triage.classified` event. The
+    // replier reads `metadata.triage.label` + headers + body and
+    // decides for itself whether to draft (per its skill rules:
+    // skip noise/fyi, skip newsletters, skip mail the user sent).
+    // No taxonomy/score gate here — the legacy gate broke every time
+    // the triage module's enum drifted.
     eventBus.on("triage.classified", async (event) => {
       const data = event.data ?? {};
       const itemId = data.itemId as string | undefined;
-      const classification = data.classification as string | undefined;
-      const scoreRaw = data.score;
-      const score =
-        typeof scoreRaw === "number"
-          ? scoreRaw
-          : typeof scoreRaw === "string"
-            ? Number.parseInt(scoreRaw, 10)
-            : NaN;
-      const triageSource = data.source as string | undefined;
-      if (!itemId || !classification) return;
-      if (triageSource && REPLIER_INELIGIBLE_TRIAGE_SOURCES.has(triageSource)) return;
-      if (!REPLIER_ELIGIBLE_CLASSIFICATIONS.has(classification)) return;
-      if (!Number.isFinite(score) || score < REPLIER_MIN_SCORE) return;
+      if (!itemId) return;
 
       const replier = await findAgentByName(event.tenantId, REPLIER_AGENT_NAME);
       if (!replier) return;

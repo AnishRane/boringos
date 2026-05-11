@@ -10,6 +10,16 @@ import { useAgents, useRuntimes, useSettings, useCosts } from "@boringos/ui";
 import { Switch } from "../../components/ui/switch.js";
 import { LoadingState, EmptyState } from "../_shared.js";
 
+// Mirrors `claudeRuntime.models` in @boringos/runtime. Picking any of
+// these on an agent sets `agents.model`; the engine then routes to the
+// claude runtime (default when no runtimeId is set) with --model <id>.
+// Codex / Gemini / others: TODO once their runtimes expose model lists.
+const CLAUDE_MODELS: Array<{ id: string; label: string }> = [
+  { id: "claude-haiku-4-5-20251001", label: "Claude Haiku 4.5" },
+  { id: "claude-sonnet-4-6", label: "Claude Sonnet 4.6" },
+  { id: "claude-opus-4-6", label: "Claude Opus 4.6" },
+];
+
 export function AgentsPanel() {
   const { user } = useAuth();
   const { agents, isLoading: agentsLoading, updateAgent } = useAgents();
@@ -55,6 +65,15 @@ export function AgentsPanel() {
       await updateAgent({ agentId, data: { status: newStatus } });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to update agent");
+    }
+  };
+
+  const handleModelChange = async (agentId: string, model: string) => {
+    try {
+      setError(null);
+      await updateAgent({ agentId, data: { model: model || null } });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to update model");
     }
   };
 
@@ -114,11 +133,29 @@ export function AgentsPanel() {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-muted-strong">
-                      {agent.runtimeId && runtimes.find((r: any) => r.id === agent.runtimeId)?.model ? (
-                        <span>{String(runtimes.find((r: any) => r.id === agent.runtimeId)?.model)}</span>
-                      ) : (
-                        <span className="text-muted">—</span>
-                      )}
+                      {(() => {
+                        const runtimeModel = agent.runtimeId
+                          ? (runtimes.find((r: any) => r.id === agent.runtimeId)?.model as string | undefined)
+                          : undefined;
+                        const current = (agent as any).model ?? runtimeModel ?? "";
+                        const isOverride = !!(agent as any).model;
+                        return (
+                          <select
+                            value={current}
+                            onChange={(e) => handleModelChange(agent.id, e.target.value)}
+                            className="bg-bg border border-border rounded px-2 py-1 text-xs text-text focus:outline-none focus:ring-1 focus:ring-accent"
+                            title={isOverride ? "Per-agent override" : runtimeModel ? "Inherited from runtime" : "Runtime default"}
+                          >
+                            <option value="">— Runtime default —</option>
+                            {CLAUDE_MODELS.map((m) => (
+                              <option key={m.id} value={m.id}>{m.label}</option>
+                            ))}
+                            {current && !CLAUDE_MODELS.some((m) => m.id === current) && (
+                              <option value={current}>{current}</option>
+                            )}
+                          </select>
+                        );
+                      })()}
                     </td>
                     <td className="px-4 py-3 text-muted-strong">
                       ${(agentSpendMap.get(agent.id) || 0).toFixed(2)}

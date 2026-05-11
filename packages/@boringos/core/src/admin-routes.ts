@@ -42,7 +42,7 @@ import type { RealtimeBus } from "./realtime.js";
 import type { EventBus } from "./event-bus.js";
 import { syncArchive, syncStatusChange } from "./inbox-gmail-sync.js";
 import { runWorkflow } from "./run-workflow.js";
-import { canAccess, validatePath, type Actor } from "./v2-modules/drive-acl.js";
+import { canAccess, validatePath, type Actor } from "./modules/drive-acl.js";
 import { contentTypeFor } from "./drive-mime.js";
 
 type AdminEnv = {
@@ -309,6 +309,7 @@ export function createAdminRoutes(
     if (body.status !== undefined) values.status = body.status;
     if (body.runtimeId !== undefined) values.runtimeId = body.runtimeId;
     if (body.fallbackRuntimeId !== undefined) values.fallbackRuntimeId = body.fallbackRuntimeId;
+    if (body.model !== undefined) values.model = body.model;
     if (body.budgetMonthlyCents !== undefined) values.budgetMonthlyCents = body.budgetMonthlyCents;
     // Accept both keys on PATCH for one release; new = routingTags.
     const tagsBody = body.routingTags !== undefined ? body.routingTags : body.skills;
@@ -1598,7 +1599,7 @@ export function createAdminRoutes(
    * letting users "run now" without waiting for cron.
    */
   app.post("/workflows/:id/execute", async (c) => {
-    if (!toolRegistry) return c.json({ error: "v2 dispatcher not available" }, 503);
+    if (!toolRegistry) return c.json({ error: "Tool dispatcher not available" }, 503);
     const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>;
     const result = await runWorkflow(
       { db, toolRegistry },
@@ -1618,7 +1619,7 @@ export function createAdminRoutes(
 
   // Alias used by the shell's Workflows screen.
   app.post("/workflows/:id/run", async (c) => {
-    if (!toolRegistry) return c.json({ error: "v2 dispatcher not available" }, 503);
+    if (!toolRegistry) return c.json({ error: "Tool dispatcher not available" }, 503);
     const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>;
     const result = await runWorkflow(
       { db, toolRegistry },
@@ -1688,12 +1689,12 @@ export function createAdminRoutes(
    * with user input, and walks the rest of the DAG.
    */
   app.post("/workflow-runs/:id/resume", async (c) => {
-    // v1 wait-for-human resume isn't ported to v2. Workflows that
-    // need human-in-the-loop should use an `agent_action` task and
+    // wait-for-human resume isn't supported. Workflows that need
+    // human-in-the-loop should use an `agent_action` task and
     // re-trigger the workflow from a comment instead.
     void c;
     return c.json(
-      { error: "Workflow resume is not supported in v2." },
+      { error: "Workflow resume is not supported." },
       410,
     );
   });
@@ -1705,7 +1706,7 @@ export function createAdminRoutes(
    * "Replay from this step" UX.
    */
   app.post("/workflow-runs/:id/fork", async (c) => {
-    if (!toolRegistry) return c.json({ error: "v2 dispatcher not available" }, 503);
+    if (!toolRegistry) return c.json({ error: "Tool dispatcher not available" }, 503);
     const tenantId = c.get("tenantId") as string;
     const body = (await c.req.json().catch(() => ({}))) as {
       fromBlockId?: string;
@@ -1741,7 +1742,7 @@ export function createAdminRoutes(
    * "does this still happen?" tool, not a "reproduce byte-for-byte" tool.
    */
   app.post("/workflow-runs/:id/replay", async (c) => {
-    if (!toolRegistry) return c.json({ error: "v2 dispatcher not available" }, 503);
+    if (!toolRegistry) return c.json({ error: "Tool dispatcher not available" }, 503);
     const tenantId = c.get("tenantId") as string;
 
     const runRows = await db.select({
@@ -2450,7 +2451,7 @@ export function createAdminRoutes(
 /**
  * First-message → placeholder copilot title.
  *
- * Mirror of the same helper in v2-modules/copilot.ts but kept local
+ * Mirror of the same helper in modules/copilot.ts but kept local
  * to avoid coupling admin-routes to the module. Both paths must
  * produce the same shape so the user sees a consistent title-derivation
  * rule whether they came through `start_session` (with initialMessage)

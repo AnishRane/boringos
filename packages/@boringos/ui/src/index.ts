@@ -12,8 +12,8 @@ export type {
   OrgNode,
   AgentStats,
   CompanySkill,
-  V2ModuleInfo,
-  V2InstallInfo,
+  ModuleInfo,
+  InstallInfo,
   TeamMember,
   PendingInvitation,
   ActivityRow,
@@ -66,3 +66,35 @@ export {
   useSearch,
   useHealth,
 } from "./hooks.js";
+
+// ── Plugin UI runtime (task_19) ─────────────────────────────────
+// Plugin contract types
+export type {
+  PluginUI,
+  PluginElement,
+  NavItem,
+  EntityPanel,
+  EntityAction,
+  EntityActionContext,
+  SettingsPanel,
+  CopilotTool,
+  InboxFilter,
+  ModuleInstallEvent,
+} from "./contract.js";
+
+// Plugin hooks
+export {
+  useTool,
+  useToolMutation,
+  useInstalledModules,
+  useInstalledModulesState,
+  useInstallModule,
+  useUninstallModule,
+  useRealtimeEvent,
+  useInstallEventSync,
+} from "./plugin-hooks.js";
+export type { ToolError } from "./plugin-hooks.js";
+
+// Plugin components
+export { RequireInstall } from "./plugin-components.js";
+export type { RequireInstallProps } from "./plugin-components.js";

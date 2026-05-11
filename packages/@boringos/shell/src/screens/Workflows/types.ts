@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: BUSL-1.1
 //
-// v2 workflow schema as the shell understands it. Mirrors the
+// workflow schema as the shell understands it. Mirrors the
 // shape persisted in `workflows.{blocks,edges}` and consumed by
-// `workflow.run` in @boringos/core/v2-modules/workflow.ts.
+// `workflow.run` in @boringos/core/modules/workflow.ts.
 
-export type V2BlockKind =
+export type BlockKind =
   | "trigger"
   | "tool"
   | "condition"
@@ -15,10 +15,10 @@ export type V2BlockKind =
   | "sticky"
   | "agent";
 
-export interface V2Block {
+export interface Block {
   id: string;
-  kind?: V2BlockKind | string;
-  /** Legacy v1 rows still in DB use `type` instead of `kind`. */
+  kind?: BlockKind | string;
+  /** Legacy  rows still in DB use `type` instead of `kind`. */
   type?: string;
   /** For `kind: "tool"` — fully qualified `<module>.<tool>` name. */
   tool?: string;
@@ -30,7 +30,7 @@ export interface V2Block {
   position?: { x: number; y: number };
 }
 
-export interface V2Edge {
+export interface Edge {
   /** Optional client-side id; backend doesn't require it but we use it for React keys. */
   id?: string;
   sourceBlockId: string;
@@ -45,8 +45,8 @@ export interface WorkflowSummary {
   description?: string | null;
   type?: string;
   status?: string;
-  blocks?: V2Block[];
-  edges?: V2Edge[];
+  blocks?: Block[];
+  edges?: Edge[];
   governingAgentId?: string | null;
   createdAt?: string;
   updatedAt?: string;

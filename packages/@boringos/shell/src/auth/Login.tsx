@@ -80,7 +80,10 @@ export function Login() {
         </div>
 
         <div className="relative z-10 px-12 pb-20">
-          <p className="font-mono text-[11px] uppercase tracking-[4px] text-amber-400/80">
+          <p
+            className="font-mono text-[11px] uppercase tracking-[4px]"
+            style={{ color: `color-mix(in srgb, ${brand.primaryColor} 70%, white)` }}
+          >
             Welcome back
           </p>
           <h1
@@ -91,8 +94,7 @@ export function Login() {
             <span
               className="bg-clip-text text-transparent"
               style={{
-                backgroundImage:
-                  "linear-gradient(135deg, #F59E0B 0%, #F97316 40%, #FB923C 100%)",
+                backgroundImage: `linear-gradient(135deg, ${brand.primaryColor} 0%, color-mix(in srgb, ${brand.primaryColor} 75%, white) 60%, color-mix(in srgb, ${brand.primaryColor} 55%, white) 100%)`,
               }}
             >
               cabinet.

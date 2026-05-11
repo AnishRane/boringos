@@ -16,8 +16,7 @@
 // constraint because the inbox table doesn't have one and adding
 // it would require coordinating with non-Gmail sources.
 //
-// Replaces v1's `gmail.gmail-sync` workflow + routine, which lived
-// inside the deleted @boringos/workflow engine.
+// Standalone ticker (no workflow dependency).
 
 import { sql } from "drizzle-orm";
 import type { Db } from "@boringos/db";
@@ -187,10 +186,13 @@ export function buildIngestMetadata(msg: GmailMessage, opts: { now?: Date } = {}
   // Received" notices) showed up with raw markup as text.
   if (msg.bodyHtml) metadata.bodyHtml = msg.bodyHtml;
   if (automated.automated) {
+    // Both newsletter and noreply/auto-submitted material map to the
+    // `noise` label (auto-archive). The original kind survives on
+    // `metadata.email.automated.kind` for any consumer that wants to
+    // distinguish.
     metadata.triage = {
-      classification: automated.kind === "newsletter" ? "newsletter" : "spam",
-      score: automated.kind === "newsletter" ? 5 : 1,
-      rationale: `header-prefilter: ${automated.reasons.join("; ")}`,
+      label: "noise",
+      reason: `header-prefilter: ${automated.reasons.join("; ")}`,
       classifiedAt: (opts.now ?? new Date()).toISOString(),
       source: "header-prefilter",
     };

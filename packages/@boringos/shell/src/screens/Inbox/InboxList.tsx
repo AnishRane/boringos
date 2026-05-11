@@ -8,7 +8,7 @@ import type { InboxItem } from "@boringos/ui";
 
 import { LoadingState, EmptyState } from "../_shared.js";
 import {
-  classificationChipClass,
+  labelChipClass,
   countDrafts,
   formatRelativeTime,
   parseSenderName,
@@ -16,7 +16,7 @@ import {
   readSentReply,
   readTriage,
   scoreDotClass,
-  scoreTier,
+  labelTier,
   snippetFrom,
   type Thread,
 } from "./presenter.js";
@@ -62,7 +62,7 @@ export function InboxList({ threads, isLoading, status, selectedId, bulkSelected
         const unread = thread.items.some((i) => i.status === "unread");
         const triage = readTriage(item);
         const drafts = countDrafts(item);
-        const tier = triage ? scoreTier(triage.score) : null;
+        const tier = triage ? labelTier(triage.label) : null;
         return (
           <li
             key={item.id}
@@ -158,24 +158,23 @@ export function InboxList({ threads, isLoading, status, selectedId, bulkSelected
                     </div>
                   );
                 })()}
-                {/* Triage chip + score + drafts indicator row */}
+                {/* Triage chip + drafts indicator row */}
                 {(triage || drafts > 0) && (
                   <div className="mt-1.5 flex items-center gap-1.5">
                     {triage && (
                       <span
-                        className={`text-[9px] font-medium uppercase tracking-wide px-1.5 py-0.5 rounded-full ring-1 ${classificationChipClass(triage.classification)}`}
+                        className={`text-[9px] font-medium uppercase tracking-wide px-1.5 py-0.5 rounded-full ring-1 ${labelChipClass(triage.label)}`}
                         title={triage.rationale || undefined}
                       >
-                        {triage.classification}
+                        {triage.label}
                       </span>
                     )}
                     {triage && tier && (
                       <span
                         className="flex items-center gap-1 text-[10px] text-muted tabular-nums"
-                        title={`Score ${triage.score} — ${triage.rationale || ""}`}
+                        title={triage.rationale || undefined}
                       >
                         <span className={`w-1.5 h-1.5 rounded-full ${scoreDotClass(tier)}`} />
-                        {triage.score}
                       </span>
                     )}
                     {drafts > 0 && (

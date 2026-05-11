@@ -1,14 +1,14 @@
-# Build a Module — v2 quickstart
+# Build a Module — quickstart
 
 > **Status:** Working starter. For canonical field-by-field
 > reference see [`MODULES.md`](MODULES.md), [`TOOLS.md`](TOOLS.md),
 > and [`SKILLS.md`](SKILLS.md). This file is the practical
-> minimum: what works on `branch_modules_skills` today.
+> minimum.
 
-This file teaches you to write a v2 Module — the universal
-component shape that replaces v1's connector / app / plugin
-trio. A Module is a manifest of skills + tools the agent can
-read and call. The framework wires the rest.
+This file teaches you to write a Module — the universal
+component shape for everything the agent can see and do. A
+Module is a manifest of skills + tools the agent can read and
+call. The framework wires the rest.
 
 ---
 
@@ -16,7 +16,7 @@ read and call. The framework wires the rest.
 
 - TypeScript / Node 22+
 - `pnpm install` at the repo root
-- Be on `branch_modules_skills` (v2 lives there until cutover)
+- Be on the framework's main branch
 
 ---
 
@@ -41,7 +41,7 @@ export const helloModule: Module = {
       source: "module",
       body: "Use `hello.greet` to greet someone by name. " +
             "It's a no-op example — useful for verifying " +
-            "your prompt sees v2 modules.",
+            "your prompt sees modules.",
     },
   ],
 
@@ -262,7 +262,7 @@ describe("hello module", () => {
 ```
 
 For HTTP-level testing, see the existing patterns in
-`tests/v2-http.test.ts` and `tests/v2-framework-module.test.ts`.
+`tests/http.test.ts and tests/framework-module.test.ts.
 
 ---
 
@@ -292,7 +292,7 @@ above. Below is the eight-dimensional surface — items marked with
 
 1. Read [`docs/blockers/task_12_greenfield_rebuild.md`](docs/blockers/task_12_greenfield_rebuild.md)
    end-to-end if you'll be authoring or porting Modules.
-2. Look at `packages/@boringos/core/src/v2-modules/framework.ts`
+2. Look at `packages/@boringos/core/src/modules/framework.ts`
    for a complete real Module — 9 tools, 3 skills, full DB
    integration.
 3. The other built-ins (`memory.ts`, `drive.ts`, `workflow.ts`,

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 //
 // `module_migrations` — tracks which Module.schema migrations
-// have been applied per (tenant, module). Phase C of the v2
+// have been applied per (tenant, module). Part of the module
 // rebuild. Used by the install manager to:
 //   - skip already-applied migrations on re-install
 //   - run only-applied migrations' down() on uninstall

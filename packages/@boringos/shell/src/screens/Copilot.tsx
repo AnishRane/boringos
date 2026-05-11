@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: BUSL-1.1
 //
-// Copilot screen — v2 implementation. The legacy `/api/copilot/*`
+// Copilot screen — the implementation. The legacy `/api/copilot/*`
 // API was deleted; copilot conversations are now tasks with
 // `originKind: "copilot"` assigned to the per-tenant copilot
 // agent. This screen:
@@ -155,7 +155,7 @@ function NewSessionButton(props: { disabled: boolean; onCreated: (taskId: string
     if (props.disabled || !token) return;
     setBusy(true);
     try {
-      // Use the v2 framework.tasks.create flow via admin API.
+      // Use the framework.tasks.create flow via admin API.
       // This goes through /api/admin/tasks (session-authed) →
       // creates a task with originKind="copilot" → the assignee
       // copilot agent is woken automatically.

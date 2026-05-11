@@ -12,7 +12,7 @@
 // label id on the connector row's `config.labels.snoozed` so we don't
 // hit `users.labels.list` on every call.
 //
-// v1 used `ActionRunner.execute(...)` to dispatch the Gmail label
+// The legacy ActionRunner used to dispatch the Gmail label
 // calls. With the connector framework deleted, we instantiate
 // `GmailClient` directly here. Same HTTP path, fewer indirections.
 
@@ -54,7 +54,7 @@ async function loadConnector(db: Db, tenantId: string): Promise<ConnectorRow | n
 
 /**
  * Run a Gmail action with OAuth refresh-and-retry. Mirror of the
- * pattern in `v2-modules/google.ts`.
+ * pattern in `modules/google.ts`.
  */
 async function runWithRefresh(
   db: Db,

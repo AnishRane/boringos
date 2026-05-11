@@ -11,7 +11,7 @@
 //     into the routing tags.
 
 import { useMemo, useState } from "react";
-import type { Agent, CompanySkill, V2ModuleInfo, V2InstallInfo } from "@boringos/ui";
+import type { Agent, CompanySkill, ModuleInfo, InstallInfo } from "@boringos/ui";
 
 export function SkillsTab({
   agent,
@@ -24,8 +24,8 @@ export function SkillsTab({
 }: {
   agent: Agent & { routingTags?: string[] };
   tenantSkills: CompanySkill[];
-  modules: V2ModuleInfo[];
-  installs: V2InstallInfo[];
+  modules: ModuleInfo[];
+  installs: InstallInfo[];
   onAdd: (tag: string) => Promise<void>;
   onRemove: (tag: string) => Promise<void>;
   busy: boolean;

@@ -3,14 +3,14 @@
 // Right-pane inspector. Three sections — Inputs (form), Last run
 // (resolved I/O), and per-block actions: pin output, replay from here.
 
-import type { BlockRun, ToolRow, V2Block } from "./types.js";
+import type { BlockRun, ToolRow, Block } from "./types.js";
 import { BlockForm } from "./InspectorForms.js";
 import { blockKind, kindAccent } from "./utils.js";
 
 export interface InspectorProps {
-  block: V2Block | null;
+  block: Block | null;
   tools: ToolRow[];
-  onChange: (patch: Partial<V2Block>) => void;
+  onChange: (patch: Partial<Block>) => void;
   onDelete: () => void;
   blockRun?: BlockRun | null;
   onTogglePin: () => void;

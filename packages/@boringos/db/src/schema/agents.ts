@@ -19,6 +19,7 @@ export const agents = pgTable(
     instructions: text("instructions"),
     runtimeId: uuid("runtime_id").references(() => runtimes.id, { onDelete: "set null" }),
     fallbackRuntimeId: uuid("fallback_runtime_id").references(() => runtimes.id, { onDelete: "set null" }),
+    model: text("model"),
     budgetMonthlyCents: integer("budget_monthly_cents").notNull().default(0),
     spentMonthlyCents: integer("spent_monthly_cents").notNull().default(0),
     pauseReason: text("pause_reason"),

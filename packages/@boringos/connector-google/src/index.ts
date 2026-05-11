@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 //
-// Google Workspace HTTP clients. The v1 `ConnectorDefinition`
+// Google Workspace HTTP clients.
 // wrapper + `default-workflows.ts` were deleted with the
 // connector framework — these clients are imported directly by
-// the v2 `google` Module in `@boringos/core/src/v2-modules/`.
+// the Google Module in /core/src/modules/.
 
 export {
   GmailClient,

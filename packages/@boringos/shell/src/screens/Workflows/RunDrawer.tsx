@@ -6,7 +6,7 @@
 
 import { useMemo } from "react";
 
-import type { BlockRun, V2Block } from "./types.js";
+import type { BlockRun, Block } from "./types.js";
 import { blockKind, kindAccent } from "./utils.js";
 import type { RunDetail } from "./api.js";
 
@@ -17,7 +17,7 @@ export interface RunDrawerProps {
   activeRun: RunDetail | null;
   onPickRun: (runId: string) => void;
   onPickBlock: (blockId: string) => void;
-  blocks: V2Block[];
+  blocks: Block[];
   selectedBlockId: string | null;
   onReplayRun: () => void;
 }
@@ -133,7 +133,7 @@ function SpanTree({
   onReplayRun,
 }: {
   run: RunDetail;
-  blocks: V2Block[];
+  blocks: Block[];
   selectedBlockId: string | null;
   onPickBlock: (id: string) => void;
   onReplayRun: () => void;

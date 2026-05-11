@@ -7,7 +7,7 @@ import {
   canAccess,
   KNOWN_PREFIXES,
   type Actor,
-} from "../packages/@boringos/core/src/v2-modules/drive-acl.js";
+} from "../packages/@boringos/core/src/modules/drive-acl.js";
 
 describe("validatePath", () => {
   it("accepts simple relative paths", () => {

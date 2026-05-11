@@ -21,7 +21,7 @@ import {
   groupByThread,
   readTriage,
   threadMatchesQuery,
-  type Classification,
+  type TriageLabel,
   type ReplyDraft,
 } from "./presenter.js";
 
@@ -36,7 +36,7 @@ export function Inbox() {
     draft: ReplyDraft | null;
   } | null>(null);
   const [scheduling, setScheduling] = useState<InboxItem | null>(null);
-  const [classFilter, setClassFilter] = useState<Set<Classification>>(new Set());
+  const [classFilter, setClassFilter] = useState<Set<TriageLabel>>(new Set());
   const [bulkSelected, setBulkSelected] = useState<Set<string>>(new Set());
   // Anchor for shift-range selection.
   const [bulkAnchorId, setBulkAnchorId] = useState<string | null>(null);
@@ -99,14 +99,14 @@ export function Inbox() {
   const items = (query.data as InboxItem[] | undefined) ?? [];
   const allThreads = useMemo(() => groupByThread(items), [items]);
 
-  // Counts per classification for the filter chips, computed off the
+  // Counts per label for the filter chips, computed off the
   // current-status thread set BEFORE the filter is applied.
-  const classCounts = useMemo<Record<Classification, number>>(() => {
-    const counts: Record<Classification, number> = {
-      lead: 0, reply: 0, internal: 0, newsletter: 0, spam: 0, unknown: 0,
+  const classCounts = useMemo<Record<TriageLabel, number>>(() => {
+    const counts: Record<TriageLabel, number> = {
+      urgent: 0, important: 0, fyi: 0, noise: 0, unknown: 0,
     };
     for (const t of allThreads) {
-      const c = readTriage(t.latest)?.classification ?? "unknown";
+      const c = readTriage(t.latest)?.label ?? "unknown";
       counts[c] = (counts[c] ?? 0) + 1;
     }
     return counts;
@@ -116,7 +116,7 @@ export function Inbox() {
     let out = allThreads;
     if (classFilter.size > 0) {
       out = out.filter((t) => {
-        const c = readTriage(t.latest)?.classification ?? "unknown";
+        const c = readTriage(t.latest)?.label ?? "unknown";
         return classFilter.has(c);
       });
     }
@@ -371,14 +371,14 @@ export function Inbox() {
       }),
     );
 
-  const handleReclassify = async (item: InboxItem, next: Classification) => {
+  const handleReclassify = async (item: InboxItem, next: TriageLabel) => {
     const existing = (item.metadata ?? {}) as Record<string, unknown>;
     const triage = (existing.triage ?? {}) as Record<string, unknown>;
     const newMetadata = {
       ...existing,
       triage: {
         ...triage,
-        classification: next,
+        label: next,
         editedBy: "user",
         editedAt: new Date().toISOString(),
       },

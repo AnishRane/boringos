@@ -31,23 +31,17 @@ packages/@boringos/
   runtime/        6 CLI runtimes (claude, chatgpt, gemini, ollama, command, webhook)
   drive/          StorageBackend iface + local FS + DriveManager
   db/             Drizzle schema + embedded Postgres + migrations
-  agent/          execution engine, context pipeline, wakeups, personas, v2 registries
-  workflow/       DAG engine + 14 block handlers + store
-  workflow-ui/    React canvas + editor (xyflow + dagre)
+  agent/          execution engine, context pipeline, wakeups, personas, registries
   pipeline/       QueueAdapter (in-process default, BullMQ opt-in)
-  connector/      connector SDK
-  connector-sdk/  v2 connector type SDK
-  connector-slack, connector-google   reference connectors
-  module-sdk/     v2 Module/Tool/Skill type SDK
-  app-sdk/        app authoring SDK
-  control-plane/  control-plane surface
+  module-sdk/     Module / Tool / Skill type SDK
+  connector-slack, connector-google   reference Modules wrapping 3rd-party APIs
   shell/          UI shell
   ui/             typed API client + headless React hooks
-  core/           BoringOS class, Hono routes, app bootstrap
+  core/           BoringOS class, Hono routes, app bootstrap, built-in Modules
   create-boringos CLI generator (npx create-boringos)
 
 examples/quickstart    runnable example
-tests/                 phase smoke tests (Vitest)
+tests/                 smoke tests (Vitest)
 docs/                  architecture, plans, blockers, thesis
 ```
 
@@ -59,27 +53,24 @@ The framework's prompt-side abstraction. Every component (connector, app, agent,
 
 | Component | Where the skill lives |
 |---|---|
-| Connector | `SKILL.md` in connector package, exposed via `ConnectorDefinition.skillMarkdown()` |
-| App | `SKILL.md` in app package, registered via `app.route(..., { agentDocs })` |
+| Module (incl. connectors) | `Module.skills[]` in the Module manifest — typically loaded from `SKILL.md` files in the package |
 | Agent (per-row) | `agents.instructions` column **plus** persona bundle keyed off `agents.role` (`packages/@boringos/agent/src/personas/<role>/`) |
 | Memory / drive / runtime | `skillMarkdown()` on the provider interface |
 | Tenant-curated | Synced via `/api/admin/skills` (github/url sources, trust levels), symlinked into agent workdir |
 
 Behavioral teaching goes in `SKILL.md` — not into hand-edited copies of `protocol.ts`.
 
-## v2 architecture (active on `branch_modules_skills`)
+## Architecture — Skills, Tools, Modules
 
-Rebuilt around three primitives — see [`docs/new_thesis.md`](docs/new_thesis.md), [`docs/blockers/task_12_greenfield_rebuild.md`](docs/blockers/task_12_greenfield_rebuild.md), [`BUILD-A-MODULE.md`](BUILD-A-MODULE.md), [`MODULES.md`](MODULES.md), [`TOOLS.md`](TOOLS.md), [`SKILLS.md`](SKILLS.md), [`MIGRATION-V1-TO-V2.md`](MIGRATION-V1-TO-V2.md).
+Three primitives — see [`docs/new_thesis.md`](docs/new_thesis.md), [`BUILD-A-MODULE.md`](BUILD-A-MODULE.md), [`MODULES.md`](MODULES.md), [`TOOLS.md`](TOOLS.md), [`SKILLS.md`](SKILLS.md).
 
 | Primitive | What it is |
 |---|---|
 | **Skill** | Markdown loaded into the agent's prompt under `## Skills` |
 | **Tool** | Zod-typed callable, dispatched at `POST /api/tools/<module>.<name>` |
-| **Module** | Bundles skills + tools + (optionally) schema, routines, webhooks, OAuth |
+| **Module** | Bundles skills + tools + (optionally) schema, routines, webhooks, OAuth, UI |
 
-v1 is unchanged; v2 lives alongside additively. v2 is opt-in per host: register at least one Module via `app.module(...)` to mount the v2 surface (`/api/tools/:fullName`, the `v2-skills` + `v2-tool-catalog` context providers, `tool_calls` audit table). Built-in modules live in `packages/@boringos/core/src/v2-modules/`.
-
-In dev, `BORINGOS_V2_ONLY=true` is the default; set `BORINGOS_KEEP_V1=true` to keep v1 alongside.
+Hosts register modules via `app.module(myModule)`. Built-in modules live in `packages/@boringos/core/src/modules/`. There is one Module concept, one install pipeline (`install-manager`), and one HTTP surface (`/api/admin/{modules,installs,...}` + `/api/tools/<module>.<tool>`). The packaging + upload flow (`.hebbsmod` bundles, `module_packages` table) is specced in [`docs/install-flow.md`](docs/install-flow.md) — currently per-tenant install (LAYER 3) is implemented; bundle upload (LAYER 1) and runtime registration (LAYER 2) are still in flight.
 
 ## Non-obvious behavior worth knowing
 
@@ -111,7 +102,7 @@ wake → coalesce → enqueue → fetch agent → create run row
 
 ## Database
 
-Drizzle schema in `packages/@boringos/db/src/schema/`. Embedded Postgres boots automatically (data in `.data/postgres`); pass `DATABASE_URL` for external. Audit table `tool_calls` is added by v2.
+Drizzle schema in `packages/@boringos/db/src/schema/`. Embedded Postgres boots automatically (data in `.data/postgres`); pass `DATABASE_URL` for external. Every tool dispatch writes a row to `tool_calls` for audit.
 
 ## Feature inventory (pointers, not enumeration)
 
@@ -119,11 +110,11 @@ The host (`@boringos/core`) ships an admin API, auth (sessions + invitations + t
 
 Don't enumerate routes here — read source:
 
-- Admin API: `packages/@boringos/core/src/admin/`
+- Admin API: `packages/@boringos/core/src/admin/` and `module-admin-routes.ts`
 - Auth + sessions: `packages/@boringos/core/src/auth/`
 - Plugins: [`PLUGINS.md`](PLUGINS.md)
 - Module authoring: [`BUILD-A-MODULE.md`](BUILD-A-MODULE.md)
-- v1 → v2 migration: [`MIGRATION-V1-TO-V2.md`](MIGRATION-V1-TO-V2.md)
+- Module packaging + install/uninstall flow: [`docs/install-flow.md`](docs/install-flow.md)
 - Runnable example: `examples/quickstart/`
 
 ## Builder hooks (registration shape)
@@ -132,7 +123,7 @@ Don't enumerate routes here — read source:
 const app = new BoringOS({ /* config */ });
 app.memory(provider).runtime(module).queue(adapter)
    .contextProvider(p).persona(role, bundle).blockHandler(h)
-   .connector(c).plugin(p).module(factoryOrManifest)
+   .plugin(p).module(factoryOrManifest)
    .onEvent(type, handler).onTenantCreated(fn)
    .beforeStart(fn).afterStart(fn).beforeShutdown(fn)
    .route(path, hono).schema(ddl)
@@ -146,7 +137,7 @@ For "how do I add a custom X" recipes, see `examples/quickstart/` and `BUILD-A-M
 
 - TypeScript ESM. Local imports use `.js` extensions.
 - `tenantId`, never `companyId`.
-- Every component implements `SkillProvider` — ship `skillMarkdown()` (or `SKILL.md` in v2) alongside the TS API.
+- Every Module ships `skills[]` (typically loaded from `SKILL.md` files) alongside its tools.
 - Convention over configuration. In-process defaults; external services (Redis, Postgres) opt-in.
 
 ## Environment variables
@@ -156,7 +147,5 @@ For "how do I add a custom X" recipes, see `examples/quickstart/` and `BUILD-A-M
 | `NODE_ENV` | `development` | |
 | `PORT` | `3000` | |
 | `DATABASE_URL` | — | external Postgres; if unset, embedded PG is used |
-| `BORINGOS_V2_ONLY` | `true` (dev) | v2-only mode |
-| `BORINGOS_KEEP_V1` | — | set `true` to keep v1 alongside v2 |
 | `HEBBS_ENDPOINT` / `HEBBS_API_KEY` / `HEBBS_WORKSPACE` | — | optional Hebbs memory |
 | `RESEND_API_KEY` | — | enables email notifications |

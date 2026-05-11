@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: BUSL-1.1
 //
-// Thin fetch wrappers around /api/admin/workflows + /api/admin/v2/*.
+// Thin fetch wrappers around /api/admin/workflows + /api/admin/*.
 // Centralised so the editor doesn't sprinkle URLs everywhere.
 
 import { authHeaders } from "./utils.js";
 import type {
   ModuleRow,
   ToolRow,
-  V2Block,
-  V2Edge,
+  Block,
+  Edge,
   WorkflowSummary,
   BlockRun,
 } from "./types.js";
@@ -39,7 +39,7 @@ export async function createWorkflow(a: Auth, init: Partial<WorkflowSummary>): P
 export async function patchWorkflow(
   a: Auth,
   id: string,
-  patch: Partial<{ name: string; status: string; blocks: V2Block[]; edges: V2Edge[] }>,
+  patch: Partial<{ name: string; status: string; blocks: Block[]; edges: Edge[] }>,
 ): Promise<WorkflowSummary> {
   const res = await fetch(`/api/admin/workflows/${id}`, {
     method: "PATCH",
@@ -82,7 +82,7 @@ export async function runWorkflow(
 }
 
 export async function listTools(a: Auth): Promise<ToolRow[]> {
-  const res = await fetch("/api/admin/v2/tools", { headers: authHeaders(a.token, a.tenantId) });
+  const res = await fetch("/api/admin/tools", { headers: authHeaders(a.token, a.tenantId) });
   if (res.status === 404) return [];
   if (!res.ok) throw new Error(`tools: ${res.status}`);
   const body = (await res.json()) as { tools: ToolRow[] };
@@ -90,7 +90,7 @@ export async function listTools(a: Auth): Promise<ToolRow[]> {
 }
 
 export async function listModules(a: Auth): Promise<ModuleRow[]> {
-  const res = await fetch("/api/admin/v2/modules", { headers: authHeaders(a.token, a.tenantId) });
+  const res = await fetch("/api/admin/modules", { headers: authHeaders(a.token, a.tenantId) });
   if (res.status === 404) return [];
   if (!res.ok) throw new Error(`modules: ${res.status}`);
   const body = (await res.json()) as { modules: ModuleRow[] };

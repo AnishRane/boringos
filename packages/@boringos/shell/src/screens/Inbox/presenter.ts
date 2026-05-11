@@ -4,17 +4,18 @@
 // formatting/parsing logic can be unit-tested without a jsdom harness
 // (same pattern as Connectors/connectorsPresenter.ts).
 
-export type Classification =
-  | "lead"
-  | "reply"
-  | "internal"
-  | "newsletter"
-  | "spam"
+export type TriageLabel =
+  | "urgent"
+  | "important"
+  | "fyi"
+  | "noise"
   | "unknown";
 
+/** @deprecated alias kept so older imports still resolve; prefer `TriageLabel`. */
+export type Classification = TriageLabel;
+
 export interface TriageView {
-  classification: Classification;
-  score: number;
+  label: TriageLabel;
   rationale: string;
   classifiedAt: string | null;
 }
@@ -81,9 +82,13 @@ export function groupByThread<T extends ThreadingItem>(items: T[]): Thread<T>[] 
 }
 
 /**
- * Read the triage block (written by generic-triage agent) off an
- * inbox item's metadata. Returns null when triage hasn't run yet —
- * caller decides what to render in that gap.
+ * Read the triage block (written by generic-triage agent or the
+ * header-prefilter) off an inbox item's metadata. Returns null when
+ * triage hasn't run yet — caller decides what to render in that gap.
+ *
+ * Reads `triage.label` (canonical key written by `triage.classify`)
+ * and falls back to legacy keys (`classification`, `reason`) so older
+ * rows still display.
  */
 export function readTriage(item: ItemLike): TriageView | null {
   const m = item.metadata;
@@ -91,20 +96,34 @@ export function readTriage(item: ItemLike): TriageView | null {
   const t = (m as { triage?: unknown }).triage;
   if (!t || typeof t !== "object") return null;
   const r = t as Record<string, unknown>;
-  const cls = typeof r.classification === "string" ? r.classification : "unknown";
+  const raw =
+    typeof r.label === "string"
+      ? r.label
+      : typeof r.classification === "string"
+        ? r.classification
+        : "unknown";
+  const rationale =
+    typeof r.rationale === "string"
+      ? r.rationale
+      : typeof r.reason === "string"
+        ? r.reason
+        : "";
   return {
-    classification: normalizeClassification(cls),
-    score: typeof r.score === "number" ? r.score : 0,
-    rationale: typeof r.rationale === "string" ? r.rationale : "",
+    label: normalizeLabel(raw),
+    rationale,
     classifiedAt: typeof r.classifiedAt === "string" ? r.classifiedAt : null,
   };
 }
 
-function normalizeClassification(raw: string): Classification {
+function normalizeLabel(raw: string): TriageLabel {
   const v = raw.toLowerCase();
-  if (v === "lead" || v === "reply" || v === "internal" || v === "newsletter" || v === "spam") {
+  if (v === "urgent" || v === "important" || v === "fyi" || v === "noise") {
     return v;
   }
+  // Map legacy legacy vocab so old rows still render with a sensible chip.
+  if (v === "lead" || v === "reply") return "important";
+  if (v === "internal") return "fyi";
+  if (v === "newsletter" || v === "spam") return "noise";
   return "unknown";
 }
 
@@ -147,40 +166,44 @@ export function readDrafts(item: ItemLike): ReplyDraft[] {
 }
 
 /**
- * Score → semantic color tier. Bands match the triage agent's skill
- * markdown:
- *   90-100  urgent       → emerald (high signal)
- *   70-89   active back-and-forth → emerald (slightly muted)
- *   50-69   ambiguous urgency     → amber
- *   20-49   informational         → slate
- *   0-19    newsletter / spam     → slate (muted)
+ * Label → semantic color tier. Drives the score-dot color in the
+ * inbox row. Maps directly off the triage taxonomy.
  */
 export type ScoreTier = "high" | "medium" | "low" | "muted";
 
-export function scoreTier(score: number): ScoreTier {
-  if (score >= 70) return "high";
-  if (score >= 40) return "medium";
-  if (score >= 20) return "low";
-  return "muted";
+export function labelTier(label: TriageLabel): ScoreTier {
+  switch (label) {
+    case "urgent":
+      return "high";
+    case "important":
+      return "medium";
+    case "fyi":
+      return "low";
+    case "noise":
+      return "muted";
+    default:
+      return "muted";
+  }
 }
 
-/** Tailwind background+text classes for a small classification chip. */
-export function classificationChipClass(c: Classification): string {
+/** Tailwind background+text classes for a small label chip. */
+export function labelChipClass(c: TriageLabel): string {
   switch (c) {
-    case "lead":
-      return "bg-emerald-50 text-emerald-700 ring-emerald-200";
-    case "reply":
-      return "bg-accent-tint text-accent ring-accent-tint";
-    case "internal":
-      return "bg-bg-warm text-muted-strong ring-border";
-    case "newsletter":
-      return "bg-amber-50 text-amber-700 ring-amber-200";
-    case "spam":
+    case "urgent":
       return "bg-rose-50 text-rose-700 ring-rose-200";
+    case "important":
+      return "bg-emerald-50 text-emerald-700 ring-emerald-200";
+    case "fyi":
+      return "bg-bg-warm text-muted-strong ring-border";
+    case "noise":
+      return "bg-amber-50 text-amber-700 ring-amber-200";
     default:
       return "bg-bg text-muted ring-border";
   }
 }
+
+/** @deprecated alias kept so older callers still resolve. */
+export const classificationChipClass = labelChipClass;
 
 export interface SentReply {
   sentAt: string;
@@ -393,7 +416,7 @@ export function threadMatchesQuery<T extends ThreadingItem & {
     if (item.from) fields.push(item.from);
     if (item.body) fields.push(item.body);
     const triage = readTriage(item);
-    if (triage) fields.push(triage.classification, triage.rationale);
+    if (triage) fields.push(triage.label, triage.rationale);
     return fields.some((f) => f.toLowerCase().includes(q));
   });
 }

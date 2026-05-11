@@ -105,7 +105,7 @@ export interface CompanySkill {
   updatedAt: string;
 }
 
-export interface V2ModuleInfo {
+export interface ModuleInfo {
   id: string;
   name: string;
   version: string;
@@ -116,7 +116,7 @@ export interface V2ModuleInfo {
   skills: Array<{ id: string; source: string; priority: number }>;
 }
 
-export interface V2InstallInfo {
+export interface InstallInfo {
   moduleId: string;
   tenantId: string;
   installedAt?: string;
@@ -152,7 +152,7 @@ export interface SettingDefinition {
   editableBy?: "admin" | "staff" | "member";
   readableBy?: "admin" | "staff" | "member";
   ownerId?: string;
-  ownerKind?: "app" | "module" | "framework";
+  ownerKind?: "module" | "framework";
 }
 
 export interface SettingsManifest {
@@ -190,7 +190,7 @@ export interface BoringOSClient {
   updateSettings(data: Record<string, unknown>): Promise<Record<string, string | null>>;
   /**
    * Manifest of every SettingDefinition the host has registered (from
-   * installed v2 modules + the framework's own keys). The shell renders
+   * installed modules + the framework.s own keys). The shell renders
    * Settings → General from this. See task_17.
    */
   getSettingsManifest(): Promise<SettingsManifest>;
@@ -238,10 +238,23 @@ export interface BoringOSClient {
   wakeAgent(agentId: string, taskId?: string): Promise<Record<string, unknown>>;
   getAgentRuns(agentId: string): Promise<AgentRun[]>;
 
-  // v2 Modules — registry + per-tenant install state. The shell uses
-  // this to render "skills inherited by every agent in this tenant".
-  getV2Modules(): Promise<V2ModuleInfo[]>;
-  getV2Installs(): Promise<V2InstallInfo[]>;
+  /** Tenant id this client is scoped to (mirrors `config.tenantId`).
+   *  Hooks key React-Query queries on this so a post-login client
+   *  identity change causes a fresh fetch. */
+  readonly tenantId?: string;
+  /** True when the client carries either an API key or a session token. */
+  readonly hasAuth: boolean;
+
+  // Modules — registry + per-tenant install state.
+  getModules(): Promise<ModuleInfo[]>;
+  getInstalls(): Promise<InstallInfo[]>;
+  /** Invoke a tool by full name (e.g. "crm.contacts.list"). Returns the
+   *  tool's `result` payload directly, throwing on `ok: false`. */
+  invokeTool<T = unknown>(name: string, input: unknown): Promise<T>;
+  /** Install a module for the current tenant. */
+  installModule(moduleId: string): Promise<{ ok: boolean; hookError?: string }>;
+  /** Uninstall a module for the current tenant. */
+  uninstallModule(moduleId: string): Promise<{ ok: boolean; hookError?: string }>;
 
   // Team + invitations (mounted under /api/auth/*)
   getTeam(): Promise<TeamMember[]>;
@@ -385,7 +398,7 @@ export function createBoringOSClient(config: BoringOSClientConfig): BoringOSClie
   }
 
   // The shell + admin clients only ever talk to /api/admin.
-  // Agent-side callers use /api/tools/* directly (the v2 tool
+  // Agent-side callers use /api/tools/* directly (the tool
   // dispatch surface) and do not go through this client.
   const api = "/api/admin";
 
@@ -502,14 +515,41 @@ export function createBoringOSClient(config: BoringOSClientConfig): BoringOSClie
       return res.activity;
     },
 
-    // v2 Modules
-    getV2Modules: async () => {
-      const res = await get<{ modules: V2ModuleInfo[] }>(`${api}/v2/modules`);
+    // Modules
+    tenantId: config.tenantId,
+    hasAuth: Boolean(config.apiKey || config.token),
+    getModules: async () => {
+      const res = await get<{ modules: ModuleInfo[] }>(`${api}/modules`);
       return res.modules;
     },
-    getV2Installs: async () => {
-      const res = await get<{ installs: V2InstallInfo[] }>(`${api}/v2/installs`);
+    getInstalls: async () => {
+      const res = await get<{ installs: InstallInfo[] }>(`${api}/installs`);
       return res.installs;
+    },
+    invokeTool: async <T = unknown>(name: string, input: unknown): Promise<T> => {
+      const res = await fetch(`${baseUrl}/api/tools/${name}`, {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify(input ?? {}),
+      });
+      if (!res.ok) throw new Error(`POST /api/tools/${name} failed: ${res.status}`);
+      const env = (await res.json()) as { ok: boolean; result?: T; error?: { message: string } };
+      if (!env.ok) throw new Error(env.error?.message ?? `Tool ${name} failed`);
+      return env.result as T;
+    },
+    installModule: async (moduleId: string) => {
+      const res = await fetch(`${baseUrl}${api}/modules/${moduleId}/install`, {
+        method: "POST",
+        headers: headers(),
+      });
+      return res.json() as Promise<{ ok: boolean; hookError?: string }>;
+    },
+    uninstallModule: async (moduleId: string) => {
+      const res = await fetch(`${baseUrl}${api}/modules/${moduleId}/uninstall`, {
+        method: "POST",
+        headers: headers(),
+      });
+      return res.json() as Promise<{ ok: boolean; hookError?: string }>;
     },
 
     // Skills
@@ -617,7 +657,7 @@ export function createBoringOSClient(config: BoringOSClientConfig): BoringOSClie
       return res.costs;
     },
     reportCost: async (runId, data) => {
-      // v2: cost reporting goes through the framework module's
+      // Cost reporting goes through the framework module.s
       // tool, called from inside agent runs only.
       await post(`/api/tools/framework.runs.report_cost`, { runId, ...data });
     },
@@ -634,7 +674,7 @@ export function createBoringOSClient(config: BoringOSClientConfig): BoringOSClie
         result?: Record<string, unknown>;
         error?: { code: string; message: string };
       }>(`/api/tools/${kind}.${action}`, inputs);
-      // Translate v2 response shape to the legacy v1 shape so
+      // Translate the response shape so
       // existing consumers don't need to change.
       return r.ok
         ? { success: true, data: r.result }

@@ -7,15 +7,15 @@
 import { useEffect, useRef, useState } from "react";
 
 import {
-  classificationChipClass,
-  type Classification,
+  labelChipClass,
+  type TriageLabel,
 } from "./presenter.js";
 
-const CHOICES: Classification[] = ["lead", "reply", "internal", "newsletter", "spam"];
+const CHOICES: TriageLabel[] = ["urgent", "important", "fyi", "noise"];
 
 export interface TriageClassificationMenuProps {
-  current: Classification;
-  onSelect: (next: Classification) => void;
+  current: TriageLabel;
+  onSelect: (next: TriageLabel) => void;
 }
 
 export function TriageClassificationMenu({
@@ -39,7 +39,7 @@ export function TriageClassificationMenu({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className={`text-[10px] font-medium uppercase tracking-wide px-2 py-0.5 rounded-full ring-1 hover:ring-2 ${classificationChipClass(current)}`}
+        className={`text-[10px] font-medium uppercase tracking-wide px-2 py-0.5 rounded-full ring-1 hover:ring-2 ${labelChipClass(current)}`}
         title="Click to override the triage classification"
       >
         {current} ▾
@@ -60,7 +60,7 @@ export function TriageClassificationMenu({
                 disabled={isCurrent}
               >
                 <span
-                  className={`text-[9px] font-medium uppercase px-1.5 py-0.5 rounded-full ring-1 ${classificationChipClass(c)}`}
+                  className={`text-[9px] font-medium uppercase px-1.5 py-0.5 rounded-full ring-1 ${labelChipClass(c)}`}
                 >
                   {c}
                 </span>

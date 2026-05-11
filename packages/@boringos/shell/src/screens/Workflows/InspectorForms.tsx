@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: BUSL-1.1
 //
 // Per-kind block config forms. Hand-coded for control flow + tool;
-// in v2.2 these become Zod-driven.
+// future versions will be Zod-driven.
 
 import { useMemo } from "react";
 
-import type { ToolRow, V2Block } from "./types.js";
+import type { ToolRow, Block } from "./types.js";
 import { blockKind } from "./utils.js";
 
 export interface FormProps {
-  block: V2Block;
-  onChange: (patch: Partial<V2Block>) => void;
+  block: Block;
+  onChange: (patch: Partial<Block>) => void;
   tools?: ToolRow[];
 }
 

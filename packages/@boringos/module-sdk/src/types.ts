@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 //
-// Module SDK — core types for v2 (Skills + Tools + Modules).
+// Module SDK — core types for Skills + Tools + Modules.
 //
 // These are types only. Runtime behaviour (registry, dispatcher,
 // HTTP mounts, prompt assembly) lives in @boringos/agent and
 // @boringos/core. Everything in this file is greenfield-additive
-// — nothing here replaces v1 types yet. The migration to using
+// — nothing here replaces  types yet. The migration to using
 // these as the canonical shape is sequenced in the task_12 phase
 // plan.
 //
@@ -269,7 +269,7 @@ export interface OAuthConfig {
   clientIdEnv: string;
   clientSecretEnv: string;
   scopes: string[];
-  /** PKCE on by default in v2. */
+  /** PKCE on by default. */
   pkce?: boolean;
 }
 
@@ -382,7 +382,7 @@ export interface ModuleFactoryDeps {
   /** The workflow engine instance. */
   workflowEngine?: unknown;
   /**
-   * The v2 tool registry. Modules that need to invoke other
+   * The tool registry. Modules that need to invoke other
    * tools internally (workflow.run dispatching DAG nodes, agent
    * orchestration code) cast this to ToolRegistry from
    * `@boringos/agent`.
@@ -474,7 +474,7 @@ export interface Module {
    * Whether this module should be auto-installed for every
    * tenant at boot (and for new tenants via `onTenantCreate`).
    *
-   * Defaults to `true` so v2's introduction is backwards
+   * Defaults to `true`. The boolean flag is backwards
    * compatible — every host-registered module is callable for
    * every existing tenant immediately. Third-party modules that
    * should require explicit per-tenant install set this to

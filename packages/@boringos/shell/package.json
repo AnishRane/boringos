@@ -11,7 +11,7 @@
   },
   "license": "BUSL-1.1",
   "dependencies": {
-    "@boringos/app-sdk": "workspace:^",
+    "@boringos-crm/web": "link:../../../../boringos-crm/packages/web",
     "@boringos/ui": "workspace:*",
     "@radix-ui/react-dialog": "^1.1.15",
     "@radix-ui/react-dropdown-menu": "^2.1.16",
@@ -49,7 +49,7 @@
     "typescript": "^5.7.3",
     "vite": "^6.0.0"
   },
-  "description": "BoringOS Shell — the user-facing OS surface (wp-admin equivalent). Hosts apps; renders slot contributions; provides Inbox, Copilot, Tasks, Workflows, Agents, Drive, Connectors, Apps, Team, Settings.",
+  "description": "BoringOS Shell — the user-facing OS surface (wp-admin equivalent). Hosts modules and provides Inbox, Copilot, Tasks, Workflows, Agents, Drive, Connectors, Modules, Team, Settings.",
   "repository": {
     "type": "git",
     "url": "https://github.com/BoringOS-dev/boringos.git"

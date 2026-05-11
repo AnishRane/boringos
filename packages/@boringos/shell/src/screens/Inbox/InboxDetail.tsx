@@ -21,8 +21,8 @@ import {
   readSentReply,
   readTriage,
   scoreDotClass,
-  scoreTier,
-  type Classification,
+  labelTier,
+  type TriageLabel,
   type ReplyDraft,
   type Thread,
 } from "./presenter.js";
@@ -52,8 +52,8 @@ export interface InboxDetailProps {
   onConvertToTask?: (item: InboxItem) => void | Promise<void>;
   /** Snooze: PATCH status + snoozeUntil. */
   onSnooze?: (item: InboxItem, until: Date) => void | Promise<void>;
-  /** Override the agent-assigned triage classification. */
-  onReclassify?: (item: InboxItem, next: Classification) => void | Promise<void>;
+  /** Override the agent-assigned triage label. */
+  onReclassify?: (item: InboxItem, next: TriageLabel) => void | Promise<void>;
 }
 
 export function InboxDetail({
@@ -85,7 +85,7 @@ export function InboxDetail({
   const latest = thread.latest;
   const triage = readTriage(latest);
   const sentReply = readSentReply(latest);
-  const tier = triage ? scoreTier(triage.score) : null;
+  const tier = triage ? labelTier(triage.label) : null;
   const drafts = readDrafts(latest);
 
   return (
@@ -156,13 +156,12 @@ export function InboxDetail({
                 Triage
               </span>
               <TriageClassificationMenu
-                current={triage.classification}
+                current={triage.label}
                 onSelect={(next) => void onReclassify?.(latest, next)}
               />
               {tier && (
                 <span className="flex items-center gap-1 text-xs text-muted-strong tabular-nums">
                   <span className={`w-1.5 h-1.5 rounded-full ${scoreDotClass(tier)}`} />
-                  Score {triage.score}
                 </span>
               )}
               {triage.classifiedAt && (

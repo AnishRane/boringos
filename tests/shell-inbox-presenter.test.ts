@@ -13,7 +13,7 @@ import {
   readTriage,
   countDrafts,
   readDrafts,
-  scoreTier,
+  labelTier,
   classificationChipClass,
   groupByThread,
   readThreadId,
@@ -102,40 +102,51 @@ describe("readTriage", () => {
     expect(readTriage({ metadata: { other: "thing" } })).toBeNull();
   });
 
-  it("parses a typical triage block", () => {
+  it("parses a typical triage block (v2 label shape)", () => {
     const t = readTriage({
       metadata: {
         triage: {
-          classification: "lead",
-          score: 82,
+          label: "important",
           rationale: "High-quality lead",
           classifiedAt: "2026-05-07T10:00:00Z",
         },
       },
     });
     expect(t).toEqual({
-      classification: "lead",
-      score: 82,
+      label: "important",
       rationale: "High-quality lead",
       classifiedAt: "2026-05-07T10:00:00Z",
     });
   });
 
-  it("normalizes unknown classification values", () => {
+  it("falls back to legacy `classification` + `reason` keys", () => {
+    const t = readTriage({
+      metadata: {
+        triage: {
+          classification: "lead",
+          reason: "vendor outreach",
+        },
+      },
+    });
+    // v1 `lead` maps to v2 `important`.
+    expect(t?.label).toBe("important");
+    expect(t?.rationale).toBe("vendor outreach");
+  });
+
+  it("normalizes unknown label values", () => {
     expect(
-      readTriage({ metadata: { triage: { classification: "weird-thing" } } })?.classification,
+      readTriage({ metadata: { triage: { label: "weird-thing" } } })?.label,
     ).toBe("unknown");
   });
 
   it("normalizes case-insensitively", () => {
     expect(
-      readTriage({ metadata: { triage: { classification: "LEAD" } } })?.classification,
-    ).toBe("lead");
+      readTriage({ metadata: { triage: { label: "URGENT" } } })?.label,
+    ).toBe("urgent");
   });
 
   it("defaults missing fields", () => {
-    const t = readTriage({ metadata: { triage: { classification: "spam" } } });
-    expect(t?.score).toBe(0);
+    const t = readTriage({ metadata: { triage: { label: "noise" } } });
     expect(t?.rationale).toBe("");
     expect(t?.classifiedAt).toBeNull();
   });
@@ -186,25 +197,21 @@ describe("readDrafts", () => {
   });
 });
 
-describe("scoreTier", () => {
-  it("90+ → high", () => {
-    expect(scoreTier(95)).toBe("high");
+describe("labelTier", () => {
+  it("urgent → high", () => {
+    expect(labelTier("urgent")).toBe("high");
   });
-  it("70–89 → high", () => {
-    expect(scoreTier(82)).toBe("high");
-    expect(scoreTier(70)).toBe("high");
+  it("important → medium", () => {
+    expect(labelTier("important")).toBe("medium");
   });
-  it("40–69 → medium", () => {
-    expect(scoreTier(65)).toBe("medium");
-    expect(scoreTier(40)).toBe("medium");
+  it("fyi → low", () => {
+    expect(labelTier("fyi")).toBe("low");
   });
-  it("20–39 → low", () => {
-    expect(scoreTier(25)).toBe("low");
-    expect(scoreTier(20)).toBe("low");
+  it("noise → muted", () => {
+    expect(labelTier("noise")).toBe("muted");
   });
-  it("<20 → muted", () => {
-    expect(scoreTier(5)).toBe("muted");
-    expect(scoreTier(0)).toBe("muted");
+  it("unknown → muted", () => {
+    expect(labelTier("unknown")).toBe("muted");
   });
 });
 
@@ -375,7 +382,7 @@ describe("threadMatchesQuery", () => {
         subject: "Hello world",
         from: "Alice <alice@example.com>",
         body: "Discussing the Q2 roadmap",
-        metadata: { triage: { classification: "lead", rationale: "interesting prospect" } },
+        metadata: { triage: { label: "important", rationale: "interesting prospect" } },
       },
     ],
     latest: {
@@ -385,7 +392,7 @@ describe("threadMatchesQuery", () => {
       subject: "Hello world",
       from: "Alice <alice@example.com>",
       body: "Discussing the Q2 roadmap",
-      metadata: { triage: { classification: "lead", rationale: "interesting prospect" } },
+      metadata: { triage: { label: "important", rationale: "interesting prospect" } },
     },
   };
 
@@ -398,8 +405,8 @@ describe("threadMatchesQuery", () => {
   it("matches against body", () => {
     expect(threadMatchesQuery(thread, "roadmap")).toBe(true);
   });
-  it("matches against classification", () => {
-    expect(threadMatchesQuery(thread, "lead")).toBe(true);
+  it("matches against label", () => {
+    expect(threadMatchesQuery(thread, "important")).toBe(true);
   });
   it("matches against triage rationale", () => {
     expect(threadMatchesQuery(thread, "prospect")).toBe(true);
@@ -414,14 +421,14 @@ describe("threadMatchesQuery", () => {
 });
 
 describe("classificationChipClass", () => {
-  it("returns distinct classes for each classification", () => {
-    const lead = classificationChipClass("lead");
-    const reply = classificationChipClass("reply");
-    expect(lead).not.toBe(reply);
-    expect(lead).toContain("emerald");
-    expect(reply).toContain("accent");
-    expect(classificationChipClass("spam")).toContain("rose");
-    expect(classificationChipClass("newsletter")).toContain("amber");
+  it("returns distinct classes for each label", () => {
+    const urgent = classificationChipClass("urgent");
+    const important = classificationChipClass("important");
+    expect(urgent).not.toBe(important);
+    expect(urgent).toContain("rose");
+    expect(important).toContain("emerald");
+    expect(classificationChipClass("noise")).toContain("amber");
+    expect(classificationChipClass("fyi")).toContain("muted");
   });
 });
 

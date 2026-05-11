@@ -22,16 +22,14 @@ export { cliAuthChallenges } from "./device-auth.js";
 export { evals, evalRuns } from "./evals.js";
 export { inboxItems } from "./inbox.js";
 export { entityReferences } from "./entity-refs.js";
-export { tenantApps } from "./tenant-apps.js";
-export { tenantAppLinks } from "./tenant-app-links.js";
 
-// v2 (Skills + Tools + Modules). Additive — coexists with v1.
+// Module-system tables.
 export { toolCalls } from "./tool-calls.js";
 export {
   hebbsCrmPipelines,
   hebbsCrmContacts,
   hebbsCrmDeals,
   hebbsCrmActivities,
-} from "./v2-crm.js";
+} from "./crm.js";
 export { moduleInstalls } from "./module-installs.js";
 export { moduleMigrations } from "./module-migrations.js";

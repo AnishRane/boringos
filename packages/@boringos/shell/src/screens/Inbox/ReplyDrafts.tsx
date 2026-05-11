@@ -10,7 +10,7 @@ import { formatAbsoluteTime } from "./presenter.js";
 
 export interface ReplyDraftsProps {
   drafts: ReplyDraft[];
-  /** Triggers the compose modal in A8; for v1 it just opens the editor. */
+  /** Triggers the compose modal in A8; for  it just opens the editor. */
   onUseDraft?: (draft: ReplyDraft) => void;
   /** Drops the draft from metadata.replyDrafts. */
   onDiscardDraft?: (draft: ReplyDraft) => void | Promise<void>;

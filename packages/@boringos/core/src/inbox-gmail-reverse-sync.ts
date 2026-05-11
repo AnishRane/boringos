@@ -30,7 +30,7 @@ import { refreshOAuthToken } from "./oauth.js";
 interface SimpleResult { success: boolean; data?: unknown; error?: string; }
 
 // Run a Gmail action with OAuth refresh-and-retry. Mirror of the
-// pattern in v2-modules/google.ts and inbox-gmail-sync.ts.
+// pattern in modules/google.ts and inbox-gmail-sync.ts.
 async function runGmail(
   db: Db,
   row: { id: string; credentials: Record<string, unknown> | null },

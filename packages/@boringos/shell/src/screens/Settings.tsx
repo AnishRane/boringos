@@ -1,27 +1,31 @@
 // SPDX-License-Identifier: BUSL-1.1
 //
-// Settings — General + Branding (A9) + per-app panels via
-// useSlot("settingsPanels").
+// Settings — General + Branding + per-module panels contributed via
+// pluginHost.settingsPanels (gated on useInstalledModules).
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 
+import { useInstalledModules } from "@boringos/ui";
 import { useAuth } from "../auth/AuthProvider.js";
-import { useSlot } from "../slots/context.js";
-import { SlotRenderer } from "../slots/SlotRenderer.js";
-import { EmptyState, ScreenBody, ScreenHeader } from "./_shared.js";
+import { pluginHost } from "../plugin-host/index.js";
+import { ScreenBody, ScreenHeader } from "./_shared.js";
 import { BrandingPanel } from "./Settings/BrandingPanel.js";
 import { AgentsPanel } from "./Settings/AgentsPanel.js";
 import { ManifestSection } from "./Settings/ManifestSection.js";
-import { V2ToolsPanel } from "./Settings/V2ToolsPanel.js";
-import { V2ToolCallsPanel } from "./Settings/V2ToolCallsPanel.js";
-import { V2WorkflowPalettePanel } from "./Settings/V2WorkflowPalettePanel.js";
+import { ToolsPanel } from "./Settings/ToolsPanel.js";
+import { ToolCallsPanel } from "./Settings/ToolCallsPanel.js";
+import { WorkflowPalettePanel } from "./Settings/WorkflowPalettePanel.js";
 
 type Tab = { id: string; label: string };
 
 export function Settings() {
   const { user } = useAuth();
-  const panels = useSlot("settingsPanels");
+  const installed = useInstalledModules();
   const isAdmin = user?.role === "admin";
+
+  const pluginPanels = pluginHost.settingsPanels.filter((p) =>
+    installed.has(p.moduleId),
+  );
 
   const tabs: Tab[] = [
     { id: "general", label: "General" },
@@ -29,20 +33,20 @@ export function Settings() {
     ...(isAdmin
       ? [
           { id: "agents", label: "Agents" },
-          { id: "v2-tools", label: "Tool catalog" },
-          { id: "v2-tool-calls", label: "Tool calls" },
-          { id: "v2-workflow-palette", label: "Workflow blocks" },
+          { id: "tools", label: "Tool catalog" },
+          { id: "tool-calls", label: "Tool calls" },
+          { id: "workflow-blocks", label: "Workflow blocks" },
         ]
       : []),
-    ...panels.map((p) => ({
-      id: `app-${p.appId}-${p.slotId}`,
-      label: p.slot.label,
+    ...pluginPanels.map((p) => ({
+      id: `plugin-${p.moduleId}-${p.id}`,
+      label: p.label,
     })),
   ];
 
   const [active, setActive] = useState<string>("general");
-  const activePanel = panels.find(
-    (p) => `app-${p.appId}-${p.slotId}` === active,
+  const activePanel = pluginPanels.find(
+    (p) => `plugin-${p.moduleId}-${p.id}` === active,
   );
 
   return (
@@ -67,12 +71,6 @@ export function Settings() {
               {t.label}
             </button>
           ))}
-
-          {panels.length === 0 && (
-            <div className="mt-4 px-3 text-[11px] text-muted">
-              Install apps to add their settings panels here.
-            </div>
-          )}
         </nav>
 
         <ScreenBody>
@@ -88,27 +86,18 @@ export function Settings() {
           )}
 
           {active === "branding" && <BrandingPanel />}
-
           {active === "agents" && <AgentsPanel />}
-
-          {active === "v2-tools" && <V2ToolsPanel />}
-
-          {active === "v2-tool-calls" && <V2ToolCallsPanel />}
-
-          {active === "v2-workflow-palette" && <V2WorkflowPalettePanel />}
+          {active === "tools" && <ToolsPanel />}
+          {active === "tool-calls" && <ToolCallsPanel />}
+          {active === "workflow-blocks" && <WorkflowPalettePanel />}
 
           {activePanel && (
-            <SlotRenderer
-              family="settingsPanels"
-              id={activePanel.slotId}
-              appId={activePanel.appId}
-              empty={
-                <EmptyState
-                  title="Panel did not render"
-                  description={`The ${activePanel.appId} app contributed this panel but its component did not return any content.`}
-                />
-              }
-            />
+            <Suspense fallback={<div className="text-sm text-muted">Loading…</div>}>
+              {(() => {
+                const Element = activePanel.element as React.ComponentType;
+                return <Element />;
+              })()}
+            </Suspense>
           )}
         </ScreenBody>
       </div>

@@ -52,7 +52,7 @@ export type { DelegateQuery } from "./hierarchy.js";
 
 export { createHierarchyProvider } from "./providers/hierarchy.js";
 
-// v2 (Skills + Tools + Modules) — the only mode now.
+//
 export {
   createToolRegistry,
   createSkillRegistry,
@@ -63,7 +63,7 @@ export {
   createToolCatalogProvider,
   createInstallManager,
   createSettingRegistry,
-} from "./v2/index.js";
+} from "./registries/index.js";
 export type {
   ToolRegistry,
   RegisteredTool,
@@ -81,4 +81,4 @@ export type {
   InstallResult,
   InstalledRow,
   SettingRegistry,
-} from "./v2/index.js";
+} from "./registries/index.js";

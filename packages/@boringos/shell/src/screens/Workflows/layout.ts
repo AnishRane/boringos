@@ -4,7 +4,7 @@
 // to match the sleek node aesthetic.
 
 import ELK from "elkjs/lib/elk.bundled.js";
-import type { V2Block, V2Edge } from "./types.js";
+import type { Block, Edge } from "./types.js";
 import { blockKind, edgeId } from "./utils.js";
 
 const elk = new ELK();
@@ -14,7 +14,7 @@ const NODE_H_DEFAULT = 38;
 const NODE_H_TOOL = 50;
 const NODE_H_STICKY = 80;
 
-function nodeHeight(b: V2Block): number {
+function nodeHeight(b: Block): number {
   const k = blockKind(b);
   if (k === "tool" || k === "for_each") return NODE_H_TOOL;
   if (k === "sticky") return NODE_H_STICKY;
@@ -26,8 +26,8 @@ export interface LaidOut {
 }
 
 export async function autoLayout(
-  blocks: V2Block[],
-  edges: V2Edge[],
+  blocks: Block[],
+  edges: Edge[],
 ): Promise<LaidOut> {
   const graph = {
     id: "root",

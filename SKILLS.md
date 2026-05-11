@@ -202,11 +202,11 @@ Module that bundles it.
 
 ## Tenant overrides
 
-> **Status:** Partially shipped. The v1 admin skill system
+> **Status:** Partially shipped. The legacy admin skill system
 > (`/api/admin/skills`, github/url sync, per-agent attach,
 > working-dir symlinks via `injectSkills`) still works alongside
-> v2 today. The collapse below is the planned end state per
-> task_12 §9.4.
+> the Module-bundled `Skill` shape. The collapse below is the
+> planned end state.
 
 Planned end state:
 
@@ -217,7 +217,7 @@ Planned end state:
   table as a pseudo-Module so the registry-walking code doesn't
   need a special case.
 
-Per-agent attached skills (the v1 `agent_skills` join) become
+Per-agent attached skills (legacy `agent_skills` join) become
 per-agent instructions plus the `appliesTo: { roles: [...] }`
 gating.
 

@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: BUSL-1.1
 //
-// Workflows screen — sidebar list + editor. Replaces the textarea-only
-// surface with a full visual DAG editor on the v2 block schema.
+// Workflows screen — sidebar list + editor with a visual DAG editor.
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 

@@ -46,11 +46,10 @@ export interface SettingDefinition {
    */
   ownerId?: string;
   /**
-   * Origin kind — populated by the registry. "app" for AppDefinition
-   * settings, "module" for v2 Module settings, "framework" for
-   * built-in keys the host owns.
+   * Origin kind — populated by the registry. "module" for Module
+   * settings, "framework" for built-in keys the host owns.
    */
-  ownerKind?: "app" | "module" | "framework";
+  ownerKind?: "module" | "framework";
 }
 
 // ── Base structural types ────────────────────────────────────────────────────
@@ -118,6 +117,7 @@ export interface Agent extends Identifiable, TenantScoped, Timestamped {
   instructions: string | null;
   runtimeId: string | null;
   fallbackRuntimeId: string | null;
+  model: string | null;
   budgetMonthlyCents: number;
   spentMonthlyCents: number;
   pauseReason: string | null;

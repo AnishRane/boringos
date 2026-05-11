@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 //
-// `module_installs` — per-tenant install state for v2 Modules.
+// `module_installs` — per-tenant install state for Modules.
 // Phase 9 of task_12.
 //
 // The host application imports Modules and registers them with
@@ -9,8 +9,8 @@
 // modules a given tenant has actually OPTED INTO — distinguishing
 // "module exists in the host" from "this tenant uses it."
 //
-// In Phase 9 the v2 surface still exposes every host-registered
-// Module to every tenant (back-compat — same behavior as v1). This
+// In this version the surface still exposes every host-registered
+// Module to every tenant (back-compat — same behavior as ). This
 // table sets up the schema for fine-grained per-tenant
 // install/uninstall in Phase 10.
 

@@ -12,6 +12,7 @@ type AgentUpdate = {
   status?: string;
   runtimeId?: string | null;
   fallbackRuntimeId?: string | null;
+  model?: string | null;
   reportsTo?: string | null;
   routingTags?: string[];
   permissions?: Record<string, unknown>;

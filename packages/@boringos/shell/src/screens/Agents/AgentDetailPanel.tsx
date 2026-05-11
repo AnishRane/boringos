@@ -38,16 +38,16 @@ export function AgentDetailPanel({
   const { skills: tenantSkills } = useSkills();
   const client = useClient();
 
-  // Inherited prompt skills come from installed v2 modules (tenant-level).
+  // Inherited prompt skills come from installed modules (tenant-level).
   // Cached cross-panel so re-opening the rail is instant.
   const modulesQuery = useQuery({
-    queryKey: ["v2Modules"],
-    queryFn: () => client.getV2Modules(),
+    queryKey: ["modules"],
+    queryFn: () => client.getModules(),
     staleTime: 60_000,
   });
   const installsQuery = useQuery({
-    queryKey: ["v2Installs"],
-    queryFn: () => client.getV2Installs(),
+    queryKey: ["installs"],
+    queryFn: () => client.getInstalls(),
     staleTime: 30_000,
   });
 

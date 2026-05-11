@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: BUSL-1.1
 //
-// React Flow 12 canvas for v2 workflows. Sleek nodes, elkjs auto-layout,
+// React Flow 12 canvas for workflow. Sleek nodes, elkjs auto-layout,
 // drag/connect/delete, condition nodes with two output handles, status
 // overlay in run mode. The "+ insert mid-edge" affordance is rendered
 // by hovering an edge — clicking it opens the palette pre-filtered.
@@ -14,7 +14,7 @@ import {
   applyEdgeChanges,
   applyNodeChanges,
   type Connection,
-  type Edge,
+  type Edge as RFEdge,
   type EdgeChange,
   type EdgeProps,
   type Node,
@@ -29,7 +29,7 @@ import "@xyflow/react/dist/style.css";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import type { BlockRun, V2Block, V2Edge } from "./types.js";
+import type { BlockRun, Block, Edge } from "./types.js";
 import { autoLayout } from "./layout.js";
 import { BlockNode, type BlockNodeData, nodeTypes as baseNodeTypes } from "./CanvasNodes.js";
 import { blockKind, edgeId, newBlockId } from "./utils.js";
@@ -96,14 +96,14 @@ const nodeTypes = baseNodeTypes;
 // ── Public Canvas component ────────────────────────────────────────────────
 
 export interface CanvasProps {
-  blocks: V2Block[];
-  edges: V2Edge[];
+  blocks: Block[];
+  edges: Edge[];
   selectedId: string | null;
   pinnedIds: Set<string>;
   blockRuns?: BlockRun[];
   mode: "edit" | "view";
   onSelect: (id: string | null) => void;
-  onChange: (blocks: V2Block[], edges: V2Edge[]) => void;
+  onChange: (blocks: Block[], edges: Edge[]) => void;
   onOpenPalette: (atEdgeId?: string) => void;
 }
 
@@ -129,7 +129,7 @@ function CanvasInner({
   const rf = useReactFlow();
   const wrapRef = useRef<HTMLDivElement>(null);
   const [rfNodes, setRfNodes] = useState<Node<BlockNodeData>[]>([]);
-  const [rfEdges, setRfEdges] = useState<Edge[]>([]);
+  const [rfEdges, setRfEdges] = useState<RFEdge[]>([]);
   const [rfInstance, setRfInstance] = useState<ReactFlowInstance | null>(null);
   const layoutCacheRef = useRef<Record<string, { x: number; y: number }>>({});
 
@@ -173,7 +173,7 @@ function CanvasInner({
         };
       });
 
-      const rfeArr: Edge[] = edges.map((e, i) => ({
+      const rfeArr: RFEdge[] = edges.map((e, i) => ({
         id: edgeId(e) || `e_${i}`,
         source: e.sourceBlockId,
         target: e.targetBlockId,
@@ -214,18 +214,18 @@ function CanvasInner({
   }, [onOpenPalette]);
 
   const projectChange = useCallback(
-    (nextNodes: Node<BlockNodeData>[], nextEdges: Edge[]) => {
+    (nextNodes: Node<BlockNodeData>[], nextEdges: RFEdge[]) => {
       // Persist positions so re-renders don't fight elk.
       const positions: Record<string, { x: number; y: number }> = {};
       for (const n of nextNodes) positions[n.id] = n.position;
       layoutCacheRef.current = { ...layoutCacheRef.current, ...positions };
 
-      const newBlocks: V2Block[] = nextNodes.map((n) => {
+      const newBlocks: Block[] = nextNodes.map((n) => {
         const orig = blocks.find((b) => b.id === n.id);
-        const base: V2Block = orig ?? { id: n.id, kind: "tool" };
+        const base: Block = orig ?? { id: n.id, kind: "tool" };
         return { ...base, position: n.position };
       });
-      const newEdges: V2Edge[] = nextEdges.map((e) => ({
+      const newEdges: Edge[] = nextEdges.map((e) => ({
         id: e.id,
         sourceBlockId: e.source,
         targetBlockId: e.target,
@@ -269,7 +269,7 @@ function CanvasInner({
   const onConnect = useCallback(
     (conn: Connection) => {
       if (!conn.source || !conn.target) return;
-      const newE: Edge = {
+      const newE: RFEdge = {
         id: `${conn.source}-${conn.target}-${conn.sourceHandle ?? ""}-${Date.now()}`,
         source: conn.source,
         target: conn.target,
@@ -344,7 +344,7 @@ function CanvasInner({
           onClick={async () => {
             const { positions } = await autoLayout(blocks, edges);
             layoutCacheRef.current = positions;
-            const next: V2Block[] = blocks.map((b) => ({
+            const next: Block[] = blocks.map((b) => ({
               ...b,
               position: positions[b.id] ?? b.position ?? { x: 0, y: 0 },
             }));

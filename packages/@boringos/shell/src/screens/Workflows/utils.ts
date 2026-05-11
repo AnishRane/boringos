@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: BUSL-1.1
 
-import type { V2Block, V2BlockKind, V2Edge } from "./types.js";
+import type { Block, BlockKind, Edge } from "./types.js";
 
 export function authHeaders(token: string | null, tenantId: string | undefined): Record<string, string> {
   const h: Record<string, string> = { "Content-Type": "application/json" };
@@ -9,11 +9,11 @@ export function authHeaders(token: string | null, tenantId: string | undefined):
   return h;
 }
 
-export function blockKind(b: V2Block): V2BlockKind {
-  return (b.kind ?? b.type ?? "tool") as V2BlockKind;
+export function blockKind(b: Block): BlockKind {
+  return (b.kind ?? b.type ?? "tool") as BlockKind;
 }
 
-export function blockLabel(b: V2Block): string {
+export function blockLabel(b: Block): string {
   if (b.name) return b.name;
   const k = blockKind(b);
   if (k === "tool" && b.tool) return b.tool.split(".").slice(-1)[0] ?? b.tool;
@@ -33,7 +33,7 @@ export function blockLabel(b: V2Block): string {
   return k;
 }
 
-export function blockSubLabel(b: V2Block): string | null {
+export function blockSubLabel(b: Block): string | null {
   const k = blockKind(b);
   if (k === "tool" && b.tool) {
     const parts = b.tool.split(".");
@@ -54,13 +54,13 @@ export function formatMs(ms: number): string {
 }
 
 /** Stable id generator — used when adding new blocks. */
-export function newBlockId(kind: V2BlockKind, existing: V2Block[]): string {
+export function newBlockId(kind: BlockKind, existing: Block[]): string {
   let n = 1;
   while (existing.some((b) => b.id === `${kind}_${n}`)) n += 1;
   return `${kind}_${n}`;
 }
 
-export function defaultBlock(kind: V2BlockKind, id: string, tool?: string): V2Block {
+export function defaultBlock(kind: BlockKind, id: string, tool?: string): Block {
   if (kind === "tool") {
     return { id, kind: "tool", tool: tool ?? "", inputs: {} };
   }
@@ -85,12 +85,12 @@ export function defaultBlock(kind: V2BlockKind, id: string, tool?: string): V2Bl
   return { id, kind };
 }
 
-export function edgeId(e: V2Edge): string {
+export function edgeId(e: Edge): string {
   return e.id ?? `${e.sourceBlockId}->${e.targetBlockId}:${e.sourceHandle ?? ""}`;
 }
 
 /** Stable category color per kind — used by node accent bars + palette. */
-export function kindAccent(kind: V2BlockKind): {
+export function kindAccent(kind: BlockKind): {
   bar: string;
   text: string;
   bg: string;

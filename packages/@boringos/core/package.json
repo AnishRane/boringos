@@ -17,10 +17,8 @@
   "license": "MIT",
   "dependencies": {
     "@boringos/agent": "workspace:*",
-    "@boringos/app-sdk": "workspace:*",
     "@boringos/connector-google": "workspace:*",
     "@boringos/connector-slack": "workspace:*",
-    "@boringos/control-plane": "workspace:*",
     "@boringos/db": "workspace:*",
     "@boringos/drive": "workspace:*",
     "@boringos/memory": "workspace:*",

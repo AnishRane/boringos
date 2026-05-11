@@ -36,6 +36,9 @@ export const EVENT_TYPES = [
   "workflow:block_failed",
   "workflow:block_waiting",
   "workflow:block_skipped",
+  // Phase 19 — module install/uninstall reflection in the shell
+  "module:installed",
+  "module:uninstalled",
 ] as const;
 
 export type EventType = (typeof EVENT_TYPES)[number];

@@ -1,5 +1,5 @@
-// Local types — the v1 `@boringos/connector` framework was
-// deleted. v2 callers (the Slack Module) construct this directly
+// Local connector-protocol types (formerly in /connector).
+// The Slack Module constructs this directly.
 // with `{ accessToken }`.
 export interface ActionResult {
   success: boolean;

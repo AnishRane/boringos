@@ -5,11 +5,11 @@
 
 import { Handle, Position, type NodeProps, type Node } from "@xyflow/react";
 
-import type { BlockRunStatus, V2Block, V2BlockKind } from "./types.js";
+import type { BlockRunStatus, Block, BlockKind } from "./types.js";
 import { blockKind, blockLabel, blockSubLabel, kindAccent } from "./utils.js";
 
 export interface BlockNodeData extends Record<string, unknown> {
-  block: V2Block;
+  block: Block;
   selected?: boolean;
   status?: BlockRunStatus | null;
   durationMs?: number | null;
@@ -41,7 +41,7 @@ function NodeShell({
   durationMs,
   children,
 }: {
-  kind: V2BlockKind;
+  kind: BlockKind;
   selected?: boolean;
   hasInput?: boolean;
   hasOutput?: boolean;

@@ -144,8 +144,21 @@ export function BrandProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const root = document.documentElement;
     root.style.setProperty("--color-accent", brand.primaryColor);
-    // Derive a slightly lighter accent for hover/highlight states.
-    root.style.setProperty("--color-accent-light", brand.primaryColor);
+    // Derive lighter accents and a subtle tint via color-mix so hover states
+    // actually contrast and tinted surfaces stay calm. Works for any brand
+    // primary, not just the Hebbs amber default.
+    root.style.setProperty(
+      "--color-accent-light",
+      `color-mix(in srgb, ${brand.primaryColor} 80%, white)`,
+    );
+    root.style.setProperty(
+      "--color-accent-bright",
+      `color-mix(in srgb, ${brand.primaryColor} 65%, white)`,
+    );
+    root.style.setProperty(
+      "--color-accent-tint",
+      `color-mix(in srgb, ${brand.primaryColor} 10%, transparent)`,
+    );
     root.style.setProperty("--color-navy", brand.secondaryColor);
     if (brand.faviconUrl) {
       const link = document.querySelector<HTMLLinkElement>('link[rel="icon"]');

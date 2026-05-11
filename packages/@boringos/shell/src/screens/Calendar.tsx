@@ -2,7 +2,7 @@
 //
 // Calendar screen — week + agenda views over the connected Google
 // calendar. Reads live from Google on every open (no DB cache for
-// v1; reverse-sync ticker is deferred per task_03).
+// ; reverse-sync ticker is deferred per task_03).
 //
 // Layout: tabbed switcher across [Week, Agenda] on the left pane,
 // shared detail pane on the right. Cron / Notion Calendar / Fantastical

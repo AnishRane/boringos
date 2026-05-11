@@ -1,10 +1,8 @@
 // SPDX-License-Identifier: MIT
 //
-// Lightweight in-process event bus. Connectors (and v2 modules)
-// emit events; subscribers (workflows, inbox routers, app-level
-// hooks) react. Moved here from `@boringos/connector` when that
-// package was deleted — events aren't a "connector" concept,
-// they're a generic pub/sub primitive the framework needs.
+// Lightweight in-process event bus. Connectors and modules emit
+// events; subscribers (workflows, inbox routers, app-level hooks)
+// react. Generic pub/sub primitive — not connector-specific.
 
 export interface ConnectorEvent {
   /** Originating module / connector kind, e.g. "google", "slack". */

@@ -36,6 +36,7 @@ export function TaskReplyBox({ task, onPosted }: TaskReplyBoxProps) {
   const isDone = task.status === "done" || task.status === "cancelled";
   const waitingOnUser = !isDone && task.nextActor === "human";
   const agentWorking = !isDone && task.nextActor === "agent";
+  const isApproval = task.originKind === "agent_action";
 
   if (isDone) {
     return (
@@ -46,6 +47,20 @@ export function TaskReplyBox({ task, onPosted }: TaskReplyBoxProps) {
       </section>
     );
   }
+
+  const decide = async (kind: "approve" | "reject") => {
+    setError(null);
+    setBusy(true);
+    try {
+      await client.decideTask(task.id, kind, body.trim() || undefined);
+      setBody("");
+      onPosted();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const sendToAgent = async () => {
     setError(null);
@@ -93,7 +108,8 @@ export function TaskReplyBox({ task, onPosted }: TaskReplyBoxProps) {
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
       e.preventDefault();
-      if (waitingOnUser) void sendToAgent();
+      if (isApproval && waitingOnUser) void decide("approve");
+      else if (waitingOnUser) void sendToAgent();
       else void sendNote();
     }
   };
@@ -101,7 +117,11 @@ export function TaskReplyBox({ task, onPosted }: TaskReplyBoxProps) {
   // Banner copy is intentionally verbatim per the design spec — no
   // creative synonyms. Predictable language matters more than clever
   // phrasing.
-  const banner = waitingOnUser ? (
+  const banner = isApproval && waitingOnUser ? (
+    <div className="rounded-t-lg bg-amber-50 border-b border-amber-200 px-3 py-2 text-xs font-medium text-amber-900">
+      Decision needed
+    </div>
+  ) : waitingOnUser ? (
     <div className="rounded-t-lg bg-amber-50 border-b border-amber-200 px-3 py-2 text-xs font-medium text-amber-900">
       Waiting on you
     </div>
@@ -111,7 +131,9 @@ export function TaskReplyBox({ task, onPosted }: TaskReplyBoxProps) {
     </div>
   ) : null;
 
-  const placeholder = waitingOnUser
+  const placeholder = isApproval && waitingOnUser
+    ? "Optional note — conditions, reasoning, alternatives…  (⌘+Enter = approve)"
+    : waitingOnUser
     ? "Write a reply, then choose Send back to agent or Mark done…  (⌘+Enter = send to agent)"
     : "Add a note for the agent to see on its next wake…  (⌘+Enter = send)";
 
@@ -134,7 +156,26 @@ export function TaskReplyBox({ task, onPosted }: TaskReplyBoxProps) {
           {error && (
             <span className="text-[11px] text-rose-600 max-w-[200px] truncate">{error}</span>
           )}
-          {waitingOnUser ? (
+          {isApproval && waitingOnUser ? (
+            <>
+              <button
+                type="button"
+                onClick={() => void decide("reject")}
+                disabled={busy}
+                className="text-xs font-medium px-3 py-1.5 rounded-md bg-rose-600 text-white hover:bg-rose-700 disabled:bg-border"
+              >
+                {busy ? "…" : "Reject"}
+              </button>
+              <button
+                type="button"
+                onClick={() => void decide("approve")}
+                disabled={busy}
+                className="text-xs font-medium px-3 py-1.5 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 disabled:bg-border"
+              >
+                {busy ? "…" : "Approve"}
+              </button>
+            </>
+          ) : waitingOnUser ? (
             <>
               <button
                 type="button"

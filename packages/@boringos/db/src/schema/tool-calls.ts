@@ -2,9 +2,9 @@
 //
 // `tool_calls` — audit row for every Tool invocation.
 //
-// Phase 1 of the v2 rebuild adds this table. Phase 2's dispatcher
+// Audit table written by the tool dispatcher.
 // writes to it. The table is unused until Phase 2 lands; the
-// migration is additive so it can ship now without touching v1
+// migration is additive so it can ship now without touching
 // code paths.
 //
 // One row per invocation:
@@ -12,7 +12,7 @@
 //  - In-process calls from workflow nodes
 //  - In-process calls from routines + admin endpoints + lifecycle
 //
-// All v1 callable surfaces (connector actions, framework callback
+// All legacy callable surfaces (connector actions, framework callback
 // handlers, plugin hooks) keep their existing logging until those
 // surfaces are retired.
 

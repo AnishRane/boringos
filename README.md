@@ -79,7 +79,7 @@ app.module(helloModule);
 await app.listen(3000);
 ```
 
-Embedded Postgres boots automatically, the v2 tool dispatcher
+Embedded Postgres boots automatically, the tool dispatcher
 mounts at `/api/tools/*`, and the agent's prompt now includes
 the `hello` skill plus the `hello.greet` tool.
 
@@ -150,8 +150,8 @@ audited in one table.
 - [`TOOLS.md`](TOOLS.md) — Tool spec, error model, audit, idempotency
 - [`SKILLS.md`](SKILLS.md) — Skill spec, file format, priorities
 - [`CLAUDE.md`](CLAUDE.md) — orientation for contributors
-- [`MIGRATION-V1-TO-V2.md`](MIGRATION-V1-TO-V2.md) — porting v1
-  connectors / apps / plugins
+- [`docs/install-flow.md`](docs/install-flow.md) — how Modules are
+  packaged, uploaded, installed per-tenant, and uninstalled
 - [`docs/INDEX.md`](docs/INDEX.md) — full doc navigation
 
 ---
@@ -161,8 +161,8 @@ audited in one table.
 | Package | Role |
 |---|---|
 | `@boringos/core` | `BoringOS` host, builder API, HTTP routes, Module registries |
-| `@boringos/module-sdk` | v2 Module / Tool / Skill type SDK (the spec) |
-| `@boringos/agent` | Execution engine, context pipeline, v2 registries + dispatcher |
+| `@boringos/module-sdk` | Module / Tool / Skill type SDK (the spec) |
+| `@boringos/agent` | Execution engine, context pipeline, registries + dispatcher |
 | `@boringos/runtime` | 6 CLI runtimes + subprocess spawning |
 | `@boringos/memory` | `MemoryProvider` interface + Hebbs adapter |
 | `@boringos/drive` | `StorageBackend` + `DriveManager` |
@@ -183,18 +183,6 @@ audited in one table.
 
 - [`examples/quickstart/`](examples/quickstart/) — boot, create an
   agent, assign a task, watch it execute
-
----
-
-## Coming from v1?
-
-v2 is greenfield: connectors, apps, plugins, copilot, and the 6
-hand-written context providers all collapse into the Module shape.
-The agent surface is one URL pattern (`/api/tools/<name>`) instead
-of three.
-
-See [`MIGRATION-V1-TO-V2.md`](MIGRATION-V1-TO-V2.md) for the
-mechanical porting steps.
 
 ---
 

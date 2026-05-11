@@ -15,7 +15,7 @@ export interface RoutineScheduler {
  * Checks every 60 seconds for routines whose cron expression matches the current minute.
  *
  * Routines can target either an agent (assigneeAgentId) or a workflow (workflowId).
- * When targeting a workflow, the workflow runs through the v2 dispatcher's
+ * When targeting a workflow, the workflow runs through the dispatcher.s
  * `workflow.run` tool — the same path admin-triggered runs use.
  */
 export function createRoutineScheduler(
@@ -32,7 +32,7 @@ export function createRoutineScheduler(
       if (shouldRun(routine.cronExpression, routine.timezone ?? "UTC")) {
         try {
           if (routine.workflowId && toolRegistry) {
-            // Workflow-triggered routine — go through v2 dispatch.
+            // Workflow-triggered routine — dispatch via runWorkflow.
             await runWorkflow(
               { db, toolRegistry },
               {

@@ -1,6 +1,6 @@
 # MODULES.md — the Module manifest spec
 
-Reference for v2's universal component shape. If you're starting
+Reference for the universal component shape. If you're starting
 from scratch, read [`BUILD-A-MODULE.md`](BUILD-A-MODULE.md) first
 — this file is the canonical field-by-field spec.
 
@@ -351,10 +351,10 @@ oauth: {
 
 > **Status:** `OAuthConfig` is declared in the SDK; built-in
 > connector Modules (`connector-google`, `connector-slack`)
-> currently still go through the v1 `connectors` table for
-> credentials. The planned end state per task_12 §5.2 is a
-> per-Module `module_credentials` table with encryption at rest
-> and 401-driven refresh.
+> currently still go through the legacy `connectors` table for
+> credentials. The planned end state is a per-Module
+> `module_credentials` table with encryption at rest and
+> 401-driven refresh.
 
 ---
 
@@ -402,7 +402,7 @@ workflows: [
 ]
 ```
 
-Block schema is the v2 DAG shape — see
+Block schema is the DAG shape — see
 `docs/blockers/task_12_greenfield_rebuild.md` §13b.3.
 
 ### Agents
@@ -493,6 +493,6 @@ into") — exposed in the admin UI per the Module's settings panel.
 - [`BUILD-A-MODULE.md`](BUILD-A-MODULE.md) — step-by-step guide
 - [`TOOLS.md`](TOOLS.md) — Tool spec
 - [`SKILLS.md`](SKILLS.md) — Skill spec
-- [`MIGRATION-V1-TO-V2.md`](MIGRATION-V1-TO-V2.md) — porting v1 connectors / apps / plugins
+- [`docs/install-flow.md`](docs/install-flow.md) — packaging, upload, install/uninstall flow
 - `packages/@boringos/module-sdk/src/types.ts` — TypeScript types
-- `packages/@boringos/core/src/v2-modules/` — built-in Module implementations
+- `packages/@boringos/core/src/modules/` — built-in Module implementations

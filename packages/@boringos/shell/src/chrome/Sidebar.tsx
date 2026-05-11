@@ -1,18 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 //
-// Shell sidebar — fixed nav + app-contributed nav from the slot registry.
-// Lifted from boringos-crm/packages/web/src/components/Sidebar.tsx.
-//
-// Differences vs the CRM original:
-// - CRM-specific NAV_ITEMS removed. The shell ships a fixed set of
-//   shell-mandatory entries (Home, Copilot, Inbox, Tasks, Drive, etc.).
-// - App-contributed nav entries are read from the slot registry via
-//   useSlot("pages") and rendered between the "Workspace" and "Tools"
-//   groups.
-// - Tenant menu + user card restored in A4 against the new
-//   AuthProvider (was dropped in A3 because auth wasn't lifted yet).
-// - Plain Tailwind classes (no custom design tokens). Branded styling
-//   lands in A9 via the BrandProvider.
+// Shell sidebar — fixed nav + plugin-contributed nav from pluginHost
+// (gated on useInstalledModules so only installed plugins show).
 
 import { useState } from "react";
 import { NavLink } from "react-router-dom";
@@ -22,10 +11,8 @@ import {
   Calendar as CalendarIcon,
   CheckSquare,
   Cog,
-  Database,
   DollarSign,
   Folders,
-  GitBranch,
   Home as HomeIcon,
   Inbox as InboxIcon,
   MessageSquare,
@@ -37,22 +24,16 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
+import { useInstalledModules } from "@boringos/ui";
 import { useAuth } from "../auth/AuthProvider.js";
 import { useBrand } from "../branding/BrandProvider.js";
-import { useSlot } from "../slots/context.js";
+import { pluginHost } from "../plugin-host/index.js";
 
 interface NavItem {
   to: string;
   label: string;
   Icon: LucideIcon;
 }
-
-// Sidebar groups are organised by audience, not data model:
-//  - WORK: everyone — daily driver
-//  - CABINET: read-for-everyone, edit-admin (gated per-action inside)
-//  - EXTEND: admin only — install/configure capabilities
-//  - ADMIN: admin only — tenant operations
-// EXTEND + ADMIN are filtered at render time on user.role === "admin".
 
 const WORK_ITEMS: NavItem[] = [
   { to: "/home", label: "Home", Icon: HomeIcon },
@@ -69,7 +50,7 @@ const CABINET_ITEMS: NavItem[] = [
 ];
 
 const EXTEND_ITEMS: NavItem[] = [
-  { to: "/apps", label: "Apps", Icon: AppWindow },
+  { to: "/modules", label: "Modules", Icon: AppWindow },
   { to: "/connectors", label: "Connectors", Icon: Plug },
   { to: "/routines", label: "Routines", Icon: Repeat },
   { to: "/budgets", label: "Budgets", Icon: DollarSign },
@@ -115,26 +96,29 @@ export function Sidebar() {
   const { user, logout, switchTenant } = useAuth();
   const { brand } = useBrand();
   const [showTenantMenu, setShowTenantMenu] = useState(false);
+  const installed = useInstalledModules();
 
   const hasMultipleTenants = (user?.tenants?.length ?? 0) > 1;
   const isAdmin = user?.role === "admin";
 
-  // App-contributed nav entries. Sorted by label.
-  const appPages = useSlot("pages");
-  const appNavItems: { appId: string; nav: NavItem }[] = appPages
-    .map((c) => ({
-      appId: c.appId,
-      nav: {
-        to: `/${c.appId}/${c.slotId}`,
-        label: c.slot.id,
-        Icon: GitBranch,
-      },
-    }))
-    .sort((a, b) => a.nav.label.localeCompare(b.nav.label));
+  const pluginItems = pluginHost.navItems.filter(
+    (n) => !n.hidden && installed.has(n.moduleId),
+  );
+
+  // Group plugin nav items by their containing module.
+  const pluginGroups = new Map<
+    string,
+    { label: string; items: typeof pluginItems }
+  >();
+  for (const n of pluginItems) {
+    const key = n.moduleId;
+    const existing = pluginGroups.get(key);
+    if (existing) existing.items.push(n);
+    else pluginGroups.set(key, { label: n.moduleLabel, items: [n] });
+  }
 
   return (
     <aside className="w-[248px] bg-bg border-r border-border p-2 flex flex-col shrink-0 overflow-y-auto">
-      {/* Brand / tenant header — A9 BrandProvider personalizes the brand half */}
       <div className="px-2 pb-3 relative">
         <button
           type="button"
@@ -200,23 +184,20 @@ export function Sidebar() {
         <GroupHeading>Work</GroupHeading>
         <NavGroup items={WORK_ITEMS} />
 
-        {appNavItems.length > 0 && (
-          <>
-            <GroupHeading>Installed</GroupHeading>
-            {appNavItems.map(({ appId, nav }) => {
-              const { Icon } = nav;
+        {Array.from(pluginGroups.entries()).map(([moduleId, group]) => (
+          <div key={moduleId}>
+            <GroupHeading>{group.label}</GroupHeading>
+            {group.items.map((n) => {
+              const Icon = n.icon ?? AppWindow;
               return (
-                <NavLink key={`${appId}/${nav.to}`} to={nav.to} className={linkClasses}>
+                <NavLink key={`${moduleId}.${n.id}`} to={n.path} className={linkClasses}>
                   <Icon className="h-4 w-4 shrink-0 text-muted-strong" aria-hidden />
-                  <span className="flex-1">{nav.label}</span>
-                  <span className="text-[10px] text-muted font-mono">
-                    {appId}
-                  </span>
+                  <span className="flex-1">{n.label}</span>
                 </NavLink>
               );
             })}
-          </>
-        )}
+          </div>
+        ))}
 
         <GroupHeading>Cabinet</GroupHeading>
         <NavGroup items={CABINET_ITEMS} />

@@ -1,8 +1,8 @@
 # TOOLS.md — the Tool spec
 
-Reference for v2's universal callable shape. Every operation an
-agent can invoke — read a task, send an email, move a deal — is
-a Tool, registered by a Module, dispatched at one URL.
+Reference for the framework's universal callable shape. Every
+operation an agent can invoke — read a task, send an email, move
+a deal — is a Tool, registered by a Module, dispatched at one URL.
 
 The TypeScript types live in
 [`packages/@boringos/module-sdk/src/types.ts`](packages/@boringos/module-sdk/src/types.ts).

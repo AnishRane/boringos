@@ -5,7 +5,7 @@ import type { MemoryProvider } from "@boringos/memory";
 import type { RuntimeRegistry, AgentRunCallbacks, CostEvent } from "@boringos/runtime";
 import type { StorageBackend } from "@boringos/drive";
 import type { QueueAdapter } from "@boringos/pipeline";
-// v1 connector registry removed — v2 modules are the only catalog now.
+// legacy connector registry removed — modules are the only catalog now.
 import { createInProcessQueue } from "@boringos/pipeline";
 import { createHook, generateId } from "@boringos/shared";
 import type { Hook } from "@boringos/shared";
@@ -50,7 +50,7 @@ export interface AgentEngineConfig {
 
 function registerDefaultProviders(pipeline: ContextPipeline, config: AgentEngineConfig): void {
   // Per-agent / per-run state providers. Module SKILL.md files
-  // and the v2 tool catalog (added separately by core/boringos.ts)
+  // and the tool catalog (added separately by core/boringos.ts)
   // cover the rest of the prompt surface.
   pipeline.add(headerProvider);
   // Inject the current time near the top of the system prompt so
@@ -183,6 +183,7 @@ export function createAgentEngine(config: AgentEngineConfig): AgentEngine {
         instructions: agent.instructions,
         runtimeId: agent.runtimeId,
         fallbackRuntimeId: agent.fallbackRuntimeId,
+        model: (agent as { model?: string | null }).model ?? null,
         budgetMonthlyCents: agent.budgetMonthlyCents,
         spentMonthlyCents: agent.spentMonthlyCents,
         pauseReason: agent.pauseReason,
@@ -222,6 +223,9 @@ export function createAgentEngine(config: AgentEngineConfig): AgentEngine {
         }
       }
     }
+    // Per-agent model override wins over runtime defaults.
+    const agentModel = (agent as { model?: string | null }).model;
+    if (agentModel) runtimeConfig.model = agentModel;
     const runtime = runtimes.get(runtimeType);
     if (!runtime) {
       await lifecycle.updateStatus(runId, "failed", { error: `No runtime found for type: ${runtimeType}` });

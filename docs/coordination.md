@@ -1,11 +1,19 @@
 # Coordination
 
+> ⚠️ **Legacy design doc.** References to "apps" and the App SDK
+> describe the v1 plan; the current shape is a single **Module**
+> that contributes both events (via `webhooks` / `routines`) and
+> tools. The coordination *patterns* (events fan-out, suggestion
+> lists, role registry) still apply — substitute "Module" for
+> "app" throughout. See [`MODULES.md`](../MODULES.md) for the
+> current shape.
+
 > How shell and apps coordinate at runtime — what flows through events, what flows through workflows, and why the shell never needs to know which apps exist.
 
 This doc captures the runtime flow model: how a single event (an email arriving) becomes the right work happening in the right places, without the shell having a single line of code that mentions any specific app.
 
 **Audience:** App developers designing event subscriptions; platform team wiring runtime; reviewers checking the architecture.
-**Read first:** [Overview](./overview.md), [Shell Screens](./shell-screens.md), [App SDK Reference](./app-sdk.md).
+**Read first:** [Overview](./overview.md), [Shell Screens](./shell-screens.md), [`MODULES.md`](../MODULES.md).
 
 ---
 

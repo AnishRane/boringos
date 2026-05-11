@@ -10,12 +10,14 @@ export const BORINGOS_BRAND: Brand = {
   productTagline: "",
   logoUrl: "",
   faviconUrl: "",
-  // Hebbs amber-700 — matches the marketing site's accent. Tenants
-  // can override via brand.primaryColor in tenant_settings; the
-  // BrandProvider's CSS-var bridge propagates the override into
-  // --color-accent so every semantic-token consumer repaints.
+  // "Sun" — amber-700, the warm accent in the awake palette (Sun / Ink /
+  // Paper / Moss / Signal / Spark, see index.css). Reserved for "agent
+  // working / attention here"; the canvas itself is paper+ink so the
+  // accent stays vivid-on-purpose. Tenants override via brand.primaryColor
+  // in tenant_settings; BrandProvider's CSS-var bridge derives lighter
+  // accents and tint via color-mix so any brand color works.
   primaryColor: "#B45309",
-  secondaryColor: "#1E293B", // navy/slate-800 — matches website's dark band
+  secondaryColor: "#0B1220", // "Ink" — deep blue-black, anchors the dark band
   loginBackground: "",
   emailFromName: "BoringOS",
 };

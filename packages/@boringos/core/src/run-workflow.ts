@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 //
-// Tiny shim that runs a saved workflow through the v2 dispatcher's
+// Tiny shim that runs a saved workflow through the dispatcher.s
 // `workflow.run` tool. Replaces every call site that used to invoke
 // `workflowEngine.execute(...)`. Lives in core because the scheduler,
 // admin routes, and event-dispatcher all need it.

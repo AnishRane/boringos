@@ -1,18 +1,19 @@
 // SPDX-License-Identifier: BUSL-1.1
 //
-// Coverage for the inbox triage gate added when "agent suggests a
-// reply for a noreply@ email" was reported. The fix has two halves:
+// Coverage for the inbox triage path. Two halves:
 //
 //   1. Forward-sync prefilter — a deterministic header check writes
 //      `metadata.email` and (for clearly-automated mail) pre-fills
-//      `metadata.triage` so the LLM agent never runs on a newsletter.
-//      Tested at the pure-function level via `buildIngestMetadata`.
+//      `metadata.triage` with the v2 `noise` label so the LLM agent
+//      never runs on a newsletter. Tested at the pure-function level
+//      via `buildIngestMetadata`.
 //
 //   2. `framework.inbox.update` emits `triage.classified` whenever a
 //      caller writes a triage block. The replier subscribes to that
-//      event in `boringos.ts` — without it the replier would never
-//      wake. Tested by booting the framework module, dispatching the
-//      tool, and asserting the event fired.
+//      event in `boringos.ts` and wakes on every emit (no taxonomy /
+//      score gate — the replier itself decides skip-vs-draft).
+//      Tested by booting the framework module, dispatching the tool,
+//      and asserting the event fired + the replier task was queued.
 
 import { describe, it, expect } from "vitest";
 
@@ -48,12 +49,11 @@ describe("buildIngestMetadata (forward-sync prefilter)", () => {
     expect((email.automated as { automated: boolean }).automated).toBe(true);
     const triage = metadata.triage as Record<string, unknown>;
     expect(triage).toBeTruthy();
-    expect(triage.classification).toBe("newsletter");
+    expect(triage.label).toBe("noise");
     expect(triage.source).toBe("header-prefilter");
-    expect(triage.score).toBe(5);
   });
 
-  it("flags noreply@ as automated → spam classification", () => {
+  it("flags noreply@ as automated → noise label", () => {
     const { metadata, automated } = buildIngestMetadata({
       id: "abc",
       from: "noreply@vendor.com",
@@ -64,8 +64,7 @@ describe("buildIngestMetadata (forward-sync prefilter)", () => {
     expect(automated.kind).toBe("automated");
     const triage = metadata.triage as Record<string, unknown> | undefined;
     expect(triage).toBeTruthy();
-    expect(triage!.classification).toBe("spam");
-    expect(triage!.score).toBe(1);
+    expect(triage!.label).toBe("noise");
   });
 
   it("leaves metadata.triage empty for clearly-human mail", () => {
@@ -214,8 +213,7 @@ describe("framework.inbox.update emits triage.classified", () => {
                 automated: { automated: false, kind: null, reasons: [] },
               },
               triage: {
-                classification: "lead",
-                score: 75,
+                label: "important",
                 rationale: "vendor with stated value",
                 classifiedAt: new Date().toISOString(),
                 source: "agent",
@@ -233,8 +231,7 @@ describe("framework.inbox.update emits triage.classified", () => {
         const evt = seenEvents[0];
         expect(evt.type).toBe("triage.classified");
         expect(evt.data.itemId).toBe(itemId);
-        expect(evt.data.classification).toBe("lead");
-        expect(evt.data.score).toBe(75);
+        expect(evt.data.label).toBe("important");
         expect(evt.data.source).toBe("agent");
       } finally {
         await server.close();
@@ -244,7 +241,7 @@ describe("framework.inbox.update emits triage.classified", () => {
   );
 
   it(
-    "the boringos.ts gating handler only wakes the replier for actionable mail",
+    "wakes the replier on every triage.classified event (no taxonomy / score gate)",
     async () => {
       const { BoringOS, createFrameworkModule } = await import("@boringos/core");
       const { signCallbackToken } = await import("@boringos/agent");
@@ -387,50 +384,52 @@ describe("framework.inbox.update emits triage.classified", () => {
         // alone covers.
         const flush = () => new Promise((r) => setTimeout(r, 100));
 
-        // Case 1 — newsletter classification: replier should NOT wake.
+        // The framework no longer pre-filters. Every classified item
+        // — noise, fyi, important, urgent, header-prefilter or
+        // agent-classified — wakes the replier. Skipping is the
+        // replier's job (it reads metadata.triage.label + headers and
+        // decides). Each case below should produce exactly one
+        // replier task.
+
+        // Case 1 — noise label (was: newsletter under v1 vocab).
         const item1 = await seedItem();
         await writeTriage(item1, {
-          classification: "newsletter",
-          score: 5,
+          label: "noise",
           rationale: "footer says unsubscribe",
           classifiedAt: new Date().toISOString(),
           source: "agent",
         });
         await flush();
-        expect(await replierTaskCount(item1)).toBe(0);
+        expect(await replierTaskCount(item1)).toBe(1);
 
-        // Case 2 — lead with score under threshold: replier should NOT wake.
+        // Case 2 — fyi label.
         const item2 = await seedItem();
         await writeTriage(item2, {
-          classification: "lead",
-          score: 30,
-          rationale: "low signal",
+          label: "fyi",
+          rationale: "informational",
           classifiedAt: new Date().toISOString(),
           source: "agent",
         });
         await flush();
-        expect(await replierTaskCount(item2)).toBe(0);
+        expect(await replierTaskCount(item2)).toBe(1);
 
-        // Case 3 — header-prefilter source even with eligible classification:
-        // replier should NOT wake (the deterministic path is opaque to the
-        // LLM-driven replier).
+        // Case 3 — header-prefilter source: still wakes the replier;
+        // the replier reads `prefilter: automated` from headers and
+        // skips drafting itself.
         const item3 = await seedItem();
         await writeTriage(item3, {
-          classification: "lead",
-          score: 75,
+          label: "noise",
           rationale: "prefilter",
           classifiedAt: new Date().toISOString(),
           source: "header-prefilter",
         });
         await flush();
-        expect(await replierTaskCount(item3)).toBe(0);
+        expect(await replierTaskCount(item3)).toBe(1);
 
-        // Case 4 — actionable mail: replier SHOULD wake (one task created
-        // for the replier with originId == item id).
+        // Case 4 — important: replier wakes and would draft a reply.
         const item4 = await seedItem();
         await writeTriage(item4, {
-          classification: "lead",
-          score: 75,
+          label: "important",
           rationale: "vendor with stated value",
           classifiedAt: new Date().toISOString(),
           source: "agent",
@@ -505,8 +504,7 @@ describe("framework.inbox.update emits triage.classified", () => {
         const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
 
         const triageBlock = {
-          classification: "internal",
-          score: 60,
+          label: "important",
           rationale: "same domain",
           classifiedAt: new Date().toISOString(),
           source: "agent",

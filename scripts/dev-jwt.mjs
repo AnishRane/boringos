@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 //
-// Dev helper: sign a v2 callback JWT for the first tenant + agent
+// Dev helper: sign a callback JWT for the first tenant + agent
 // in the DB so you can curl /api/tools/* by hand.
 //
 // Connects to the dev server's embedded Postgres by URL (no

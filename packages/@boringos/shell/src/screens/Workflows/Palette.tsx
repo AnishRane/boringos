@@ -6,9 +6,9 @@
 import { Command } from "cmdk";
 import { useEffect, useMemo, useRef } from "react";
 
-import type { ToolRow, V2BlockKind } from "./types.js";
+import type { ToolRow, BlockKind } from "./types.js";
 
-const CONTROL_FLOW: { kind: V2BlockKind; label: string; hint: string }[] = [
+const CONTROL_FLOW: { kind: BlockKind; label: string; hint: string }[] = [
   { kind: "trigger", label: "Trigger", hint: "Entry point — receives the trigger payload" },
   { kind: "condition", label: "Condition (if)", hint: "Branch true / false on a value" },
   { kind: "for_each", label: "For each", hint: "Iterate an array, dispatch a tool per item" },
@@ -23,7 +23,7 @@ export interface PaletteProps {
   onOpenChange: (open: boolean) => void;
   tools: ToolRow[];
   /** Called when user picks a control-flow kind. */
-  onPickKind: (kind: V2BlockKind) => void;
+  onPickKind: (kind: BlockKind) => void;
   /** Called when user picks a tool. */
   onPickTool: (tool: ToolRow) => void;
 }
