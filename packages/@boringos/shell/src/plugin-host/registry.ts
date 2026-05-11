@@ -5,6 +5,13 @@
 // modules.config.ts. Sidebar + DynamicPluginRoutes + EntityRouter
 // read from this; install gating happens at the consumer (filter
 // by useInstalledModules()).
+//
+// task_22 / U4.5 — registry is now mutable at runtime.
+// `unregister(id)` drops a previously-registered module so removing
+// a `.hebbsmod` package immediately collapses its sidebar entries.
+// A simple subscriber pattern lets React consumers re-render on
+// register/unregister via `useSyncExternalStore` semantics — see
+// `<Sidebar>` and `<DynamicPluginRoutes>`.
 
 import type {
   PluginUI,
@@ -18,6 +25,13 @@ import type {
 
 export interface PluginHost {
   register(ui: PluginUI): void;
+  /** Drop a previously-registered module. No-op if not present. */
+  unregister(moduleId: string): void;
+  /** Subscribe to register/unregister. Returns an unsubscribe fn. */
+  subscribe(fn: () => void): () => void;
+  /** Stable identity that flips on every change — useful for
+   *  `useSyncExternalStore` getSnapshot. */
+  getSnapshot(): number;
   /** All registered modules. */
   modules: PluginUI[];
   /** All nav items (sorted by module label, then order). Each carries its moduleId. */
@@ -36,6 +50,20 @@ export interface PluginHost {
 
 function createPluginHost(): PluginHost {
   const modules: PluginUI[] = [];
+  const subscribers = new Set<() => void>();
+  let version = 0;
+
+  function notify() {
+    version += 1;
+    for (const fn of subscribers) {
+      try {
+        fn();
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.warn("[pluginHost] subscriber threw:", e);
+      }
+    }
+  }
 
   return {
     register(ui) {
@@ -48,6 +76,22 @@ function createPluginHost(): PluginHost {
       } else {
         modules.push(ui);
       }
+      notify();
+    },
+    unregister(moduleId) {
+      const idx = modules.findIndex((m) => m.moduleId === moduleId);
+      if (idx < 0) return;
+      modules.splice(idx, 1);
+      notify();
+    },
+    subscribe(fn) {
+      subscribers.add(fn);
+      return () => {
+        subscribers.delete(fn);
+      };
+    },
+    getSnapshot() {
+      return version;
     },
     get modules() {
       return modules;

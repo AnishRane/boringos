@@ -123,6 +123,76 @@ export interface InstallInfo {
   [k: string]: unknown;
 }
 
+/**
+ * One row from `module_packages` — a `.hebbsmod` bundle that was
+ * uploaded to the host. This is the host-global layer; per-tenant
+ * install state lives in `InstallInfo`.
+ *
+ * See `docs/install-flow.md §1.4`.
+ */
+export interface ModulePackageInfo {
+  id: string;
+  version: string;
+  kind: "connector" | "module" | "hybrid";
+  contentHash: string;
+  signaturePublisherId: string | null;
+  uploadedAt: string;
+  storePath: string;
+}
+
+/** 201 success envelope from `POST /api/admin/modules/upload`. */
+export interface ModuleUploadSuccess {
+  ok: true;
+  id: string;
+  version: string;
+  kind: "connector" | "module" | "hybrid";
+  contentHash: string;
+  toolsAdded: number;
+  skillsAdded: number;
+  storePath: string;
+}
+
+/** 4xx/5xx error envelope from `POST /api/admin/modules/upload`. */
+export interface ModuleUploadError {
+  ok: false;
+  error: {
+    code: string;
+    message: string;
+    /** For `duplicate` / `version_exists` — info about the existing row. */
+    existing?: unknown;
+    /** For `installed` — tenants that still have it installed. */
+    tenants?: string[];
+    detail?: string;
+  };
+}
+
+export type ModuleUploadResult = ModuleUploadSuccess | ModuleUploadError;
+
+/** 200 success envelope from `DELETE /api/admin/modules/:id?version=…`. */
+export interface ModuleDeleteSuccess {
+  ok: true;
+  id: string;
+  version: string;
+  toolsRemoved: number;
+  skillsRemoved: number;
+  restartRecommended: boolean;
+  uninstallFailures: Array<{ tenantId: string; reason: string }>;
+}
+
+/** 4xx/5xx error envelope from `DELETE /api/admin/modules/:id?version=…`. */
+export interface ModuleDeleteError {
+  ok: false;
+  error: {
+    code: string;
+    message: string;
+    /** For `installed` (409) — tenants that still have it installed. */
+    tenants?: string[];
+    detail?: string;
+  };
+}
+
+export type ModuleDeleteResult = ModuleDeleteSuccess | ModuleDeleteError;
+
 export interface TeamMember {
   userId: string;
   name: string;
@@ -255,6 +325,30 @@ export interface BoringOSClient {
   installModule(moduleId: string): Promise<{ ok: boolean; hookError?: string }>;
   /** Uninstall a module for the current tenant. */
   uninstallModule(moduleId: string): Promise<{ ok: boolean; hookError?: string }>;
+
+  /**
+   * Host-global packages — every `.hebbsmod` bundle that has been
+   * uploaded. Each entry is one (id, version) pair. Built-in modules
+   * registered via `app.module(...)` at boot do NOT appear here.
+   */
+  getModulePackages(): Promise<ModulePackageInfo[]>;
+  /**
+   * Upload a `.hebbsmod` bundle. Streams as multipart/form-data with a
+   * `file` field. Does NOT throw on non-2xx — returns the structured
+   * error envelope so the UI can render specific messages (e.g. the
+   * 409 `version_exists` / `duplicate` path).
+   */
+  uploadModulePackage(file: File | Blob): Promise<ModuleUploadResult>;
+  /**
+   * Delete a package row + remove its extracted store directory. Does
+   * NOT throw on non-2xx — the 409 `installed` path returns the list
+   * of tenants still using it so the UI can prompt for force-delete.
+   */
+  deleteModulePackage(
+    id: string,
+    version: string,
+    force?: boolean,
+  ): Promise<ModuleDeleteResult>;
 
   // Team + invitations (mounted under /api/auth/*)
   getTeam(): Promise<TeamMember[]>;
@@ -550,6 +644,90 @@ export function createBoringOSClient(config: BoringOSClientConfig): BoringOSClie
         headers: headers(),
       });
       return res.json() as Promise<{ ok: boolean; hookError?: string }>;
+    },
+
+    // Module packages — host-global `.hebbsmod` bundle records.
+    getModulePackages: async () => {
+      const res = await get<{ packages: ModulePackageInfo[] }>(
+        `${api}/modules/packages`,
+      );
+      return res.packages;
+    },
+    uploadModulePackage: async (file: File | Blob) => {
+      const form = new FormData();
+      form.append("file", file);
+      // Build headers manually — do NOT set Content-Type. The browser
+      // fills in the multipart boundary; setting it explicitly would
+      // break the body parse.
+      const h: Record<string, string> = {};
+      if (config.apiKey) h["X-API-Key"] = config.apiKey;
+      if (config.tenantId) h["X-Tenant-Id"] = config.tenantId;
+      if (config.token) h["Authorization"] = `Bearer ${config.token}`;
+      let res: Response;
+      try {
+        res = await fetch(`${baseUrl}${api}/modules/upload`, {
+          method: "POST",
+          headers: h,
+          body: form,
+        });
+      } catch (err) {
+        return {
+          ok: false,
+          error: {
+            code: "network_error",
+            message: err instanceof Error ? err.message : String(err),
+          },
+        };
+      }
+      // Either success (201) or structured error envelope (4xx/5xx).
+      // Do not throw — the UI surfaces the specific error code.
+      try {
+        return (await res.json()) as ModuleUploadResult;
+      } catch (err) {
+        return {
+          ok: false,
+          error: {
+            code: "invalid_response",
+            message: `Upload returned non-JSON ${res.status} response`,
+            detail: err instanceof Error ? err.message : String(err),
+          },
+        };
+      }
+    },
+    deleteModulePackage: async (
+      id: string,
+      version: string,
+      force?: boolean,
+    ) => {
+      const params = new URLSearchParams({ version });
+      if (force) params.set("force", "true");
+      let res: Response;
+      try {
+        res = await fetch(
+          `${baseUrl}${api}/modules/${encodeURIComponent(id)}?${params}`,
+          { method: "DELETE", headers: headers() },
+        );
+      } catch (err) {
+        return {
+          ok: false,
+          error: {
+            code: "network_error",
+            message: err instanceof Error ? err.message : String(err),
+          },
+        };
+      }
+      try {
+        return (await res.json()) as ModuleDeleteResult;
+      } catch (err) {
+        return {
+          ok: false,
+          error: {
+            code: "invalid_response",
+            message: `Delete returned non-JSON ${res.status} response`,
+            detail: err instanceof Error ? err.message : String(err),
+          },
+        };
+      }
     },
 
     // Skills

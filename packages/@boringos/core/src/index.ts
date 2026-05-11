@@ -63,6 +63,12 @@ export {
   verifyModuleSignature,
   loadTrustedPublishers,
 } from "./module-signature.js";
+
+export {
+  createModuleUiRoutes,
+  resolveAssetPath as resolveModuleUiAssetPath,
+  cacheControlFor as moduleUiCacheControlFor,
+} from "./module-ui-routes.js";
 export type {
   PublisherKey,
   SignatureVerifyResult,

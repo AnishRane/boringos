@@ -403,6 +403,59 @@ the **default export** of `index.mjs`. After import, the host
 validates that the runtime export's `id` and `version` match
 `module.json` exactly. Mismatches are rejected at upload time.
 
+#### Pointing at a sibling UI build (`ui.sourcePath`)
+
+A common monorepo pattern is to keep your module's prebuilt UI
+in a *sibling* package (Vite + React in `packages/web/`, the
+module server in `packages/server/`). The UI build output lives
+at `packages/web/dist/` — NOT inside the server package
+`pack-hebbsmod` is invoked from.
+
+For that layout, declare the path explicitly in `module.json`:
+
+```json
+{
+  "id": "crm",
+  "version": "0.3.0",
+  "kind": "hybrid",
+  "ui": {
+    "entry": "./ui/index.mjs",
+    "sourcePath": "../web/dist"
+  }
+}
+```
+
+`ui.sourcePath` is resolved RELATIVE to the module package
+directory (where `module.json` lives) and the directory's
+contents are copied verbatim into the bundle under `ui/`. If
+absent, the CLI falls back to `<pkg>/dist/ui/` then
+`<pkg>/ui/dist/`. The framework then serves the assets at
+`/modules/<id>/ui/*` so the shell can `import()` them — see
+`module-ui-routes.ts` for the URL contract.
+
+Configure your sibling UI's Vite build to emit a **stable**
+entry filename (no content hash) so `module.json`'s `ui.entry`
+can reference it without rewrites:
+
+```ts
+// packages/web/vite.config.ts
+import { defineConfig } from "vite";
+
+export default defineConfig({
+  build: {
+    lib: {
+      entry: "src/ui.ts",
+      formats: ["es"],
+      fileName: () => "index.mjs",
+    },
+    rollupOptions: {
+      external: ["react", "react-dom", "react-router-dom", "@boringos/ui"],
+      output: { entryFileNames: "index.mjs" },
+    },
+  },
+});
+```
+
 ### Pack it
 
 Two paths. Pick whichever fits your workflow.
@@ -549,3 +602,57 @@ set `HEBBS_DEV_MODULES=true` to accept them with a warning.
 The framework signs the concat of `module.json` + `index.mjs`
 + `ui/index.mjs` (if present). Any byte-level change after
 signing — even a re-zip — invalidates the signature.
+
+## Hot UI loading
+
+The shell loads module UI bundles **at runtime**, not at compile
+time. When the browser renders for an authenticated user, the
+shell's `RuntimePluginsLoader` walks the tenant's installed-module
+set (`useInstalledModules()`) and dynamic-imports each one from:
+
+```
+GET /modules/<id>/ui/index.mjs
+```
+
+That URL is served by the framework from the `ui/` directory of
+the extracted `.hebbsmod`. The import yields a module record; the
+loader looks for a `PluginUI` export (tries `default`, then
+`<id>UI` in camelCase, then `<id>`, then any duck-typed match),
+validates that `ui.moduleId` matches the requested id, and calls
+`pluginHost.register(ui)`. Sidebar + routes re-render
+immediately via a `useSyncExternalStore` subscription on the
+registry.
+
+**No more `modules.config.ts` edits.** Authors don't need to
+register their plugin in the shell's static config — upload via
+the **Apps** screen is sufficient. The static file is still
+checked at boot (empty by default), and is useful when iterating
+locally without re-running `pnpm pack:modules` for every UI edit:
+add a workspace link, list the loader in `modules.config.ts`,
+and the bundle is co-built with the shell. Once you're ready to
+ship a `.hebbsmod`, remove the static entry — runtime registration
+is idempotent and last-write-wins, but keeping both paths active
+just wastes a load.
+
+**Cache behavior.** The framework sends:
+
+- `index.mjs` → `Cache-Control: no-cache, must-revalidate` —
+  re-upload picks up new bytes on the next browser fetch.
+- `assets/*` (hashed chunks) → `Cache-Control: public, max-age=3600`
+  — safe to cache long-term because the filename embeds a content
+  hash.
+
+The browser's ESM module graph is URL-keyed and persists for the
+page lifetime: a same-version re-upload of `index.mjs` may need a
+page reload for the new bundle to fully replace the previous one.
+Bumping the module's version forces a fresh URL (no collision).
+
+**Realtime sync.** The shell subscribes to `module:uploaded` and
+`module:deleted` SSE events. An upload while the user is browsing
+triggers a re-load; a delete unregisters the module without
+requiring a page refresh.
+
+**SPA dev quirk.** In Vite dev mode, the shell proxies
+`/modules/<id>/ui/*` to the framework. The bare `/modules` SPA
+route (Apps screen) is **not** proxied — only the `<id>/ui/`
+sub-path.

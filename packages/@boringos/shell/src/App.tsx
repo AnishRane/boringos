@@ -4,6 +4,7 @@
 // hosting the shell-mandatory screens. Admin-only routes are wrapped
 // in <RequireAdmin> at this layer (task_16 phase 1).
 
+import { useSyncExternalStore } from "react";
 import {
   BrowserRouter,
   Navigate,
@@ -15,7 +16,11 @@ import { Layout } from "./chrome/Layout.js";
 import { AuthProvider, Login, RequireAdmin, RequireAuth, Signup } from "./auth/index.js";
 import { BoringOSClientProvider } from "./providers/BoringOSClientProvider.js";
 import { BrandProvider } from "./branding/BrandProvider.js";
-import { DynamicPluginRoutes } from "./plugin-host/index.js";
+import {
+  DynamicPluginRoutes,
+  pluginHost,
+  RuntimePluginsLoader,
+} from "./plugin-host/index.js";
 import {
   Activity,
   Agents,
@@ -35,10 +40,16 @@ import {
 import { Modules } from "./screens/Apps/index.js";
 
 export function App() {
+  // Subscribe to pluginHost so register/unregister at runtime
+  // re-renders the route tree (task_22 U4.5). The hook's snapshot
+  // is a monotonic version number — bumps on every contribution
+  // change.
+  useSyncExternalStore(pluginHost.subscribe, pluginHost.getSnapshot);
   return (
     <AuthProvider>
       <BoringOSClientProvider>
         <BrandProvider>
+          <RuntimePluginsLoader />
           <BrowserRouter>
             <Routes>
               {/* Public auth routes */}

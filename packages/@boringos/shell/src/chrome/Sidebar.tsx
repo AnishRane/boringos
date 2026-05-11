@@ -3,7 +3,7 @@
 // Shell sidebar — fixed nav + plugin-contributed nav from pluginHost
 // (gated on useInstalledModules so only installed plugins show).
 
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { NavLink } from "react-router-dom";
 import {
   Activity as ActivityIcon,
@@ -97,6 +97,10 @@ export function Sidebar() {
   const { brand } = useBrand();
   const [showTenantMenu, setShowTenantMenu] = useState(false);
   const installed = useInstalledModules();
+
+  // Re-render on register/unregister so runtime-loaded modules
+  // appear/disappear without a page refresh (task_22 U4.5).
+  useSyncExternalStore(pluginHost.subscribe, pluginHost.getSnapshot);
 
   const hasMultipleTenants = (user?.tenants?.length ?? 0) > 1;
   const isAdmin = user?.role === "admin";

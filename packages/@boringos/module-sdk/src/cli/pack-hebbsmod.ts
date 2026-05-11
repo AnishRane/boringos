@@ -29,11 +29,12 @@ import {
   createWriteStream,
   existsSync,
   mkdirSync,
+  readdirSync,
   readFileSync,
   realpathSync,
   statSync,
 } from "node:fs";
-import { resolve as resolvePath } from "node:path";
+import { isAbsolute, relative, resolve as resolvePath } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import archiver from "archiver";
@@ -119,7 +120,18 @@ interface ModuleManifestStatic {
   name?: string;
   description?: string;
   entry?: string;
-  ui?: { entry?: string };
+  /**
+   * Optional UI block.
+   *
+   * - `entry` — relative path inside the bundled `ui/` directory the
+   *   shell dynamic-imports (e.g. `./ui/index.mjs`).
+   * - `sourcePath` — path RELATIVE to the package directory pointing
+   *   at the prebuilt UI assets to copy into the bundle. Use this
+   *   when your UI build output lives in a sibling package (the
+   *   Vite-monorepo pattern), e.g. `"../web/dist"`. If absent the
+   *   CLI falls back to `<pkg>/dist/ui/` then `<pkg>/ui/dist/`.
+   */
+  ui?: { entry?: string; sourcePath?: string };
   dependsOn?: unknown;
   provides?: unknown;
   permissions?: unknown;
@@ -171,7 +183,10 @@ interface ResolvedPaths {
   uiDir: string | null;
 }
 
-function resolvePaths(pkgDir: string): ResolvedPaths {
+function resolvePaths(
+  pkgDir: string,
+  manifest?: ModuleManifestStatic,
+): ResolvedPaths {
   if (!isDirSync(pkgDir)) {
     throw new Error(`Package directory not found: ${pkgDir}`);
   }
@@ -212,12 +227,50 @@ function resolvePaths(pkgDir: string): ResolvedPaths {
   const skillsDir = resolvePath(pkgDir, "src/skills");
   const migrationsDir = resolvePath(pkgDir, "src/migrations");
 
-  // UI prebuilt assets: prefer dist/ui/ then ui/dist/.
-  const uiCandidates = [
-    resolvePath(pkgDir, "dist/ui"),
-    resolvePath(pkgDir, "ui/dist"),
-  ];
-  const uiDir = uiCandidates.find((p) => isDirSync(p)) ?? null;
+  // UI prebuilt assets — resolution order:
+  //   1. `module.json` → `ui.sourcePath` (relative to pkgDir). The
+  //      Vite-monorepo pattern: the web build lives in a sibling
+  //      package (`"../web/dist"`), not inside the server pkg itself.
+  //   2. `<pkg>/dist/ui/`  (in-pkg "post-build assembly" pattern)
+  //   3. `<pkg>/ui/dist/`  (in-pkg "co-located vite" pattern)
+  let uiDir: string | null = null;
+  const sourcePath = manifest?.ui?.sourcePath;
+  if (typeof sourcePath === "string" && sourcePath.length > 0) {
+    if (isAbsolute(sourcePath)) {
+      throw new Error(
+        `module.json: ui.sourcePath must be relative to the package directory ` +
+          `(got absolute path "${sourcePath}").`,
+      );
+    }
+    // Sanity guard: reject paths that escape the workspace by more
+    // than 3 levels. A monorepo `../web/dist` is one `..`; the limit
+    // gives breathing room for nested layouts without letting a
+    // malformed manifest point at /etc.
+    const upHops = (sourcePath.match(/(^|[\\/])\.\.(?=[\\/]|$)/g) ?? []).length;
+    if (upHops > 3) {
+      throw new Error(
+        `module.json: ui.sourcePath escapes the workspace (${upHops} '..' segments). ` +
+          `Limit is 3.`,
+      );
+    }
+    const candidate = resolvePath(pkgDir, sourcePath);
+    if (!isDirSync(candidate)) {
+      // The manifest explicitly opted in — fail loud so the operator
+      // notices that their build didn't produce the expected output.
+      throw new Error(
+        `module.json: ui.sourcePath "${sourcePath}" resolves to ${candidate}, ` +
+          `which does not exist or is not a directory. Did the UI package ` +
+          `build before pack-hebbsmod ran?`,
+      );
+    }
+    uiDir = candidate;
+  } else {
+    const uiCandidates = [
+      resolvePath(pkgDir, "dist/ui"),
+      resolvePath(pkgDir, "ui/dist"),
+    ];
+    uiDir = uiCandidates.find((p) => isDirSync(p)) ?? null;
+  }
 
   return {
     pkgDir,
@@ -230,6 +283,22 @@ function resolvePaths(pkgDir: string): ResolvedPaths {
     migrationsDir: isDirSync(migrationsDir) ? migrationsDir : null,
     uiDir,
   };
+}
+
+/**
+ * Recursively count files under `dir` for the post-pack summary.
+ */
+function countFilesRecursive(dir: string): number {
+  let n = 0;
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = resolvePath(dir, entry.name);
+    if (entry.isDirectory()) {
+      n += countFilesRecursive(full);
+    } else if (entry.isFile()) {
+      n += 1;
+    }
+  }
+  return n;
 }
 
 function validateManifest(
@@ -380,9 +449,19 @@ async function main(): Promise<void> {
     return;
   }
 
-  const paths = resolvePaths(args.pkg);
+  // Read the manifest first so `resolvePaths` can honour
+  // `ui.sourcePath`. The manifest path itself is computed by
+  // resolvePaths, but for that one read we just hard-code the
+  // conventional location — resolvePaths verifies it exists.
+  const manifestPath = resolvePath(args.pkg, "module.json");
+  const earlyManifest = isFileSync(manifestPath)
+    ? readJson<ModuleManifestStatic>(manifestPath)
+    : undefined;
+
+  const paths = resolvePaths(args.pkg, earlyManifest);
   const pkg = readJson<PackageJson>(paths.packageJson);
-  const manifest = readJson<ModuleManifestStatic>(paths.moduleJson);
+  const manifest =
+    earlyManifest ?? readJson<ModuleManifestStatic>(paths.moduleJson);
   validateManifest(manifest, pkg);
 
   if (!existsSync(paths.distDir)) {
@@ -412,6 +491,13 @@ async function main(): Promise<void> {
   const size = statSync(outZip).size;
   const hash = await sha256OfFile(outZip);
 
+  let uiSummary = "none";
+  if (paths.uiDir) {
+    const fileCount = countFilesRecursive(paths.uiDir);
+    const rel = relative(paths.pkgDir, paths.uiDir) || paths.uiDir;
+    uiSummary = `copied ${fileCount} file(s) from ${rel}`;
+  }
+
   process.stdout.write(
     [
       "",
@@ -421,6 +507,7 @@ async function main(): Promise<void> {
       `    kind:    ${manifest.kind ?? "(unset)"}`,
       `    size:    ${formatBytes(size)} (${size} bytes)`,
       `    sha256:  ${hash}`,
+      `    ui:      ${uiSummary}`,
       `    output:  ${outZip}`,
       "",
     ].join("\n"),

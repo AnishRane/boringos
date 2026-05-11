@@ -80,6 +80,17 @@ export interface ModulePackageRoutesDeps {
   /** Reads the auth context. Reuses the existing admin pattern
    *  (`X-Tenant-Id` for machine clients; sessions resolved upstream). */
   resolveTenantId: (req: Request) => string | null;
+  /** Optional realtime bus for `module:uploaded` / `module:deleted`
+   *  SSE events. The shell's Modules screen invalidates its package
+   *  + registry queries on each so multi-tab UX stays in sync. */
+  realtimeBus?: {
+    publish(event: {
+      type: string;
+      tenantId: string;
+      data: Record<string, unknown>;
+      timestamp: string;
+    }): void;
+  };
 }
 
 const ID_PATTERN = /^[a-z][a-z0-9-]*$/;
@@ -585,6 +596,21 @@ export function createModulePackageRoutes(
         },
       );
 
+      // 11. Realtime bus — shell Modules screen invalidates queries.
+      deps.realtimeBus?.publish({
+        type: "module:uploaded",
+        tenantId: tenantIdHeader ?? "host",
+        data: {
+          moduleId: manifest.id,
+          version: manifest.version,
+          kind: inferredKind,
+          contentHash,
+          toolsAdded: registerResult.toolsAdded,
+          skillsAdded: registerResult.skillsAdded,
+        },
+        timestamp: new Date().toISOString(),
+      });
+
       return c.json(
         {
           ok: true,
@@ -737,6 +763,20 @@ export function createModulePackageRoutes(
         uninstallFailures,
       },
     );
+
+    // Realtime bus — shell Modules screen invalidates queries.
+    deps.realtimeBus?.publish({
+      type: "module:deleted",
+      tenantId: tenantIdHeader ?? "host",
+      data: {
+        moduleId: id,
+        version,
+        force,
+        toolsRemoved: unregResult.toolsRemoved,
+        skillsRemoved: unregResult.skillsRemoved,
+      },
+      timestamp: new Date().toISOString(),
+    });
 
     return c.json({
       ok: true,

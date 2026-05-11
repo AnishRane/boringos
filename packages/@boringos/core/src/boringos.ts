@@ -37,6 +37,7 @@ import { runWorkflow } from "./run-workflow.js";
 import { createToolRoutes } from "./tool-routes.js";
 import { createModuleAdminRoutes } from "./module-admin-routes.js";
 import { createModulePackageRoutes } from "./module-package-routes.js";
+import { createModuleUiRoutes } from "./module-ui-routes.js";
 import {
   createToolRegistry,
   createSkillRegistry,
@@ -884,9 +885,19 @@ export class BoringOS {
         host: this,
         installManager: installManagerEarly,
         resolveTenantId: (req) => req.headers.get("x-tenant-id"),
+        realtimeBus: realtimeBusRef ?? undefined,
       });
       app.route("/api/admin/modules", modulePackageApp);
     }
+
+    // task_22 U4.1 — module UI asset serving. Mounted at `/modules`
+    // (NOT under `/api/admin/modules`) so the shell can dynamic-
+    // `import()` plugin UI bundles via the URL contract
+    // `/modules/<id>/ui/<file>`. Mounted unconditionally — the
+    // route reads from the `module_packages` table directly and
+    // returns 404 if no UI is uploaded yet.
+    const moduleUiApp = createModuleUiRoutes({ db: dbConn.db });
+    app.route("/modules", moduleUiApp);
 
     // Connector routes (legacy actions surface — gated by  flag).
     // The OAuth + webhook pieces of /api/connectors stay mounted so

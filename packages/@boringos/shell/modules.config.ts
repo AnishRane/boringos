@@ -1,17 +1,22 @@
 // SPDX-License-Identifier: BUSL-1.1
 //
-// External plugins co-bundled with the shell. Each entry imports
-// the plugin's web package and registers its `PluginUI` contribution
-// at shell boot (see `src/plugin-host/boot.ts`).
+// Static plugins co-bundled at build time. Used for development of
+// modules that haven't been packaged into `.hebbsmod` yet — useful
+// when iterating locally without rebuilding the bundle for every
+// edit.
 //
-// To add a plugin:
-//   1. `pnpm add <pkg>` in this workspace (or add a workspace link)
-//   2. Add an entry below importing its `PluginUI` export
+// Modules uploaded via the Apps screen are loaded at runtime by
+// `RuntimePluginsLoader` instead (see
+// `src/plugin-host/RuntimePluginsLoader.tsx`), reading from
+// `/modules/<id>/ui/index.mjs`. That is the production path.
 //
-// To remove: delete the entry; rebuild.
+// To add a *build-time* plugin (dev only):
+//   1. `pnpm add <pkg>` in this workspace (or add a workspace link).
+//   2. Add an entry below importing its `PluginUI` export.
 //
-// Future runtime-federation distribution will replace this file
-// with dynamic imports driven by /api/admin/modules.
+// After packaging into `.hebbsmod`, remove the static entry and
+// rely on upload — runtime registration takes precedence and
+// re-registering with the same id is a no-op (last-write-wins).
 
 import type { PluginUI } from "@boringos/ui";
 
@@ -23,8 +28,5 @@ export interface PluginEntry {
 }
 
 export const plugins: PluginEntry[] = [
-  {
-    load: () => import("@boringos-crm/web"),
-    exportName: "crmUI",
-  },
+  // Empty by default. CRM is uploaded as a `.hebbsmod` (task_22).
 ];
