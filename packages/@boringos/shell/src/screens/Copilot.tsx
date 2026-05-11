@@ -222,10 +222,30 @@ function ActiveThread(props: {
     return () => clearInterval(id);
   }, [queryClient, props.taskId]);
 
-  // Auto-scroll to the latest comment.
+  // Server returns comments newest-first; render them oldest-first
+  // so the chat reads top-to-bottom chronologically.
+  const orderedComments = useMemo(
+    () =>
+      ((comments ?? []) as unknown as Comment[])
+        .slice()
+        .sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1)),
+    [comments],
+  );
+
+  // "Thinking…" indicator. Show whenever the latest message is from
+  // the user and we haven't seen the copilot reply yet — also covers
+  // the optimistic period right after send while postComment's
+  // refetch is in flight.
+  const lastComment = orderedComments[orderedComments.length - 1];
+  const awaitingReply =
+    props.busy ||
+    (!!lastComment &&
+      lastComment.authorAgentId !== props.copilotAgentId);
+
+  // Auto-scroll to the latest comment (or the thinking bubble).
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [comments?.length]);
+  }, [orderedComments.length, awaitingReply]);
 
   const send = useCallback(async () => {
     if (!props.draft.trim() || props.busy) return;
@@ -256,12 +276,12 @@ function ActiveThread(props: {
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto space-y-3 pr-1">
-        {(comments ?? []).length === 0 ? (
+        {orderedComments.length === 0 ? (
           <div className="text-xs text-muted px-2 py-8 text-center">
             No messages yet. Send the first one below.
           </div>
         ) : (
-          ((comments ?? []) as unknown as Comment[]).map((c) => {
+          orderedComments.map((c) => {
             const fromCopilot = !!c.authorAgentId && c.authorAgentId === props.copilotAgentId;
             return (
               <div
@@ -291,6 +311,24 @@ function ActiveThread(props: {
               </div>
             );
           })
+        )}
+        {awaitingReply && (
+          <div className="flex justify-start">
+            <div className="max-w-[70%] rounded-lg px-3 py-2 text-sm bg-bg-warm text-muted">
+              <span className="inline-flex items-center gap-1">
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-muted animate-pulse" />
+                <span
+                  className="inline-block w-1.5 h-1.5 rounded-full bg-muted animate-pulse"
+                  style={{ animationDelay: "150ms" }}
+                />
+                <span
+                  className="inline-block w-1.5 h-1.5 rounded-full bg-muted animate-pulse"
+                  style={{ animationDelay: "300ms" }}
+                />
+                <span className="ml-1 italic">Thinking…</span>
+              </span>
+            </div>
+          </div>
         )}
         <div ref={bottomRef} />
       </div>
