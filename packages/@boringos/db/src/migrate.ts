@@ -731,5 +731,22 @@ async function ensureSchema(db: Db): Promise<void> {
     );
     CREATE UNIQUE INDEX IF NOT EXISTS module_migrations_uniq_idx
       ON module_migrations(tenant_id, module_id, migration_id);
+
+    -- LAYER-1 (host-global) record of every uploaded .hebbsmod package.
+    -- One row per (module_id, version) uploaded to this host. Distinct
+    -- from module_installs (per-tenant opt-in). task_22 — module
+    -- package upload / install flow.
+    CREATE TABLE IF NOT EXISTS module_packages (
+      id TEXT NOT NULL,
+      version TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      store_path TEXT NOT NULL,
+      content_hash TEXT NOT NULL,
+      signature_publisher_id TEXT,
+      uploaded_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (id, version)
+    );
+    CREATE INDEX IF NOT EXISTS module_packages_content_hash_idx
+      ON module_packages(content_hash);
   `);
 }

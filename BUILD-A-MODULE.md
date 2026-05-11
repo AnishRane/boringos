@@ -301,3 +301,209 @@ above. Below is the eight-dimensional surface — items marked with
    Module exercising every dimension — schema, UI, default
    workflows, default agents. That's the canonical guide
    `task_13` rewrites this file around.
+
+---
+
+## Declaring `kind`
+
+Optional metadata field on the Module manifest. Used for UI
+grouping only — dispatch, install, and uninstall behave
+identically regardless of value.
+
+```typescript
+export const crmModule: Module = {
+  id: "crm",
+  name: "Hebbs CRM",
+  version: "0.3.0",
+  kind: "hybrid",   // "connector" | "module" | "hybrid"
+  // ...
+};
+```
+
+| `kind`        | Owns data? | OAuth? | Examples                |
+|---------------|------------|--------|-------------------------|
+| `"connector"` | rarely     | yes    | Gmail, Slack            |
+| `"module"`    | yes        | no     | Hebbs CRM, Triage       |
+| `"hybrid"`    | yes        | yes    | Stripe Billing, HubSpot |
+
+If you omit `kind`, the framework infers it via
+`inferModuleKind(mod)` (exported from `@boringos/module-sdk`):
+`oauth && !schema → "connector"`, `schema && !oauth → "module"`,
+both present → `"hybrid"`, neither → `"module"`. Declare it
+explicitly when the inference is wrong for your module — e.g. a
+connector that happens to ship a cache table.
+
+The shell groups `"connector"` modules under **Connectors** and
+the other two under **Apps**.
+
+---
+
+## How to ship — packaging a `.hebbsmod`
+
+Once your Module compiles, you ship it as a single
+`.hebbsmod` file. Admins drop that file onto the Apps screen and
+tenants click Install. No npm publish, no source checkout, no
+host restart.
+
+The canonical spec for the bundle, the install lifecycle, and
+the HTTP surface lives in
+[`docs/install-flow.md`](docs/install-flow.md). This section is
+the practical "how do I cut a build" version.
+
+### The bundle format
+
+`<id>-<version>.hebbsmod` is a renamed zip. Internal layout:
+
+```
+crm-0.3.0.hebbsmod
+├── module.json       # static manifest (see below)
+├── index.mjs         # bundled ESM, default export = Module | ModuleFactory
+├── skills/           # SKILL.md files referenced from manifest
+│   └── deals.md
+├── migrations/       # optional, Drizzle SQL — applied per-tenant
+│   └── 0001_initial.sql
+├── ui/               # optional, prebuilt assets for the shell
+│   ├── index.mjs
+│   └── assets/...
+└── signature         # optional Ed25519 over (module.json + index.mjs + ui/index.mjs)
+```
+
+Bundles are **self-contained** — esbuild inlines everything
+except `@boringos/*` (provided by the host). See
+[`docs/install-flow.md`](docs/install-flow.md) §1 for the full
+spec including signing and content-addressing.
+
+### `module.json` — the static manifest
+
+The host reads `module.json` *before* importing your code so it
+can render the install preview without executing anything. It's
+a strict subset of the runtime `Module` interface — only the
+discovery-time fields:
+
+```json
+{
+  "id": "crm",
+  "name": "Hebbs CRM",
+  "version": "0.3.0",
+  "description": "Deals, contacts, pipelines",
+  "kind": "hybrid",
+  "entry": "./index.mjs",
+  "ui": { "entry": "./ui/index.mjs" },
+  "dependsOn": [{ "capability": "email-send", "optional": true }],
+  "provides": ["crm-source"],
+  "permissions": { "defaultRoles": ["admin", "member"] },
+  "publisher": { "id": "hebbs", "name": "Hebbs" },
+  "license": "MIT",
+  "minFrameworkVersion": "1.0.0"
+}
+```
+
+The full Module — tools, skills, schema, lifecycle hooks — is
+the **default export** of `index.mjs`. After import, the host
+validates that the runtime export's `id` and `version` match
+`module.json` exactly. Mismatches are rejected at upload time.
+
+### Pack it
+
+Two paths. Pick whichever fits your workflow.
+
+**Per-module** — from inside the module's package directory
+after `pnpm build`:
+
+```bash
+cd packages/@boringos/module-crm
+pnpm build
+pnpm exec pack-hebbsmod
+# → dist/crm-0.3.0.hebbsmod
+# → SHA-256: 3f9c1e... (printed to stdout)
+```
+
+**All modules at once** — from the framework root:
+
+```bash
+pnpm pack:modules
+# Walks every registered standalone module package and packs
+# each. Same output: <pkg>/dist/<id>-<version>.hebbsmod plus a
+# SHA-256 line per bundle.
+```
+
+Both paths compute and print the SHA-256 of the output bytes.
+The framework content-addresses uploads by that hash — two
+uploads of the same `.hebbsmod` are deduped.
+
+### Upload + install
+
+Two paths again. Same backend.
+
+**UI:** open the shell's **Apps** screen as an admin, drag the
+`.hebbsmod` onto the drop zone, review the parsed manifest in
+the preview pane, click **Confirm**. The module appears as
+"Available" host-wide. Then click **Install** on a tenant's
+card to apply it for that tenant.
+
+**API:** the same flow as two `curl`s:
+
+```bash
+# Upload (LAYER 1 + 2 — host-global, register runtime)
+curl -F file=@dist/crm-0.3.0.hebbsmod \
+  -H "X-API-Key: $BORINGOS_API_KEY" \
+  http://localhost:3030/api/admin/modules/upload
+
+# Install for the current tenant (LAYER 3)
+curl -X POST \
+  -H "X-API-Key: $BORINGOS_API_KEY" \
+  http://localhost:3030/api/admin/modules/crm/install
+```
+
+### What happens on the host
+
+The three layers run in order. Failure at any layer rolls back
+the layers above it.
+
+- **LAYER 1 — Package store.** Framework extracts the zip to
+  `MODULES_STORE_DIR/<id>@<version>/`, validates the manifest
+  + signature, inserts a `module_packages` row keyed by
+  `(id, version, contentHash)`, then dynamically imports
+  `index.mjs`.
+- **LAYER 2 — Runtime registration.** The imported Module is
+  fed through the same `app.module()` pipeline used at boot.
+  Tools land in the ToolRegistry, skills in the SkillRegistry,
+  webhooks mount at `/api/webhooks/<id>/*`, UI mounts at
+  `/modules/<id>/ui/*`.
+- **LAYER 3 — Per-tenant install.** When an admin clicks
+  **Install** for a tenant, the InstallManager runs
+  `schema` migrations into `<id>__*` tables, fires
+  `lifecycle.onInstall(ctx)` to seed default workflows /
+  agents / routines, and inserts a `module_installs` row.
+
+### Uninstall + delete
+
+Two halves, mirroring install:
+
+- **Per-tenant uninstall** drops only the tenant's data and
+  `module_installs` row. LAYER 1 + 2 stay in place — other
+  tenants keep using the module.
+- **Host-global delete** removes the `module_packages` row,
+  unmounts the runtime, and deletes the extracted store
+  directory:
+
+  ```bash
+  curl -X DELETE \
+    -H "X-API-Key: $BORINGOS_API_KEY" \
+    "http://localhost:3030/api/admin/modules/crm?version=0.3.0"
+  ```
+
+  The framework refuses delete if any tenant still has the
+  module installed. Pass `force=true` to override (drops every
+  tenant's install in one shot — destructive).
+
+### Re-install requires re-upload
+
+There is no `pnpm reload`, no hot-swap, no in-place patch.
+If you change anything — code, schema, skills, UI — bump the
+version in `module.json`, run `pnpm pack:modules`, upload the
+new `.hebbsmod`. The host carries multiple versions in
+`module_packages`; per-tenant `module_installs` rows pin to a
+specific version. That's the whole point of the design — every
+running module is byte-identical to a file you can put in
+source control.

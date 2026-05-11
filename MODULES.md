@@ -28,6 +28,16 @@ populated:
 The framework doesn't care which role a Module thinks it plays —
 the role is descriptive, not enforced.
 
+The role is also surfaced as an explicit optional `kind` field on
+the manifest (`"connector" | "module" | "hybrid"`). The shell uses
+it to group Modules in the UI (Settings → Connectors vs Apps →
+Modules), and the packaging step writes it into `module.json` —
+the static manifest shipped inside the `.hebbsmod` bundle. When
+omitted, the framework infers: `oauth && !schema → "connector"`,
+`schema && !oauth → "module"`, both → `"hybrid"`. Dispatch,
+install, and uninstall behaviour are identical regardless of
+`kind` — it is purely a UI-grouping hint.
+
 ---
 
 ## Manifest fields
@@ -45,6 +55,7 @@ the role is descriptive, not enforced.
 
 | Field | Type | Purpose |
 |---|---|---|
+| `kind` | `"connector" \| "module" \| "hybrid"` | UI-grouping hint. Inferred from `oauth` / `schema` presence when omitted. See [What is a Module?](#what-is-a-module). |
 | `dependsOn` | `ModuleDependency[]` | Other Modules required for this one to function. See [Dependencies](#dependencies). |
 | `provides` | `string[]` | Capability labels this Module announces. Other Modules' `dependsOn` can reference these. |
 | `skills` | `SkillFileRef[]` | SKILL.md paths or inline `Skill` objects. See [SKILLS.md](SKILLS.md). |

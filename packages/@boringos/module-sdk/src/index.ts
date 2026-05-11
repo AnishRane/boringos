@@ -13,6 +13,13 @@
 
 export * from "./types.js";
 
+// Explicit named re-export of ModuleKind for discoverability —
+// consumers can `import type { ModuleKind } from "@boringos/module-sdk"`.
+// (Also covered by the `export *` above; named here so it shows up
+// directly in the package's public surface listing.)
+export type { ModuleKind } from "./types.js";
+export { inferModuleKind } from "./types.js";
+
 // Convenience re-export so Module authors can write
 //   import { z } from "@boringos/module-sdk";
 // without taking a separate Zod dep. Zod is the canonical schema

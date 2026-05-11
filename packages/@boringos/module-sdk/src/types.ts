@@ -417,6 +417,23 @@ export type ModuleDependency =
   | { capability: string; optional?: boolean };
 
 /**
+ * The author's hint for how this Module should be grouped in UI.
+ *
+ *  - `"connector"` — primarily brokers a 3rd-party service (owns
+ *    `oauth`, raw API tools); shown under Settings → Connectors.
+ *  - `"module"` — primarily owns data + logic (`schema`, tools);
+ *    shown under Apps → Modules.
+ *  - `"hybrid"` — both: owns its own data AND brokers a 3rd-party
+ *    integration.
+ *
+ * Purely a UI grouping hint. Dispatch / install / uninstall
+ * behaviour is identical regardless of `kind`. See
+ * `inferModuleKind` for the inference rule used when the field is
+ * omitted.
+ */
+export type ModuleKind = "connector" | "module" | "hybrid";
+
+/**
  * The Module manifest — the universal component shape.
  *
  * Three roles, same shape, different fields populated:
@@ -436,6 +453,13 @@ export interface Module {
   version: string;
   /** One sentence. */
   description: string;
+  /**
+   * The author's hint for UI grouping. Optional — the framework
+   * infers when missing: `oauth && !schema → "connector"`,
+   * `schema && !oauth → "module"`, both → `"hybrid"`. Dispatch /
+   * install / uninstall behaviour is identical regardless.
+   */
+  kind?: ModuleKind;
   /** Other Modules required for this one to function. */
   dependsOn?: ModuleDependency[];
   /** Capability labels this Module announces. */
@@ -556,4 +580,27 @@ export interface AgentSeed {
   tools?: string[];
   /** Optional reportsTo target by name. */
   reportsTo?: string;
+}
+
+/**
+ * Resolve the effective `ModuleKind` for a manifest.
+ *
+ * Honours `mod.kind` if set; otherwise infers:
+ *   - `oauth && !schema` → `"connector"`
+ *   - `schema && !oauth` → `"module"`
+ *   - both present       → `"hybrid"`
+ *   - neither present    → `"module"` (capability modules count
+ *                          as plain modules for grouping)
+ *
+ * Used by the shell for grouping (Settings → Connectors vs Apps →
+ * Modules) and by `module.json` generation when packing
+ * `.hebbsmod` bundles.
+ */
+export function inferModuleKind(mod: Module): ModuleKind {
+  if (mod.kind) return mod.kind;
+  const hasOauth = !!mod.oauth;
+  const hasSchema = !!mod.schema && mod.schema.length > 0;
+  if (hasOauth && hasSchema) return "hybrid";
+  if (hasOauth) return "connector";
+  return "module";
 }

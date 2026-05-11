@@ -10,6 +10,7 @@
     "test:run": "vitest run",
     "db:generate": "pnpm --filter @boringos/db generate",
     "db:migrate": "pnpm --filter @boringos/db migrate",
+    "pack:modules": "node scripts/pack-modules.mjs",
     "changeset": "changeset",
     "version": "changeset version",
     "publish": "pnpm -r build && changeset publish"
