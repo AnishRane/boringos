@@ -59,4 +59,14 @@ export type { NotificationService, NotificationConfig } from "./notifications.js
 export { nullMemory } from "@boringos/memory";
 export { createHebbsMemory } from "@boringos/memory";
 
+export {
+  verifyModuleSignature,
+  loadTrustedPublishers,
+} from "./module-signature.js";
+export type {
+  PublisherKey,
+  SignatureVerifyResult,
+  VerifyOptions,
+} from "./module-signature.js";
+
 

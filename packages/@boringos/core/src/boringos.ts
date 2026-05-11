@@ -36,6 +36,7 @@ import type {
 import { runWorkflow } from "./run-workflow.js";
 import { createToolRoutes } from "./tool-routes.js";
 import { createModuleAdminRoutes } from "./module-admin-routes.js";
+import { createModulePackageRoutes } from "./module-package-routes.js";
 import {
   createToolRegistry,
   createSkillRegistry,
@@ -254,14 +255,21 @@ export class BoringOS {
    *    existing tenant without a host restart (fire-and-forget;
    *    matches boot semantics)
    *
-   * Webhooks: the documented `/api/webhooks/<id>/<event>` mount is
-   * not yet wired in the boot path (only `connector-routes.ts`
-   * references it in a comment). registerModule keeps that parity —
-   * U3 will land the actual webhook mount once the route exists.
+   * Webhooks: a permanent dispatcher is mounted at boot at
+   * `/api/webhooks/:moduleId/:event` (see `listen()`). The dispatcher
+   * looks up the module in the shared `boundModules` array per-request,
+   * so adding/removing modules at runtime takes effect immediately
+   * without re-mounting routes. We went with the boot-time dispatcher
+   * because Hono *does* technically accept post-listen `app.route()`
+   * calls (verified — see tests/runtime-webhook.test.ts) but has no
+   * symmetric un-mount API, so `unregisterModule` would leak stale
+   * routes otherwise.
    *
    * Routines: `Routine[]` from a Module is metadata; the scheduler
    * reads `routines` from the DB, not from module manifests. Seeding
    * the DB happens via `installManager.install`'s seeding path.
+   * Conversely, `unregisterModule` does NOT stop in-flight routines —
+   * they're per-tenant DB rows torn down by `installManager.uninstall`.
    */
   async registerModule(
     mod: Module | ModuleFactory,
@@ -322,14 +330,37 @@ export class BoringOS {
   }
 
   /**
-   * Inverse of `registerModule()`. Drops every tool/skill/setting
-   * the module pushed and removes it from the registry. Does NOT
-   * touch per-tenant install rows — callers should uninstall the
-   * module for every affected tenant first (see U3.2).
+   * Inverse of `registerModule()`. Drops every tool/skill/setting/
+   * webhook the module pushed and removes it from the registry. Does
+   * NOT touch per-tenant install rows — callers should uninstall the
+   * module for every affected tenant first if they want the data gone
+   * (the host-level cascade here only clears the in-memory registries;
+   * DB tables created by `installManager.install`'s schema migrations
+   * stay put until `installManager.uninstall` is called per-tenant).
    *
-   * Today this is the structural skeleton task_22's U3.2 fills in;
-   * for U2 it just powers the demo script's cleanup path so the
-   * gate run doesn't leak registrations across iterations.
+   * Cascade order (intentional — settings before module so the owner
+   * lookup still sees the module's id):
+   *
+   *   1. settingRegistry.unregisterOwner("module", id)
+   *   2. moduleRegistry.unregister(id)
+   *        → tools.unregisterModule(id)
+   *        → skills.unregisterModule(id)
+   *        → deletes Module from internal map
+   *   3. Splice from boundModules (shared by reference with
+   *      install-manager + admin routes — they go to "not found"
+   *      on next call)
+   *   4. Splice from moduleEntries (so a re-listen() doesn't
+   *      resurrect the dropped module)
+   *
+   * Webhooks: the boot-time `/api/webhooks/:moduleId/:event`
+   * dispatcher resolves the module from `boundModules` on every
+   * request. Removing the entry in step 3 makes future webhook hits
+   * return 404 automatically — nothing to unmount.
+   *
+   * The `restartRecommended: true` is a hint to operators that
+   * Node's ESM module cache still holds references to the dropped
+   * module's code (we can't unload imports). A fresh process avoids
+   * any chance of zombie behaviour from closures the GC can't reach.
    */
   async unregisterModule(id: string): Promise<{
     moduleId: string;
@@ -343,19 +374,20 @@ export class BoringOS {
     const beforeTools = this.toolRegistry.list().length;
     const beforeSkills = this.skillRegistry.list().length;
 
-    // moduleRegistry.unregister already walks tools + skills.
+    // 1. Drop every setting this module contributed.
+    this.settingRegistry.unregisterOwner("module", id);
+    // 2. moduleRegistry.unregister walks tools + skills (which
+    //    have unregisterModule(moduleId) methods that scan + splice).
     this.moduleRegistry.unregister(id);
-    // SettingRegistry has no per-module unregister API today; settings
-    // are sticky until host restart. Acknowledged via the
-    // `restartRecommended: true` return.
-    // boundModules array (shared by reference with install-manager
-    // and admin routes) — strip the entry so post-uninstall views
-    // don't list it.
+    // 3. boundModules array (shared by reference with install-manager
+    //    and admin routes) — strip the entry. Install-manager's lazy
+    //    `getModule()` will now miss this id; the webhook dispatcher
+    //    likewise won't find it.
     for (let i = this.boundModules.length - 1; i >= 0; i -= 1) {
       if (this.boundModules[i].id === id) this.boundModules.splice(i, 1);
     }
-    // moduleEntries too, so a subsequent listen() (test reset path)
-    // doesn't re-register the dropped module.
+    // 4. moduleEntries — so a subsequent listen() (test reset path)
+    //    doesn't re-register the dropped module.
     for (let i = this.moduleEntries.length - 1; i >= 0; i -= 1) {
       const entry = this.moduleEntries[i];
       const candidateId =
@@ -656,9 +688,102 @@ export class BoringOS {
 
     // 11. Build Hono app
     const app = new Hono();
-    // Expose for post-listen registers (so future U3 work can mount
-    // module webhooks at /api/webhooks/<id>/<event>).
+    // Expose for post-listen registers. The permanent webhook
+    // dispatcher below means we never need to call `app.route()`
+    // post-listen for module webhooks — the dispatcher reads from
+    // `boundModules` per-request — but the field stays available
+    // for callers that genuinely need a runtime route mount.
     this.honoApp = app;
+
+    // ── Permanent module webhook dispatcher ─────────────────────
+    // Mounted at boot so runtime register/unregister works without
+    // touching Hono's route tree. The dispatcher:
+    //   1. Pulls (moduleId, event) from the path.
+    //   2. Looks up the module in `boundModules` (the shared array
+    //      that registerModule pushes into and unregisterModule
+    //      splices out of). 404 if missing.
+    //   3. Finds the webhooks[] entry whose `event` matches. 404 if
+    //      no match.
+    //   4. Verifies the request via the module's `verify()` callback.
+    //      Returns 401 on rejection.
+    //   5. Invokes the module's `handler(request, ctx)`. The handler
+    //      is responsible for any tenant resolution it needs (typical
+    //      pattern: parse a tenant id from the URL/header/body or
+    //      look it up from a signed state param).
+    //
+    // Mounting this once at boot (versus dynamically) is the correct
+    // call because Hono accepts mid-flight `app.route()` registrations
+    // (verified — tests/runtime-webhook.test.ts) but provides no
+    // symmetric unmount, which would leak stale routes on
+    // `unregisterModule`.
+    app.all("/api/webhooks/:moduleId/:event", async (c) => {
+      const moduleId = c.req.param("moduleId");
+      const event = c.req.param("event");
+      const mod = this.boundModules.find((m) => m.id === moduleId);
+      if (!mod) {
+        return c.json({ ok: false, error: "module_not_found" }, 404);
+      }
+      const hook = mod.webhooks?.find((w) => w.event === event);
+      if (!hook) {
+        return c.json({ ok: false, error: "webhook_not_found" }, 404);
+      }
+
+      // Build the WebhookRequest shape the SDK declares. Hono headers
+      // are case-insensitive; flatten them into a plain object so
+      // module handlers can read them with `headers["x-signature"]`.
+      const headers: Record<string, string> = {};
+      c.req.raw.headers.forEach((value, key) => {
+        headers[key] = value;
+      });
+      const query: Record<string, string> = {};
+      const url = new URL(c.req.url);
+      url.searchParams.forEach((value, key) => {
+        query[key] = value;
+      });
+      const bodyText = await c.req.text();
+      const request = {
+        method: c.req.method,
+        headers,
+        body: bodyText,
+        query,
+      };
+
+      // Verify first; bail with 401 on rejection.
+      try {
+        const ok = await hook.verify(request);
+        if (!ok) {
+          return c.json({ ok: false, error: "verification_failed" }, 401);
+        }
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.warn(`[webhooks] verify() threw for ${moduleId}.${event}:`, err);
+        return c.json({ ok: false, error: "verification_failed" }, 401);
+      }
+
+      // Tenant context for the handler. The SDK leaves tenant
+      // resolution open-ended; many webhook handlers parse the
+      // tenant from a state param. For now we pass an empty string
+      // — handlers MUST own tenant resolution.
+      const tenantId = (headers["x-tenant-id"] ?? "") as string;
+      try {
+        // SDK signature: handler returns Promise<void>. Some handlers
+        // (e.g. tests) return a response-like object; treat that as
+        // an opt-in extension.
+        const result = (await hook.handler(request, { tenantId })) as
+          | undefined
+          | void
+          | { status?: number; body?: unknown };
+        if (result && typeof result === "object" && ("status" in result || "body" in result)) {
+          const status = (result.status ?? 200) as 200 | 400 | 401 | 404 | 500;
+          return c.json((result.body ?? { ok: true }) as object, status);
+        }
+        return c.json({ ok: true });
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error(`[webhooks] handler threw for ${moduleId}.${event}:`, err);
+        return c.json({ ok: false, error: "handler_failed" }, 500);
+      }
+    });
 
     // Health endpoint — surfaces module count so a quick curl tells
     // you which modules are loaded.
@@ -752,6 +877,15 @@ export class BoringOS {
       // modules/:id/install, modules/:id/uninstall, tools, tool-calls}.
       //
       app.route("/api/admin", moduleAdminApp);
+
+      // task_22 U3.1 / U3.3 / U3.5 — `.hebbsmod` upload + delete + list.
+      const modulePackageApp = createModulePackageRoutes({
+        db: dbConn.db,
+        host: this,
+        installManager: installManagerEarly,
+        resolveTenantId: (req) => req.headers.get("x-tenant-id"),
+      });
+      app.route("/api/admin/modules", modulePackageApp);
     }
 
     // Connector routes (legacy actions surface — gated by  flag).

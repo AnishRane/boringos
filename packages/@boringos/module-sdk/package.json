@@ -5,7 +5,8 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
-    "pack-hebbsmod": "./dist/cli/pack-hebbsmod.js"
+    "pack-hebbsmod": "./dist/cli/pack-hebbsmod.js",
+    "sign-hebbsmod": "./dist/cli/sign-hebbsmod.js"
   },
   "exports": {
     ".": {
@@ -22,11 +23,13 @@
     "@boringos/shared": "workspace:*",
     "archiver": "^7.0.1",
     "esbuild": "^0.25.0",
+    "yauzl": "^3.2.0",
     "zod": "^3.23.0"
   },
   "devDependencies": {
     "@types/archiver": "^6.0.2",
     "@types/node": "^22.0.0",
+    "@types/yauzl": "^2.10.3",
     "typescript": "^5.7.3"
   },
   "description": "Module SDK — types for the Skills + Tools + Modules architecture.",

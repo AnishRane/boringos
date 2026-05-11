@@ -27,6 +27,8 @@
     "@boringos/runtime": "workspace:*",
     "@boringos/shared": "workspace:*",
     "@hono/node-server": "^1.13.0",
+    "@types/adm-zip": "^0.5.8",
+    "adm-zip": "^0.5.17",
     "better-auth": "^1.6.0",
     "hono": "^4.7.0"
   },

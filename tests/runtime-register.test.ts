@@ -170,10 +170,15 @@ describe("task_22 — runtime registerModule()", () => {
           : (rowCheck as unknown as { rows: unknown[] }).rows ?? [];
         expect(rows.length).toBe(1);
 
-        // ── Step 5: unregister + dispatch should now 404 ────────
+        // ── Step 5: unregister + cascade verification ────────────
         const unregResult = await app.unregisterModule("crm");
         expect(unregResult.moduleId).toBe("crm");
-        expect(unregResult.toolsRemoved).toBeGreaterThan(0);
+        // Cascade symmetry: every tool register added, unregister
+        // removes. Likewise for skills. This guards against the
+        // module-registry forgetting to walk tools/skills in
+        // `unregister()`.
+        expect(unregResult.toolsRemoved).toBe(regResult.toolsAdded);
+        expect(unregResult.skillsRemoved).toBe(regResult.skillsAdded);
         expect(unregResult.restartRecommended).toBe(true);
 
         const postUnreg = await fetch(
@@ -199,6 +204,64 @@ describe("task_22 — runtime registerModule()", () => {
           modules: Array<{ id: string }>;
         };
         expect(healthFinal.modules.some((m) => m.id === "crm")).toBe(false);
+
+        // /api/admin/modules drops crm too (the route reads from the
+        // same `boundModules` array unregister splices).
+        const adminModulesRes = await fetch(
+          `${server.url}/api/admin/modules`,
+          { headers: { "X-Tenant-Id": tenantId } },
+        );
+        expect(adminModulesRes.status).toBe(200);
+        const adminBody = (await adminModulesRes.json()) as {
+          modules: Array<{ id: string }>;
+        };
+        expect(adminBody.modules.some((m) => m.id === "crm")).toBe(false);
+
+        // The DB table created by the install-manager's schema run
+        // is NOT dropped by unregisterModule — that's a host-level
+        // cascade only, per the contract in unregisterModule's
+        // doc-comment. Per-tenant data drop is installManager.uninstall.
+        const tableStill = await db.execute(
+          sql`SELECT to_regclass('public.crm__contacts') AS t`,
+        );
+        const tableStillRow = (
+          Array.isArray(tableStill)
+            ? tableStill[0]
+            : (tableStill as unknown as { rows: Array<{ t: string | null }> }).rows?.[0]
+        ) as { t: string | null } | undefined;
+        expect(tableStillRow?.t).not.toBeNull();
+
+        // ── Step 6: re-register → previously-installed tenants
+        // still see the module work. The install row + DB table
+        // persisted across the unregister; we just have to repopulate
+        // the in-memory registries.
+        const reRegResult = await app.registerModule(createCrmModule, deps!);
+        expect(reRegResult.moduleId).toBe("crm");
+        expect(reRegResult.toolsAdded).toBe(regResult.toolsAdded);
+        expect(reRegResult.skillsAdded).toBe(regResult.skillsAdded);
+
+        const postReReg = await fetch(
+          `${server.url}/api/tools/crm.contacts.create`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              firstName: "Grace",
+              lastName: "Hopper",
+              email: "grace@example.com",
+            }),
+          },
+        );
+        expect(postReReg.status).toBe(200);
+        const postReRegBody = (await postReReg.json()) as {
+          ok: boolean;
+          result: { data: { firstName: string } };
+        };
+        expect(postReRegBody.ok).toBe(true);
+        expect(postReRegBody.result.data.firstName).toBe("Grace");
       } finally {
         await server.close();
       }

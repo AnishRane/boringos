@@ -27,6 +27,8 @@
     "@boringos/db": "workspace:*",
     "@boringos/module-sdk": "workspace:*",
     "@changesets/cli": "^2.30.0",
+    "@types/adm-zip": "^0.5.8",
+    "adm-zip": "^0.5.17",
     "drizzle-orm": "^0.41.0",
     "hono": "^4.7.0",
     "typescript": "^5.7.3",

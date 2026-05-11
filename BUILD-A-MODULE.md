@@ -507,3 +507,45 @@ new `.hebbsmod`. The host carries multiple versions in
 specific version. That's the whole point of the design — every
 running module is byte-identical to a file you can put in
 source control.
+
+## Signing modules
+
+Production hosts reject unsigned `.hebbsmod` uploads. Dev hosts
+set `HEBBS_DEV_MODULES=true` to accept them with a warning.
+
+1. **Generate a publisher keypair** (once per organization):
+
+   ```bash
+   npx sign-hebbsmod --gen-key
+   ```
+
+   Stash the private key somewhere secret. Copy the public half
+   into the host's trust list.
+
+2. **Trust your key on the host.** Either drop a file at
+   `<repo-root>/.data/module-publishers.json`:
+
+   ```json
+   [
+     { "id": "your-org", "name": "Your Org", "publicKey": "<public-hex>" }
+   ]
+   ```
+
+   …or set `HEBBS_MODULE_PUBLISHERS` to the same JSON inline.
+   The env var takes precedence.
+
+3. **Sign your bundle** after `pnpm pack:modules`:
+
+   ```bash
+   npx sign-hebbsmod \
+     --pkg ./dist/crm-0.3.0.hebbsmod \
+     --key "$HEBBS_PRIVATE_KEY" \
+     --publisher-id your-org
+   ```
+
+   The CLI rewrites the zip with `signature` (raw 64-byte Ed25519)
+   and `signature.meta.json` (`{ publisherId, algorithm }`) added.
+
+The framework signs the concat of `module.json` + `index.mjs`
++ `ui/index.mjs` (if present). Any byte-level change after
+signing — even a re-zip — invalidates the signature.
