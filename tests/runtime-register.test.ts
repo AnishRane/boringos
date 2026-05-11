@@ -29,8 +29,7 @@ describe("task_22 — runtime registerModule()", () => {
         "@boringos/core"
       );
       const { signCallbackToken } = await import("@boringos/agent");
-      const { mkdtemp, mkdir, copyFile } = await import("node:fs/promises");
-      const { existsSync } = await import("node:fs");
+      const { mkdtemp, mkdir } = await import("node:fs/promises");
       const { tmpdir } = await import("node:os");
       const { join } = await import("node:path");
       const { pathToFileURL } = await import("node:url");
@@ -49,21 +48,8 @@ describe("task_22 — runtime registerModule()", () => {
         `module-store-runtime-reg-${Date.now()}`,
       );
       await mkdir(storeDir, { recursive: true });
-      // Known CRM-bundle packaging bug: the inlined @hebbs/sdk uses
-      // `import.meta.url` to find `../proto/hebbs.proto` at module
-      // load time. Materialise the file there best-effort so the
-      // dynamic-import doesn't crash. Same workaround as
-      // module-package-upload.test.ts and the U2.2 demo script.
-      const protoSrc =
-        "/Users/paragarora/Documents/Workspace/research/hebbs-repos/hebbs-typescript/proto/hebbs.proto";
-      await mkdir(join(storeDir, "proto"), { recursive: true });
-      try {
-        if (existsSync(protoSrc)) {
-          await copyFile(protoSrc, join(storeDir, "proto", "hebbs.proto"));
-        }
-      } catch {
-        // Best-effort — failures surface as a clear import error.
-      }
+      // U6: CRM no longer imports @hebbs/sdk; the bundle has no proto
+      // loader, so no MODULES_STORE_DIR pre-staging is required.
       const extractDir = join(storeDir, "crm@0.2.0");
       await mkdir(extractDir, { recursive: true });
       const fixturePath = join(__dirname, "fixtures", "crm-0.2.0.hebbsmod");

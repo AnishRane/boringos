@@ -32,8 +32,7 @@ describe("task_22 U4.1 — GET /modules/:id/ui/*", () => {
       const { BoringOS, createFrameworkModule, createMemoryModule } = await import(
         "@boringos/core"
       );
-      const { mkdtemp, readFile, mkdir, rm, copyFile } = await import("node:fs/promises");
-      const { existsSync } = await import("node:fs");
+      const { mkdtemp, readFile, mkdir, rm } = await import("node:fs/promises");
       const { tmpdir } = await import("node:os");
       const { join } = await import("node:path");
       const { randomUUID } = await import("node:crypto");
@@ -48,21 +47,10 @@ describe("task_22 U4.1 — GET /modules/:id/ui/*", () => {
         `module-ui-store-test-${Date.now()}`,
       );
       process.env.MODULES_STORE_DIR = storeDir;
-
-      // Same proto workaround as module-package-upload.test.ts —
-      // CRM's bundled @hebbs/sdk uses import.meta.url to find
-      // ../proto/hebbs.proto at load time. Best-effort.
-      const protoSrc =
-        "/Users/paragarora/Documents/Workspace/research/hebbs-repos/hebbs-typescript/proto/hebbs.proto";
       await mkdir(storeDir, { recursive: true });
-      await mkdir(join(storeDir, "proto"), { recursive: true });
-      try {
-        if (existsSync(protoSrc)) {
-          await copyFile(protoSrc, join(storeDir, "proto", "hebbs.proto"));
-        }
-      } catch {
-        // ignore
-      }
+
+      // U6: CRM no longer imports @hebbs/sdk; the bundle has no proto
+      // loader, so no MODULES_STORE_DIR pre-staging is required.
 
       const jwtSecret = "u4-ui-secret";
       const app = new BoringOS({

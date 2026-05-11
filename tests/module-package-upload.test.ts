@@ -51,29 +51,11 @@ describe("task_22 — POST/DELETE/GET /api/admin/modules/* package routes", () =
         `module-store-test-${Date.now()}`,
       );
       process.env.MODULES_STORE_DIR = storeDir;
-
-      // Known CRM-bundle packaging bug: the inlined @hebbs/sdk uses
-      // `import.meta.url` to find `../proto/hebbs.proto` at module
-      // load time. Inside our extract dir that resolves to
-      // <storeDir>/proto/hebbs.proto. Materialise the file there so
-      // the dynamic-import doesn't crash. The U2 demo applies the
-      // exact same workaround — fixing this for real is U5 (re-pack
-      // CRM bundle with proto inlined / externalised). Tracked at
-      // task_22 / scripts/try-runtime-install.mjs.
-      const protoSrc = "/Users/paragarora/Documents/Workspace/research/hebbs-repos/hebbs-typescript/proto/hebbs.proto";
       await mkdir(storeDir, { recursive: true });
-      await mkdir(join(storeDir, "proto"), { recursive: true });
-      try {
-        const { existsSync } = await import("node:fs");
-        const { copyFile } = await import("node:fs/promises");
-        if (existsSync(protoSrc)) {
-          await copyFile(protoSrc, join(storeDir, "proto", "hebbs.proto"));
-        }
-      } catch {
-        // If the proto source isn't available the test will surface
-        // a clear import_failed error — leave the workaround
-        // best-effort.
-      }
+
+      // U6: CRM no longer imports @hebbs/sdk, so the .hebbsmod bundle
+      // contains no proto loader. No pre-staging required — the upload
+      // path is expected to succeed on a clean MODULES_STORE_DIR.
 
       const jwtSecret = "u3-upload-secret";
       const app = new BoringOS({

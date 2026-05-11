@@ -12,7 +12,7 @@
 // Exit code 0 means the runtime-register architecture is validated
 // (GO). Any failure short-circuits with a NO-GO summary.
 
-import { mkdtemp, rm, readFile, mkdir, symlink, cp } from "node:fs/promises";
+import { mkdtemp, rm, readFile, mkdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname, resolve } from "node:path";
@@ -122,24 +122,8 @@ try {
 
   // ── 3. Dynamic import index.mjs ────────────────────────────────
   //
-  // BUG ENCOUNTERED (and worked around for the gate): the CRM bundle
-  // inlines @hebbs-typescript and at module-init time loads its gRPC
-  // .proto from `join(__dirname(import.meta.url), "..", "proto",
-  // "hebbs.proto")`. Once the bundle is unzipped into <extractDir>,
-  // that resolves to <extractDir>/../proto/hebbs.proto — which
-  // doesn't exist. We materialise the file there so the import
-  // doesn't crash. U3 needs to fix this properly (either bundle the
-  // proto as inlined text, externalise @hebbs-typescript and load it
-  // from the host, or have the SDK defer proto loading until first
-  // call).
-  const protoSrc = "/Users/paragarora/Documents/Workspace/research/hebbs-repos/hebbs-typescript/proto/hebbs.proto";
-  if (existsSync(protoSrc)) {
-    const protoTargetDir = join(dirname(extractDir), "proto");
-    try {
-      await mkdir(protoTargetDir, { recursive: true });
-      await cp(protoSrc, join(protoTargetDir, "hebbs.proto"));
-    } catch {}
-  }
+  // U6: CRM no longer imports @hebbs/sdk, so the bundle has no proto
+  // loader inside it. No pre-staging of hebbs.proto required.
   const entryUrl = pathToFileURL(join(extractDir, "index.mjs")).href;
   let bundleMod;
   try {
