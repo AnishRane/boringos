@@ -25,11 +25,5 @@ export { entityReferences } from "./entity-refs.js";
 
 // Module-system tables.
 export { toolCalls } from "./tool-calls.js";
-export {
-  hebbsCrmPipelines,
-  hebbsCrmContacts,
-  hebbsCrmDeals,
-  hebbsCrmActivities,
-} from "./crm.js";
 export { moduleInstalls } from "./module-installs.js";
 export { moduleMigrations } from "./module-migrations.js";

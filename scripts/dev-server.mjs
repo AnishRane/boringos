@@ -14,7 +14,6 @@ import {
   createCopilotModule,
   createSlackModule,
   createGoogleModule,
-  createHebbsCrmModule,
   createTriageModule,
   createInboxTriageModule,
   createInboxReplierModule,
@@ -45,7 +44,6 @@ app.module(createWorkflowModule);
 app.module(createCopilotModule);
 app.module(createSlackModule);
 app.module(createGoogleModule);
-app.module(createHebbsCrmModule);
 app.module(createTriageModule);
 app.module(createInboxTriageModule);
 app.module(createInboxReplierModule);

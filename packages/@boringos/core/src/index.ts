@@ -25,7 +25,6 @@ export { createWorkflowModule } from "./modules/workflow.js";
 export { createInboxModule } from "./modules/inbox.js";
 export { createSlackModule } from "./modules/slack.js";
 export { createGoogleModule } from "./modules/google.js";
-export { createHebbsCrmModule } from "./modules/hebbs-crm.js";
 export { createCopilotModule } from "./modules/copilot.js";
 export { createTriageModule } from "./modules/triage.js";
 export { createInboxTriageModule } from "./modules/inbox-triage.js";
