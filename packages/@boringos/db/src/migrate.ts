@@ -239,6 +239,24 @@ async function ensureSchema(db: Db): Promise<void> {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
 
+    -- One row per (tenant, path). Pre-existing dbs without the
+    -- constraint may hold duplicate rows from older code paths;
+    -- the dedupe DELETE keeps the most-recent entry per path
+    -- before adding the index.
+    DELETE FROM drive_files
+     WHERE id IN (
+       SELECT id FROM (
+         SELECT id, ROW_NUMBER() OVER (
+                  PARTITION BY tenant_id, path
+                  ORDER BY updated_at DESC, created_at DESC
+                ) AS rn
+           FROM drive_files
+       ) t WHERE t.rn > 1
+     );
+
+    CREATE UNIQUE INDEX IF NOT EXISTS drive_files_tenant_path_uniq
+      ON drive_files(tenant_id, path);
+
     CREATE TABLE IF NOT EXISTS workflows (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       tenant_id UUID NOT NULL REFERENCES tenants(id),

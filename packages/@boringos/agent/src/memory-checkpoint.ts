@@ -179,9 +179,20 @@ export function createMemoryCheckpoint(
           const ext = filename.includes(".")
             ? filename.slice(filename.lastIndexOf(".") + 1).toLowerCase()
             : "";
-          await db
-            .insert(driveFiles)
-            .values({
+          // driveFiles has no unique constraint on (tenant_id, path),
+          // so onConflictDoUpdate silently no-ops. Delete-then-insert
+          // is the portable upsert here. Wrapped in try so a race
+          // with a parallel writer is just a no-op.
+          try {
+            await db
+              .delete(driveFiles)
+              .where(
+                and(
+                  eq(driveFiles.tenantId, opts.tenantId),
+                  eq(driveFiles.path, relPath),
+                ),
+              );
+            await db.insert(driveFiles).values({
               tenantId: opts.tenantId,
               path: relPath,
               filename,
@@ -189,34 +200,10 @@ export function createMemoryCheckpoint(
               size: stat.size,
               hash: "",
               updatedAt: new Date(),
-            })
-            .onConflictDoUpdate({
-              target: [driveFiles.tenantId, driveFiles.path],
-              set: {
-                filename,
-                format: ext,
-                size: stat.size,
-                updatedAt: new Date(),
-              },
-            })
-            .catch(() => {
-              // The driveFiles uniqueness target depends on the
-              // schema; if onConflict shape differs in a deploy,
-              // fall back to plain insert (duplicates are harmless
-              // — the row just shadows).
-              return db
-                .insert(driveFiles)
-                .values({
-                  tenantId: opts.tenantId,
-                  path: relPath,
-                  filename,
-                  format: ext,
-                  size: stat.size,
-                  hash: "",
-                  updatedAt: new Date(),
-                })
-                .catch(() => {});
             });
+          } catch {
+            /* per-file failure is best-effort; reindex continues */
+          }
         }
       }
     } catch {
