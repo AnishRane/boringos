@@ -32,6 +32,15 @@ export interface AgentActor {
   agentId?: string;
   /** The task the agent is currently running for, if any. */
   taskId?: string;
+  /**
+   * task_23 — the human owner of the wake the agent is running for,
+   * if any. When set, the agent is granted read+write on
+   * `users/<wakeOwnerUserId>/...` (the user is delegating the run
+   * to the agent). When unset (routine / cron / webhook), agents
+   * remain blocked from `users/*` entirely — those wakes have no
+   * human at the origin and cannot act in any user's name.
+   */
+  wakeOwnerUserId?: string;
 }
 
 export type Actor = UserActor | AgentActor;
@@ -233,10 +242,20 @@ function canAgentAccess(agent: AgentActor, op: Op, match: PrefixMatch): Decision
       return { ok: true };
     }
     case "users": {
-      // Agents do not get to read or write user-private folders.
-      // If you want an agent to see a file, put it in tasks/,
-      // shared/, or projects/.
-      return { ok: false, reason: "users/<id>/ is private — not accessible to agents" };
+      // task_23 — when the agent is acting on behalf of a specific
+      // human (the wake-owner), it can read+write that user's
+      // own dir. This is what makes per-user preferences and
+      // user-scope memory work: the agent is the user's delegate
+      // for the duration of the run.
+      //
+      // Routine / cron / webhook wakes have no wakeOwnerUserId
+      // and remain blocked from `users/*` entirely — those wakes
+      // have no human at the origin and cannot act in any user's
+      // name.
+      if (agent.wakeOwnerUserId && match.scopeId === agent.wakeOwnerUserId) {
+        return { ok: true };
+      }
+      return { ok: false, reason: "users/<id>/ is private — only the wake-owner's own dir is accessible" };
     }
   }
 }

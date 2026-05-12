@@ -27,6 +27,8 @@ interface ResolvedAuth {
   tenantId: string;
   agentId?: string;
   runId?: string;
+  /** task_23 — wake-owner from JWT claim or admin session. */
+  wakeOwnerUserId?: string;
   invokedBy: ToolInvocationSource;
 }
 
@@ -67,6 +69,7 @@ export function createToolRoutes(deps: ToolRoutesDeps): Hono<AuthEnv> {
         tenantId: claims.tenant_id,
         agentId: claims.agent_id,
         runId: claims.sub,
+        wakeOwnerUserId: claims.wake_owner_user_id,
         invokedBy: "agent",
       });
       return next();
@@ -74,15 +77,22 @@ export function createToolRoutes(deps: ToolRoutesDeps): Hono<AuthEnv> {
 
     // 2) Session bearer (shell user).
     const result = await deps.db.execute(sql`
-      SELECT ut.tenant_id
+      SELECT s.user_id, ut.tenant_id
         FROM auth_sessions s
         JOIN user_tenants ut ON ut.user_id = s.user_id
        WHERE s.token = ${token} AND s.expires_at > NOW()
        LIMIT 1
     `);
-    const rows = result as unknown as Array<{ tenant_id: string }>;
+    const rows = result as unknown as Array<{ user_id: string; tenant_id: string }>;
     if (rows[0]?.tenant_id) {
-      c.set("auth", { tenantId: rows[0].tenant_id, invokedBy: "admin" });
+      // Admin dispatches: the session user IS the wake-owner for ACL
+      // purposes. They can reach their own users/<id>/ without being
+      // gated by the "agents can't touch users/*" rule.
+      c.set("auth", {
+        tenantId: rows[0].tenant_id,
+        wakeOwnerUserId: rows[0].user_id,
+        invokedBy: "admin",
+      });
       return next();
     }
 
@@ -147,6 +157,7 @@ export function createToolRoutes(deps: ToolRoutesDeps): Hono<AuthEnv> {
           tenantId: auth.tenantId,
           agentId: auth.agentId,
           runId: auth.runId,
+          wakeOwnerUserId: auth.wakeOwnerUserId,
           invokedBy: auth.invokedBy,
         },
         { idempotencyKey },

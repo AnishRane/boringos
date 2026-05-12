@@ -201,9 +201,17 @@ export function createAgentEngine(config: AgentEngineConfig): AgentEngine {
       }
     }
 
-    // Generate signed callback JWT (4-hour expiry)
+    // Generate signed callback JWT (4-hour expiry). The wake-owner
+    // travels with the token so tool dispatches (drive.* in
+    // particular) can ACL-check writes against the right user
+    // without re-resolving wake-context per call.
     const callbackToken = signCallbackToken(
-      { runId, agentId: job.agentId, tenantId: job.tenantId },
+      {
+        runId,
+        agentId: job.agentId,
+        tenantId: job.tenantId,
+        wakeOwnerUserId: wakeContext?.ownerUserId ?? null,
+      },
       jwtSecret,
     );
 

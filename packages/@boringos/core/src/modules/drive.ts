@@ -151,11 +151,20 @@ interface DriveModuleDeps {
 /** Build the actor for ACL checks from the tool context. */
 function actorFromCtx(ctx: ToolContext): Actor {
   if (ctx.invokedBy === "agent" || ctx.invokedBy === "routine" || ctx.invokedBy === "workflow") {
-    return { kind: "agent", agentId: ctx.agentId, taskId: ctx.taskId };
+    return {
+      kind: "agent",
+      agentId: ctx.agentId,
+      taskId: ctx.taskId,
+      wakeOwnerUserId: ctx.wakeOwnerUserId,
+    };
   }
-  // Admin/internal callers act with system privileges. No userId
-  // is plumbed through ToolContext yet, so treat them as admin
-  // for ACL purposes.
+  // Admin/internal callers. The session-bearer auth path plumbs
+  // wakeOwnerUserId for shell users so they can reach their own
+  // users/<id>/ namespace. Pure-internal callers (no session)
+  // fall through to system/admin privileges.
+  if (ctx.wakeOwnerUserId) {
+    return { kind: "user", userId: ctx.wakeOwnerUserId, role: "admin" };
+  }
   return { kind: "user", userId: "system", role: "admin" };
 }
 
@@ -451,6 +460,180 @@ export const createDriveModule: ModuleFactory = (factoryDeps) => {
     },
   };
 
+  const searchTool: Tool = {
+    name: "search",
+    description:
+      "Search across the caller's accessible Drive files. Supports regex content match and glob/regex filename match. Returns up to `maxResults` hits, each with the file path and (for content mode) the matched line snippets. Scope with `prefix` to restrict the search (e.g. \"shared/memory/\", \"users/<self>/\"). For non-agent callers and admin tooling — agents inside a wake should prefer using Grep/Glob on `./drive/` directly, which is faster and composes with shell pipelines.",
+    inputs: z.object({
+      query: z.string().min(1).describe("Regex pattern (JavaScript flavour)"),
+      prefix: z
+        .string()
+        .optional()
+        .describe("Restrict search to a sub-prefix (e.g. 'shared/' or 'users/<id>/memory/')"),
+      mode: z
+        .enum(["content", "filename", "both"])
+        .optional()
+        .describe("Default: both. 'content' greps file bytes; 'filename' matches the path."),
+      caseSensitive: z.boolean().optional().describe("Default false."),
+      maxResults: z
+        .number()
+        .int()
+        .min(1)
+        .max(500)
+        .optional()
+        .describe("Hard cap on returned hits. Default 50."),
+    }),
+    async handler(
+      input: {
+        query: string;
+        prefix?: string;
+        mode?: "content" | "filename" | "both";
+        caseSensitive?: boolean;
+        maxResults?: number;
+      },
+      ctx: ToolContext,
+    ): Promise<ToolResult> {
+      const d = requireDeps();
+      if ("error" in d) return d.error;
+
+      const mode = input.mode ?? "both";
+      const caseSensitive = input.caseSensitive ?? false;
+      const maxResults = input.maxResults ?? 50;
+
+      // Validate regex up-front so we return invalid_input cleanly
+      // rather than throwing inside the inner loop.
+      let rx: RegExp;
+      try {
+        rx = new RegExp(input.query, caseSensitive ? "" : "i");
+      } catch (err) {
+        return {
+          ok: false,
+          error: {
+            code: "invalid_input",
+            message: `Invalid regex: ${err instanceof Error ? err.message : String(err)}`,
+            retryable: false,
+          },
+        };
+      }
+
+      // Prefix validation. Empty prefix is allowed — means search
+      // the whole tenant subject to ACL filtering per result.
+      let dbPrefix = "";
+      if (input.prefix) {
+        const v = validatePath(input.prefix);
+        if (!v.ok) {
+          return {
+            ok: false,
+            error: { code: "invalid_input", message: v.reason, retryable: false },
+          };
+        }
+        dbPrefix = v.path.endsWith("/") ? v.path : `${v.path}/`;
+      }
+
+      // Pull candidates from the index. We cap broad scans at 10k
+      // rows; if a caller hits that limit they should narrow with
+      // `prefix`. The cap protects the engine against runaway
+      // queries on hosts with millions of files.
+      const CANDIDATE_CAP = 10_000;
+      const conds = [eq(driveFiles.tenantId, ctx.tenantId)];
+      if (dbPrefix) {
+        conds.push(sqlExpr`${driveFiles.path} LIKE ${dbPrefix + "%"}`);
+      }
+      const rows = await d.deps.db
+        .select()
+        .from(driveFiles)
+        .where(and(...conds))
+        .limit(CANDIDATE_CAP);
+
+      // For each candidate: ACL-check, then (filename mode) match
+      // path against rx, (content mode) read + scan for line hits.
+      // We bail as soon as `maxResults` is reached to avoid blowing
+      // through the rest of a large corpus.
+      const results: Array<{
+        path: string;
+        name: string;
+        matches?: Array<{ line: number; text: string }>;
+      }> = [];
+
+      // Content-search size cap — don't blindly buffer huge blobs.
+      // 1 MB covers every reasonable text file; PDFs/images are
+      // skipped at the format guard regardless.
+      const MAX_CONTENT_BYTES = 1_000_000;
+
+      for (const row of rows) {
+        if (results.length >= maxResults) break;
+
+        // ACL check — `read` on the file's path. Paths that fail
+        // are silently skipped (caller never learns the file
+        // exists), which is the right behaviour for an ACL'd
+        // search.
+        const decision = canAccess(actorFromCtx(ctx), "read", row.path);
+        if (!decision.ok) continue;
+
+        const filenameHit =
+          mode !== "content" && rx.test(row.path);
+
+        let contentMatches: Array<{ line: number; text: string }> | undefined;
+        if (mode !== "filename") {
+          // Skip likely-binary formats fast. The format column is
+          // populated at write time from the file extension; null
+          // means "unknown" which we treat as "may be text".
+          const fmt = (row.format ?? "").toLowerCase();
+          const looksBinary =
+            fmt === "png" ||
+            fmt === "jpg" ||
+            fmt === "jpeg" ||
+            fmt === "gif" ||
+            fmt === "pdf" ||
+            fmt === "zip" ||
+            fmt === "wav" ||
+            fmt === "mp3" ||
+            fmt === "mp4";
+          if (!looksBinary && row.size <= MAX_CONTENT_BYTES) {
+            try {
+              const text = await d.deps.drive.readText(
+                `${ctx.tenantId}/${row.path}`,
+              );
+              const lineHits: Array<{ line: number; text: string }> = [];
+              const lines = text.split("\n");
+              for (let i = 0; i < lines.length; i++) {
+                if (rx.test(lines[i])) {
+                  // Trim each match snippet so giant lines don't
+                  // explode the response payload.
+                  const snippet = lines[i].length > 240
+                    ? lines[i].slice(0, 240) + "…"
+                    : lines[i];
+                  lineHits.push({ line: i + 1, text: snippet });
+                  if (lineHits.length >= 10) break; // per-file cap
+                }
+              }
+              if (lineHits.length > 0) contentMatches = lineHits;
+            } catch {
+              // Read errors (race with delete, encoding issues) are
+              // not fatal — just skip this file.
+            }
+          }
+        }
+
+        if (filenameHit || contentMatches) {
+          results.push({
+            path: row.path,
+            name: row.filename,
+            ...(contentMatches ? { matches: contentMatches } : {}),
+          });
+        }
+      }
+
+      return {
+        ok: true,
+        result: {
+          results,
+          truncated: rows.length === CANDIDATE_CAP,
+        },
+      };
+    },
+  };
+
   const moveTool: Tool = {
     name: "move",
     description: "Move or rename a file",
@@ -489,7 +672,7 @@ export const createDriveModule: ModuleFactory = (factoryDeps) => {
         priority: 65,
       },
     ],
-    tools: [readTool, writeTool, writeBinaryTool, listTool, deleteTool, existsTool, moveTool],
+    tools: [readTool, writeTool, writeBinaryTool, listTool, searchTool, deleteTool, existsTool, moveTool],
   };
 
   return module;

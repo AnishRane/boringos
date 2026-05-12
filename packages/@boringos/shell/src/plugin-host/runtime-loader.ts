@@ -233,7 +233,10 @@ export function unloadRuntimePlugin(moduleId: string): void {
   pluginHost.unregister(moduleId);
   // Drop the injected stylesheet so a re-install doesn't accumulate
   // duplicate <link> tags or keep stale styles applied after the
-  // route tree no longer references this module.
+  // route tree no longer references this module. Guarded for
+  // Node-side unit tests that exercise the registry layer without
+  // a DOM.
+  if (typeof document === "undefined") return;
   const link = document.getElementById(`boringos-plugin-css-${moduleId}`);
   if (link) link.remove();
 }

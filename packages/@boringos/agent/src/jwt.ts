@@ -4,6 +4,13 @@ export interface CallbackTokenClaims {
   sub: string;       // runId
   agent_id: string;
   tenant_id: string;
+  /**
+   * task_23 — the human owner of the wake this token was issued for,
+   * if any. Routine / cron / webhook wakes have no human owner; the
+   * field is omitted. Drive ACL uses this to relax the `users/*`
+   * block for the wake-owner's directory only.
+   */
+  wake_owner_user_id?: string;
   iat: number;
   exp: number;
 }
@@ -21,19 +28,26 @@ function base64urlDecode(input: string): string {
 }
 
 export function signCallbackToken(
-  claims: { runId: string; agentId: string; tenantId: string },
+  claims: {
+    runId: string;
+    agentId: string;
+    tenantId: string;
+    wakeOwnerUserId?: string | null;
+  },
   secret: string,
 ): string {
   const now = Math.floor(Date.now() / 1000);
 
   const header = base64url(JSON.stringify({ alg: ALGORITHM, typ: "JWT" }));
-  const payload = base64url(JSON.stringify({
+  const body: Record<string, unknown> = {
     sub: claims.runId,
     agent_id: claims.agentId,
     tenant_id: claims.tenantId,
     iat: now,
     exp: now + TOKEN_EXPIRY_SECONDS,
-  }));
+  };
+  if (claims.wakeOwnerUserId) body.wake_owner_user_id = claims.wakeOwnerUserId;
+  const payload = base64url(JSON.stringify(body));
 
   const signature = createHmac("sha256", secret)
     .update(`${header}.${payload}`)

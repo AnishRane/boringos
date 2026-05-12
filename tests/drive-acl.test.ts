@@ -185,8 +185,32 @@ describe("canAccess — AgentActor", () => {
     expect(canAccess(agent, "write", "agents/A-2/scratch").ok).toBe(false);
   });
 
-  it("denies any access to users/", () => {
+  it("denies any access to users/ when no wakeOwnerUserId is set", () => {
+    // Routine / cron / webhook wakes have no human owner. They
+    // must NOT be able to act in any user's name.
     expect(canAccess(agent, "read", "users/u-alice/x").ok).toBe(false);
     expect(canAccess(agent, "write", "users/u-alice/x").ok).toBe(false);
+  });
+
+  it("task_23 — allows the wake-owner's own users/<id>/ when wakeOwnerUserId is set", () => {
+    const delegated: Actor = {
+      kind: "agent",
+      agentId: "A-1",
+      taskId: "T-1",
+      wakeOwnerUserId: "u-alice",
+    };
+    expect(canAccess(delegated, "read", "users/u-alice/preferences.md").ok).toBe(true);
+    expect(canAccess(delegated, "write", "users/u-alice/memory/MEMORY.md").ok).toBe(true);
+  });
+
+  it("task_23 — agent acting for user A still cannot reach user B's dir", () => {
+    const delegated: Actor = {
+      kind: "agent",
+      agentId: "A-1",
+      taskId: "T-1",
+      wakeOwnerUserId: "u-alice",
+    };
+    expect(canAccess(delegated, "read", "users/u-bob/secret.pdf").ok).toBe(false);
+    expect(canAccess(delegated, "write", "users/u-bob/notes.md").ok).toBe(false);
   });
 });

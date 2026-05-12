@@ -39,6 +39,16 @@ export interface ToolContext {
   runId?: string;
   taskId?: string;
   /**
+   * task_23 — the human owner of the wake this dispatch is part of,
+   * if any. Plumbed from the callback JWT's `wake_owner_user_id`
+   * claim for agent dispatches; from the session user-id for admin
+   * dispatches; undefined for routine / cron / internal calls with
+   * no human at the origin. Drive ACL uses this to allow agent
+   * writes into `users/<wakeOwnerUserId>/` without opening up the
+   * whole `users/` namespace.
+   */
+  wakeOwnerUserId?: string;
+  /**
    * Free-form invocation source for audit. Examples:
    * "agent" (HTTP from agent JWT), "routine" (cron),
    * "workflow" (DAG node), "admin" (UI), "internal" (engine).
