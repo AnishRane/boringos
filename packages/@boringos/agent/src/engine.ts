@@ -46,6 +46,15 @@ export interface AgentEngineConfig {
   callbackUrl: string;
   jwtSecret: string;
   queue?: QueueAdapter<AgentRunJob>;
+  /**
+   * Local-FS path the Drive backend writes into. When set, every
+   * agent run gets a per-run workdir with `<workDir>/drive/`
+   * symlinked to the wake's accessible Drive slice. Required for
+   * task_23's filesystem-mount; agents work tool-only when unset.
+   * Defaults to the same directory the local Drive backend was
+   * configured with (BoringOS wires this through automatically).
+   */
+  driveRoot?: string;
 }
 
 function registerDefaultProviders(pipeline: ContextPipeline, config: AgentEngineConfig): void {
@@ -162,6 +171,35 @@ export function createAgentEngine(config: AgentEngineConfig): AgentEngine {
       .where(eq(tasks.id, job.taskId))
       .limit(1);
     const previousSessionId = taskRows[0]?.sessionId ?? undefined;
+
+    // task_23 — resolve wake-context (who is this run for) and
+    // provision a per-run workdir with Drive symlinked under
+    // <workDir>/drive/. The agent's CLI sees its data as a real
+    // filesystem; reads + writes hit the same bytes a drive.* tool
+    // call would. Routine / cron / webhook wakes get no users/*
+    // entry — cross-user privacy falls out of the mount.
+    const { resolveWakeContext } = await import("./wake-context.js");
+    const { provisionRunWorkdir, cleanupRunWorkdir } = await import(
+      "./run-workdir.js"
+    );
+    const { injectDrive } = await import("./drive-mount.js");
+
+    const wakeContext = await resolveWakeContext(db, job);
+    let workDir: string | null = null;
+    if (wakeContext && config.driveRoot) {
+      try {
+        workDir = await provisionRunWorkdir({ runId });
+        await injectDrive({
+          workDir,
+          driveRoot: config.driveRoot,
+          wakeContext,
+        });
+      } catch {
+        // Mount failure should never block the run. The agent
+        // falls back to tool-only Drive access (the old behaviour).
+        workDir = null;
+      }
+    }
 
     // Generate signed callback JWT (4-hour expiry)
     const callbackToken = signCallbackToken(
@@ -309,6 +347,7 @@ export function createAgentEngine(config: AgentEngineConfig): AgentEngine {
           callbackUrl,
           callbackToken,
           previousSessionId,
+          workspaceCwd: workDir ?? undefined,
         },
         callbacks,
       );
@@ -323,6 +362,13 @@ export function createAgentEngine(config: AgentEngineConfig): AgentEngine {
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
       callbacks.onError(error);
+    } finally {
+      // Tear down the per-run workdir. Symlinks unlink; real Drive
+      // data on the other end of the symlinks is untouched. Best-
+      // effort — cleanup errors never mask a real run failure.
+      if (workDir) {
+        await cleanupRunWorkdir(workDir);
+      }
     }
   }
 

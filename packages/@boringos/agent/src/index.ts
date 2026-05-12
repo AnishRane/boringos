@@ -47,6 +47,12 @@ export type { SkillSyncConfig, InjectedSkill } from "./skills.js";
 export { resolveWakeContext } from "./wake-context.js";
 export type { WakeContext } from "./wake-context.js";
 
+export { provisionRunWorkdir, cleanupRunWorkdir } from "./run-workdir.js";
+export type { RunWorkdirOpts } from "./run-workdir.js";
+
+export { injectDrive } from "./drive-mount.js";
+export type { DriveMountOpts } from "./drive-mount.js";
+
 export { createAgentFromTemplate, createTeam, buildOrgTree, BUILT_IN_TEAMS } from "./templates.js";
 export type { AgentTemplateConfig, CreatedAgent, TeamTemplate, OrgNode } from "./templates.js";
 

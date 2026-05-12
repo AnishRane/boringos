@@ -560,6 +560,12 @@ export class BoringOS {
       callbackUrl,
       jwtSecret,
       queue: resolvedQueue,
+      // task_23 — Drive's local-FS root. The engine uses this to
+      // symlink the wake's accessible Drive slice into each run's
+      // workdir under <workDir>/drive/. Non-local backends (e.g.
+      // a future S3) would leave this empty and the mount silently
+      // skips, falling back to tool-only Drive access.
+      driveRoot,
     });
 
     // Populate the deps holder so module handlers (e.g.
