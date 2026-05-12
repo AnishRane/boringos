@@ -44,7 +44,7 @@ describe("injectDrive", () => {
     await rm(tmp, { recursive: true, force: true });
   });
 
-  it("mounts shared + tasks/<active> + users/<owner> for a user-owned wake", async () => {
+  it("mounts shared + tasks/<active> + users/<owner> + me/ alias for a user-owned wake", async () => {
     const workDir = await mkdtemp(join(tmp, "workdir-A-"));
     const wakeContext: WakeContext = {
       ownerUserId: U,
@@ -80,12 +80,22 @@ describe("injectDrive", () => {
       ),
     ).toBe("U prefers terse");
 
+    // ./drive/me/ — agent-friendly alias to the same dir, so the
+    // agent never has to know its wake-owner's UUID.
+    expect(existsSync(join(workDir, "drive", "me"))).toBe(true);
+    expect(await realpath(join(workDir, "drive", "me"))).toBe(
+      await realpath(join(driveRoot, T, "users", U)),
+    );
+    expect(
+      await readFile(join(workDir, "drive", "me", "preferences.md"), "utf8"),
+    ).toBe("U prefers terse");
+
     // CRITICAL — the OTHER user is NOT mounted, even though they
     // exist in the same tenant. Cross-user privacy via the mount.
     expect(existsSync(join(workDir, "drive", "users", V))).toBe(false);
   });
 
-  it("omits users/* entirely when the wake has no human owner (routine)", async () => {
+  it("omits users/* and me/ entirely when the wake has no human owner (routine)", async () => {
     const workDir = await mkdtemp(join(tmp, "workdir-B-"));
     const wakeContext: WakeContext = {
       ownerUserId: null,
@@ -101,6 +111,8 @@ describe("injectDrive", () => {
     expect(existsSync(join(workDir, "drive", "tasks", TASK))).toBe(true);
     // No users/ directory at all — not even an empty parent.
     expect(existsSync(join(workDir, "drive", "users"))).toBe(false);
+    // me/ also absent — no human owner means no "me".
+    expect(existsSync(join(workDir, "drive", "me"))).toBe(false);
   });
 
   it("a write through the mount hits the real Drive path", async () => {

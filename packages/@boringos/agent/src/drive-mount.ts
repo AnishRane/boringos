@@ -83,11 +83,26 @@ export async function injectDrive(opts: DriveMountOpts): Promise<void> {
   // Owner-scoped: only when the wake has a resolvable human owner.
   // Routine / cron / webhook wakes skip this branch entirely —
   // they cannot reach any `users/*` directory through the mount.
+  //
+  // We expose the wake-owner's directory at TWO paths under the
+  // mount:
+  //   1) the canonical `./drive/users/<uuid>/` — preserves the
+  //      Drive's real structure so any documentation/diagrams that
+  //      reference users/<id>/ paths work natively
+  //   2) the agent-friendly alias `./drive/me/` — the SKILL points
+  //      agents at this. Agents never need to know their wake-
+  //      owner's UUID; they always reach memory at ./drive/me/.
+  //
+  // Both point at the same on-disk bytes. Symlinks are cheap.
   if (wakeContext.ownerUserId) {
     await linkPrefix({
       src: join(tenantRoot, "users", wakeContext.ownerUserId),
       dest: join(mountRoot, "users", wakeContext.ownerUserId),
       parents: [join(mountRoot, "users")],
+    });
+    await linkPrefix({
+      src: join(tenantRoot, "users", wakeContext.ownerUserId),
+      dest: join(mountRoot, "me"),
     });
   }
 
