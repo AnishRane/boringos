@@ -69,6 +69,10 @@ describe("task_22 — runtime registerModule()", () => {
         throw new Error("crm bundle did not expose a default factory");
       }
       const jwtSecret = "u2-runtime-register-secret";
+      // task_24 — isolate from the workspace's shared module-store so
+      // boot-time rehydration doesn't pick up unrelated `.hebbsmod`
+      // dirs and pollute the registry.
+      process.env.MODULES_STORE_DIR = join(dataDir, "module-store");
       const app = new BoringOS({
         // Pin a non-default Postgres port so we don't collide with
         // sibling phase tests using 5586 / 5592 / 5576 / 5436 / etc.

@@ -11,6 +11,22 @@
 import type { ContextProvider, ContextBuildEvent } from "../types.js";
 import type { ToolRegistry } from "./tool-registry.js";
 
+/**
+ * task_24 — tool names hidden from the agent's prompt even when
+ * they're registered. Agents have direct filesystem access to the
+ * same on-disk endpoint these tools wrap, so exposing them creates
+ * a temptation path: the agent picks the HTTP tool (description in
+ * prompt) over the equivalent Write/Read/Grep on `./drive/`. The
+ * tools stay registered and dispatchable for non-agent callers
+ * (the shell UI, scripts, webhooks, future remote backends) —
+ * they just don't appear in the catalog the agent reads.
+ */
+const HIDDEN_FROM_AGENT_PROMPT: ReadonlySet<string> = new Set([
+  "memory.remember",
+  "memory.recall",
+  "memory.forget",
+]);
+
 export interface ToolCatalogProviderDeps {
   registry: ToolRegistry;
   /**
@@ -30,7 +46,9 @@ export function createToolCatalogProvider(
     priority: deps.priority ?? 75,
 
     async provide(_event: ContextBuildEvent): Promise<string | null> {
-      const tools = deps.registry.list();
+      const tools = deps.registry
+        .list()
+        .filter((entry) => !HIDDEN_FROM_AGENT_PROMPT.has(entry.fullName));
       if (tools.length === 0) return null;
 
       const lines: string[] = [

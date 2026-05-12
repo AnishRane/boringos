@@ -16,6 +16,9 @@ describe("v2 — admin views", () => {
 
     const dataDir = await mkdtemp(join(tmpdir(), "boringos-v2-admin-"));
     const jwtSecret = "v2-admin-secret";
+    // task_24 — isolate boot-time rehydration from the workspace's
+    // shared module-store so unrelated .hebbsmod dirs don't appear.
+    process.env.MODULES_STORE_DIR = join(dataDir, "module-store");
     const app = new BoringOS({
       database: { embedded: true, dataDir, port: 5586 },
       drive: { root: join(dataDir, "drive") },
