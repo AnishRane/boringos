@@ -337,7 +337,15 @@ export function createAgentEngine(config: AgentEngineConfig): AgentEngine {
       },
       onError(error) {
         lifecycle.updateStatus(runId, "failed", { error: error.message });
-        onError.run({ agentId: job.agentId, tenantId: job.tenantId, runId, error });
+        onError.run({
+          agentId: job.agentId,
+          tenantId: job.tenantId,
+          runId,
+          taskId: job.taskId,
+          ownerUserId: wakeContext?.ownerUserId ?? undefined,
+          sessionId: wakeContext?.sessionId ?? undefined,
+          error,
+        });
       },
     };
 
@@ -365,6 +373,8 @@ export function createAgentEngine(config: AgentEngineConfig): AgentEngine {
         tenantId: job.tenantId,
         runId,
         taskId: job.taskId,
+        ownerUserId: wakeContext?.ownerUserId ?? undefined,
+        sessionId: wakeContext?.sessionId ?? undefined,
         result,
       });
     } catch (err) {

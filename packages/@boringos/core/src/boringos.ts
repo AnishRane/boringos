@@ -959,6 +959,16 @@ export class BoringOS {
       });
     });
 
+    // task_24 F — register the memory-checkpoint subscriber. Every
+    // run finalisation (success or failure) appends a structured
+    // entry to the work's log file (tasks/<id>/log.md, or
+    // users/<owner>/sessions/<sid>.md for copilot sessions). Logs
+    // accumulate even when the agent forgets to remember.
+    const { createMemoryCheckpoint } = await import("@boringos/agent");
+    const memoryCheckpoint = createMemoryCheckpoint({ drive });
+    agentEngine.afterRun.use(memoryCheckpoint.onRunFinished);
+    agentEngine.onError.use(memoryCheckpoint.onRunFailed);
+
     // Wire engine events to realtime bus
     agentEngine.beforeRun.use((event) => {
       realtimeBus.publish({

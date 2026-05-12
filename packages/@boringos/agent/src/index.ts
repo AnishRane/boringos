@@ -53,6 +53,9 @@ export type { RunWorkdirOpts } from "./run-workdir.js";
 export { injectDrive } from "./drive-mount.js";
 export type { DriveMountOpts } from "./drive-mount.js";
 
+export { createMemoryCheckpoint } from "./memory-checkpoint.js";
+export type { MemoryCheckpoint, MemoryCheckpointDeps } from "./memory-checkpoint.js";
+
 export { createAgentFromTemplate, createTeam, buildOrgTree, BUILT_IN_TEAMS } from "./templates.js";
 export type { AgentTemplateConfig, CreatedAgent, TeamTemplate, OrgNode } from "./templates.js";
 

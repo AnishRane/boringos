@@ -104,6 +104,14 @@ export interface AfterRunEvent {
   tenantId: string;
   runId: string;
   taskId?: string;
+  /** task_24 — wake-owner (from wake-context). Drives whether the
+   *  auto-checkpoint hook routes to a session log under
+   *  users/<owner>/sessions/ vs the task log under tasks/<id>/. */
+  ownerUserId?: string;
+  /** task_24 — copilot session id when this task is part of a
+   *  session. Presence + ownerUserId routes the checkpoint to the
+   *  session log. */
+  sessionId?: string;
   result: RuntimeExecutionResult;
 }
 
@@ -111,6 +119,10 @@ export interface RunErrorEvent {
   agentId: string;
   tenantId: string;
   runId: string;
+  taskId?: string;
+  /** task_24 — see AfterRunEvent. */
+  ownerUserId?: string;
+  sessionId?: string;
   error: Error;
 }
 
