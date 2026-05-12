@@ -844,8 +844,9 @@ export class BoringOS {
         }
       : undefined;
 
-    // Auth routes (login, signup, session)
-    const authApp = createAuthRoutes(dbConn.db, jwtSecret, composedTenantHook);
+    // Auth routes (login, signup, session). Drive passed so signup
+    // can scaffold preferences.md + memory/MEMORY.md per new user.
+    const authApp = createAuthRoutes(dbConn.db, jwtSecret, composedTenantHook, drive);
     app.route("/api/auth", authApp);
 
     // Device auth routes (CLI login)

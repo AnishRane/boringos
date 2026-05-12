@@ -2,7 +2,12 @@
 //
 // `memory` Module — wraps the configured MemoryProvider, exposing
 // `memory.{remember, recall, forget}` tools plus a SKILL.md teaching
-// agents when to use memory.
+// agents the opinionated 4-folder layout, read order on wake, and
+// user-vs-tenant routing call.
+
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { z } from "@boringos/module-sdk";
 import type {
@@ -14,20 +19,18 @@ import type {
 } from "@boringos/module-sdk";
 import type { MemoryProvider } from "@boringos/memory";
 
-const MEMORY_SKILL = `Use the memory tools to keep context that should outlive
-this run.
-
-- \`memory.remember(content, meta?)\` — write a fact, decision, or piece of
-  context. Returns a memoryId. Use sparingly: every remember is searchable
-  later, so noise hurts recall quality.
-- \`memory.recall(query)\` — semantic search the tenant's memory. Returns the
-  top matches with their content. Use when you need to know something the
-  user might have told you previously, or when context smells incomplete.
-- \`memory.forget(memoryId)\` — remove a memory by id. Use when a fact has
-  changed (e.g., the user switched email addresses).
-
-Don't use memory as a scratchpad — comments on the task are the right place
-for in-run thinking. Memory is for cross-run continuity.`;
+// task_24 D — load the canonical SKILL.md from disk. Lives alongside
+// this file in `./memory/SKILL.md`. Fallback to inline placeholder
+// in the (vanishingly rare) case the file's missing from the dist
+// bundle — keeps the module loadable instead of crashing boot.
+const MEMORY_SKILL = (() => {
+  try {
+    const here = dirname(fileURLToPath(import.meta.url));
+    return readFileSync(join(here, "memory", "SKILL.md"), "utf8");
+  } catch {
+    return "# Memory\n\nUse memory.remember / memory.recall to persist facts across runs.";
+  }
+})();
 
 export const createMemoryModule: ModuleFactory = (deps) => {
   const memory = deps.memory as MemoryProvider | undefined;

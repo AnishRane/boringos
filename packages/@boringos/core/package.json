@@ -11,7 +11,7 @@
     }
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && node -e \"require('fs').cpSync('src/modules','dist/modules',{recursive:true,filter:(p)=>p.endsWith('.md')||require('fs').statSync(p).isDirectory()})\"",
     "typecheck": "tsc --noEmit"
   },
   "license": "MIT",
