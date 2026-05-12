@@ -965,7 +965,10 @@ export class BoringOS {
     // users/<owner>/sessions/<sid>.md for copilot sessions). Logs
     // accumulate even when the agent forgets to remember.
     const { createMemoryCheckpoint } = await import("@boringos/agent");
-    const memoryCheckpoint = createMemoryCheckpoint({ drive });
+    const memoryCheckpoint = createMemoryCheckpoint({
+      drive,
+      db: dbConn.db,
+    });
     agentEngine.afterRun.use(memoryCheckpoint.onRunFinished);
     agentEngine.onError.use(memoryCheckpoint.onRunFailed);
 

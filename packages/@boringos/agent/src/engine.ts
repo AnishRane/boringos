@@ -194,9 +194,18 @@ export function createAgentEngine(config: AgentEngineConfig): AgentEngine {
           driveRoot: config.driveRoot,
           wakeContext,
         });
-      } catch {
-        // Mount failure should never block the run. The agent
-        // falls back to tool-only Drive access (the old behaviour).
+      } catch (err) {
+        // task_25 G4 — surface mount failures. Falling back to
+        // tool-only Drive access still lets the run proceed, but a
+        // silent fallback means SKILL-prescribed reads like
+        // `cat ./drive/users/<owner>/preferences.md` would ENOENT
+        // and the agent would treat the user as new. Log loudly.
+        // eslint-disable-next-line no-console
+        console.warn(
+          `[engine] drive mount failed for run ${runId} (tenant=${job.tenantId}, agent=${job.agentId}): ${
+            err instanceof Error ? err.message : String(err)
+          } — agent will run with tool-only Drive access`,
+        );
         workDir = null;
       }
     }
