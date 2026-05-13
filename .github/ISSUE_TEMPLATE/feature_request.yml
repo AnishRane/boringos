@@ -1,0 +1,56 @@
+name: 🚀 Feature
+description: "Propose a new feature for BoringOS"
+title: "🚀 Feature: "
+labels: [feature]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to propose a feature for BoringOS. 🙏
+  - type: textarea
+    id: feature-description
+    validations:
+      required: true
+    attributes:
+      label: "🔖 Feature description"
+      description: "A clear and concise description of the feature."
+      placeholder: "BoringOS should support..."
+  - type: textarea
+    id: pitch
+    validations:
+      required: true
+    attributes:
+      label: "🎤 Why is this feature needed?"
+      description: "Explain why this should be implemented and how you'd use it. Examples welcome."
+      placeholder: "When building agentic platforms with BoringOS, I currently have to..."
+  - type: textarea
+    id: solution
+    validations:
+      required: true
+    attributes:
+      label: "🎯 How do you aim to achieve this?"
+      description: "A clear and concise description of what you want to happen. If it touches a specific primitive (Skill / Tool / Module / runtime / queue / persona), call it out."
+      placeholder: "Add a new Module that... / Extend the engine to..."
+  - type: textarea
+    id: alternative
+    validations:
+      required: false
+    attributes:
+      label: "🔄️ Alternatives & additional context"
+      description: "Any alternative solutions or workarounds you've considered."
+      placeholder: "I tried..."
+  - type: checkboxes
+    id: no-duplicate-issues
+    attributes:
+      label: "👀 Have you checked if this feature has been requested before?"
+      description: Please [search the history](https://github.com/AnishRane/boringos/issues) to see if an issue already exists for the same idea.
+      options:
+        - label: "I checked and didn't find a similar issue"
+          required: true
+  - type: dropdown
+    id: willing-to-submit-pr
+    attributes:
+      label: Are you willing to submit a PR?
+      description: Not required — we're happy to guide you through the contribution process.
+      options:
+        - "Yes, I'm willing to submit a PR!"

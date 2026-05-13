@@ -1,0 +1,108 @@
+name: 🐛 Report a bug
+description: Let us know if something in BoringOS isn't working the way you expected.
+labels: ["type:bug"]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for taking the time to file a BoringOS bug report. 🙏
+  - type: textarea
+    id: description
+    validations:
+      required: true
+    attributes:
+      label: "📜 Description"
+      description: "A clear and concise description of what the bug is."
+      placeholder: "When I wake an agent with..."
+
+  - type: textarea
+    id: steps-to-reproduce
+    validations:
+      required: true
+    attributes:
+      label: "👟 Reproduction steps"
+      description: "How do you trigger this bug? Walk us through it step by step. A minimal repo or quickstart-based snippet helps a lot."
+      placeholder: "1. `pnpm install`\n2. Configure BoringOS with...\n3. Wake the agent via...\n4. See the error"
+  - type: textarea
+    id: expected-behavior
+    validations:
+      required: true
+    attributes:
+      label: "👍 Expected behavior"
+      description: "What did you think should happen?"
+      placeholder: "The agent should..."
+  - type: textarea
+    id: actual-behavior
+    validations:
+      required: true
+    attributes:
+      label: "👎 Actual behavior (logs / screenshots)"
+      description: "What actually happened? Include relevant logs, run IDs, or screenshots."
+      placeholder: "Instead, the run failed with..."
+  - type: input
+    id: boringos-version
+    validations:
+      required: true
+    attributes:
+      label: "📦 BoringOS version"
+      description: "Output of `pnpm list @boringos/core` (or the package(s) you're using)."
+      placeholder: "@boringos/core 0.x.x"
+  - type: input
+    id: node-version
+    validations:
+      required: true
+    attributes:
+      label: "🟢 Node.js version"
+      description: "BoringOS requires Node ≥ 22. Run `node -v`."
+      placeholder: "v22.x.x"
+  - type: dropdown
+    id: runtime
+    validations:
+      required: false
+    attributes:
+      label: "🤖 Agent runtime"
+      description: "Which CLI runtime were you using when the bug occurred?"
+      options:
+        - claude
+        - chatgpt
+        - gemini
+        - ollama
+        - command
+        - webhook
+        - not applicable
+  - type: dropdown
+    id: database
+    validations:
+      required: false
+    attributes:
+      label: "🗄️ Database"
+      description: "Embedded Postgres (default) or external?"
+      options:
+        - Embedded Postgres (default)
+        - External Postgres (DATABASE_URL)
+        - not applicable
+  - type: textarea
+    id: additional-context
+    validations:
+      required: false
+    attributes:
+      label: "📃 Additional context"
+      description: "Any other context — config flags, environment variables, queue adapter, custom modules, etc."
+      placeholder: "Running with HEBBS_DEV_MODULES=true, BullMQ queue adapter..."
+  - type: checkboxes
+    id: no-duplicate-issues
+    attributes:
+      label: "👀 Have you checked if this bug has been reported before?"
+      description: Please [search the history](https://github.com/AnishRane/boringos/issues) to see if an issue already exists for the same problem.
+      options:
+        - label: "I checked and didn't find a similar issue"
+          required: true
+  - type: dropdown
+    id: willing-to-submit-pr
+    attributes:
+      label: "Are you willing to submit a PR?"
+      description: "Not required — we're happy to guide you through the contribution process."
+      options:
+        - "Yes, I'm willing to submit a PR!"
+  - type: markdown
+    attributes:
+      value: Thanks for helping make BoringOS better. ❤️
