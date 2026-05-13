@@ -10,7 +10,7 @@
 // Drizzle operations. (legacy routes are gone) in parallel
 // during the migration; cutover removes them.
 
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { Db } from "@boringos/db";
 import {
   tasks,
@@ -19,6 +19,7 @@ import {
   costEvents,
   agents,
   inboxItems,
+  tenantSettings,
 } from "@boringos/db";
 import { generateId } from "@boringos/shared";
 import { z } from "@boringos/module-sdk";
@@ -665,6 +666,200 @@ function makeUpdateInbox(deps: FrameworkDeps): Tool {
   };
 }
 
+// ────────────────────────────────────────────────────────────
+// Business profile — framework-level "what this tenant does"
+// ────────────────────────────────────────────────────────────
+//
+// Stored as a single jsonb-shaped row in `tenant_settings`
+// (key='business_profile', value=<JSON string>). Treated as a
+// strongly-typed object at the tool boundary, free-form at the
+// storage layer so we can grow the shape without migrations.
+
+const BUSINESS_PROFILE_KEY = "business_profile";
+
+interface BusinessProfile {
+  industry: string | null;
+  whatWeDo: string | null;
+  idealCustomer: string | null;
+  signalExamples: string[];
+  noiseExamples: string[];
+  competitors: string[];
+  tone: string | null;
+}
+
+function emptyBusinessProfile(): BusinessProfile {
+  return {
+    industry: null,
+    whatWeDo: null,
+    idealCustomer: null,
+    signalExamples: [],
+    noiseExamples: [],
+    competitors: [],
+    tone: null,
+  };
+}
+
+function parseBusinessProfile(raw: string | null | undefined): BusinessProfile {
+  if (!raw) return emptyBusinessProfile();
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return emptyBusinessProfile();
+    const obj = parsed as Record<string, unknown>;
+    return {
+      industry: typeof obj.industry === "string" ? obj.industry : null,
+      whatWeDo: typeof obj.whatWeDo === "string" ? obj.whatWeDo : null,
+      idealCustomer:
+        typeof obj.idealCustomer === "string" ? obj.idealCustomer : null,
+      signalExamples: Array.isArray(obj.signalExamples)
+        ? (obj.signalExamples.filter((s): s is string => typeof s === "string"))
+        : [],
+      noiseExamples: Array.isArray(obj.noiseExamples)
+        ? (obj.noiseExamples.filter((s): s is string => typeof s === "string"))
+        : [],
+      competitors: Array.isArray(obj.competitors)
+        ? (obj.competitors.filter((s): s is string => typeof s === "string"))
+        : [],
+      tone: typeof obj.tone === "string" ? obj.tone : null,
+    };
+  } catch {
+    return emptyBusinessProfile();
+  }
+}
+
+/**
+ * Fallback: read legacy `company_*` keys (the CRM's pre-framework
+ * profile shape) and map them onto BusinessProfile. Used by
+ * `get_business_profile` for tenants who haven't migrated yet.
+ */
+async function readLegacyCrmProfile(
+  db: Db,
+  tenantId: string,
+): Promise<Partial<BusinessProfile>> {
+  const rows = await db
+    .select({ key: tenantSettings.key, value: tenantSettings.value })
+    .from(tenantSettings)
+    .where(eq(tenantSettings.tenantId, tenantId));
+  const legacy: Record<string, string> = {};
+  for (const r of rows) {
+    if (typeof r.value === "string" && r.key.startsWith("company_")) {
+      legacy[r.key] = r.value;
+    }
+  }
+  const out: Partial<BusinessProfile> = {};
+  if (legacy["company_description"]) out.whatWeDo = legacy["company_description"];
+  if (legacy["company_icp"]) out.idealCustomer = legacy["company_icp"];
+  if (legacy["company_competitors"]) {
+    out.competitors = legacy["company_competitors"]
+      .split(/[\n,]+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+  }
+  if (legacy["company_tone"]) out.tone = legacy["company_tone"];
+  // company_name + company_products + company_differentiators have no
+  // 1:1 mapping; surface company_name as part of industry-ish context.
+  return out;
+}
+
+function makeGetBusinessProfile(db: Db): Tool {
+  return {
+    name: "tenant.get_business_profile",
+    description:
+      "Return the current tenant's business profile: industry, what we do, ICP, signal/noise examples, competitors, tone. Returns the empty shape (nulls + empty arrays) when not yet set.",
+    inputs: z.object({}),
+    async handler(
+      _input: Record<string, never>,
+      ctx: ToolContext,
+    ): Promise<ToolResult> {
+      const rows = await db
+        .select({ value: tenantSettings.value })
+        .from(tenantSettings)
+        .where(
+          and(
+            eq(tenantSettings.tenantId, ctx.tenantId),
+            eq(tenantSettings.key, BUSINESS_PROFILE_KEY),
+          ),
+        )
+        .limit(1);
+      const raw = rows[0]?.value ?? null;
+      let profile = parseBusinessProfile(raw);
+      // If the structured row is empty (no save yet) fall back to
+      // legacy `company_*` keys so existing tenants don't see a blank
+      // page the first time they open the new settings UI.
+      const isEmpty =
+        !raw &&
+        !profile.industry &&
+        !profile.whatWeDo &&
+        !profile.idealCustomer &&
+        !profile.tone &&
+        profile.signalExamples.length === 0 &&
+        profile.noiseExamples.length === 0 &&
+        profile.competitors.length === 0;
+      if (isEmpty) {
+        const legacy = await readLegacyCrmProfile(db, ctx.tenantId);
+        profile = { ...profile, ...legacy };
+      }
+      return { ok: true, result: { profile } };
+    },
+  };
+}
+
+function makeUpdateBusinessProfile(db: Db): Tool {
+  return {
+    name: "tenant.update_business_profile",
+    description:
+      "Set / overwrite the tenant's business profile. All fields optional; omitted fields keep their existing value.",
+    inputs: z.object({
+      industry: z.string().nullable().optional(),
+      whatWeDo: z.string().nullable().optional(),
+      idealCustomer: z.string().nullable().optional(),
+      signalExamples: z.array(z.string()).optional(),
+      noiseExamples: z.array(z.string()).optional(),
+      competitors: z.array(z.string()).optional(),
+      tone: z.string().nullable().optional(),
+    }),
+    async handler(
+      input: Partial<BusinessProfile>,
+      ctx: ToolContext,
+    ): Promise<ToolResult> {
+      const existingRows = await db
+        .select({ id: tenantSettings.id, value: tenantSettings.value })
+        .from(tenantSettings)
+        .where(
+          and(
+            eq(tenantSettings.tenantId, ctx.tenantId),
+            eq(tenantSettings.key, BUSINESS_PROFILE_KEY),
+          ),
+        )
+        .limit(1);
+      const current = parseBusinessProfile(existingRows[0]?.value ?? null);
+      const next: BusinessProfile = {
+        industry: input.industry !== undefined ? input.industry : current.industry,
+        whatWeDo: input.whatWeDo !== undefined ? input.whatWeDo : current.whatWeDo,
+        idealCustomer:
+          input.idealCustomer !== undefined ? input.idealCustomer : current.idealCustomer,
+        signalExamples: input.signalExamples ?? current.signalExamples,
+        noiseExamples: input.noiseExamples ?? current.noiseExamples,
+        competitors: input.competitors ?? current.competitors,
+        tone: input.tone !== undefined ? input.tone : current.tone,
+      };
+      const serialized = JSON.stringify(next);
+      if (existingRows[0]) {
+        await db
+          .update(tenantSettings)
+          .set({ value: serialized, updatedAt: new Date() })
+          .where(eq(tenantSettings.id, existingRows[0].id));
+      } else {
+        await db.insert(tenantSettings).values({
+          tenantId: ctx.tenantId,
+          key: BUSINESS_PROFILE_KEY,
+          value: serialized,
+        });
+      }
+      return { ok: true, result: { profile: next } };
+    },
+  };
+}
+
 /**
  * Factory for the built-in `framework` Module. Pass to
  * `app.module(createFrameworkModule)` — boot will resolve the
@@ -679,7 +874,7 @@ export const createFrameworkModule: ModuleFactory = (deps) => {
     name: "BoringOS Framework",
     version: "0.1.0",
     description:
-      "Built-in framework tools and skills — task management, comments, work products, cost reporting, agent management, inbox.",
+      "Built-in framework tools and skills — task management, comments, work products, cost reporting, agent management, inbox, tenant business profile.",
     provides: ["task-management", "audit"],
     skills: [
       {
@@ -712,6 +907,8 @@ export const createFrameworkModule: ModuleFactory = (deps) => {
       makeReadInbox(db),
       makeUpdateInbox(fwDeps),
       makeWakeAgent(fwDeps),
+      makeGetBusinessProfile(db),
+      makeUpdateBusinessProfile(db),
     ],
   };
 
