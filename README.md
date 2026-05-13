@@ -41,9 +41,31 @@ Notion is one Module package, zero framework edits.
 
 ---
 
-## 60-second quickstart
+## Get started
 
-Scaffold a host:
+### The one-liner
+
+Open Cursor (or any agentic CLI — Claude Code, Codex, Gemini)
+inside a clone of this repo and say:
+
+> **"deploy boringos shell on my localhost"**
+
+The agent will install dependencies, build the workspace, boot
+embedded Postgres, and start the shell on `http://localhost:3000`.
+
+### Manual
+
+```bash
+git clone https://github.com/BoringOS-dev/boringos.git
+cd boringos
+pnpm install
+pnpm -r build
+pnpm dev
+```
+
+Then open `http://localhost:3000`.
+
+### Scaffold your own host
 
 ```bash
 npx create-boringos my-app
@@ -85,6 +107,54 @@ the `hello` skill plus the `hello.greet` tool.
 
 For the step-by-step guide, see
 [`BUILD-A-MODULE.md`](BUILD-A-MODULE.md).
+
+---
+
+## Connecting Google (Gmail + Calendar)
+
+The `@boringos/connector-google` Module needs an OAuth client.
+Two minutes in Google Cloud Console, then two env vars.
+
+### 1. Google Cloud Console
+
+[`console.cloud.google.com`](https://console.cloud.google.com)
+
+1. **Create a project** (or pick an existing one).
+2. **Enable APIs** — `APIs & Services` → `Library`:
+   - Gmail API
+   - Google Calendar API
+3. **OAuth consent screen** — `APIs & Services` → `OAuth consent screen`:
+   - User type: `External` (or `Internal` if you're on Workspace)
+   - Add your email as a test user while in `Testing` status
+   - Add these scopes:
+     - `https://www.googleapis.com/auth/gmail.modify`
+     - `https://www.googleapis.com/auth/gmail.send`
+     - `https://www.googleapis.com/auth/calendar`
+     - `https://www.googleapis.com/auth/calendar.events`
+4. **Create OAuth 2.0 Client** — `APIs & Services` → `Credentials`
+   → `Create credentials` → `OAuth client ID`:
+   - Application type: `Web application`
+   - Authorized JavaScript origins: `http://localhost:3000`
+   - Authorized redirect URIs:
+     `http://localhost:3000/api/connectors/oauth/google/callback`
+5. Copy the **Client ID** and **Client secret**.
+
+### 2. Environment variables
+
+Drop these in `.env.local` at the repo root:
+
+```bash
+GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=your-client-secret
+```
+
+Restart `pnpm dev`, head to the shell's **Connectors** screen,
+click **Connect Google**, and finish the OAuth flow. Gmail and
+Calendar tools are now available to every agent in that tenant.
+
+> For production hosts, swap `http://localhost:3000` for your
+> public origin everywhere above and publish your OAuth consent
+> screen.
 
 ---
 
@@ -195,7 +265,24 @@ pnpm -r typecheck
 pnpm test:run
 ```
 
+---
+
 ## License
 
-MIT — see [`LICENSE.md`](LICENSE.md). Contributions welcome; see
-[`CONTRIBUTING.md`](CONTRIBUTING.md) and [`CLA.md`](CLA.md).
+This monorepo is mixed-license. The kernel and SDKs are MIT so
+they win by being everywhere; the shell is source-available
+under BUSL-1.1 to keep the commercial surface protected. Each
+package directory contains its own `LICENSE` file.
+
+| Path | SPDX | Why |
+|---|---|---|
+| `packages/@boringos/*` (kernel) | `MIT` | Maximize adoption; SDKs and primitives win by being everywhere |
+| `packages/@boringos/connector-*` (Slack, Google) | `MIT` | Same reasoning; community-friendly |
+| `packages/@boringos/module-sdk` | `MIT` | The contract third-party developers build Modules against |
+| `packages/@boringos/shell` | `BUSL-1.1` (auto-converts to `Apache-2.0` after 4 yr) | Commercial surface; competitors blocked from hosting |
+
+The repo-default `LICENSE` file at the root is **MIT** — it
+applies to anything not otherwise marked. See [`LICENSE.md`](LICENSE.md)
+for the full matrix and BUSL specifics.
+
+Contributions welcome — see [`CONTRIBUTING.md`](CONTRIBUTING.md).
