@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 //
 // Settings → Routines (Cron) panel.
-// List, create, edit, delete, and manually trigger routines.
+// List, create, edit, delete, pause/resume, and manually trigger routines.
 
 import { useState } from "react";
 
@@ -15,11 +15,14 @@ const CONCURRENCY_POLICIES = [
   { value: "allow_concurrent", label: "Allow concurrent" },
 ];
 
-const PERIODS = [
-  { value: "daily", label: "Daily" },
-  { value: "weekly", label: "Weekly" },
-  { value: "monthly", label: "Monthly" },
-];
+const DEFAULT_FORM = {
+  title: "",
+  targetType: "agent" as "agent" | "workflow",
+  targetId: "",
+  cronExpression: "0 */6 * * *",
+  timezone: "UTC",
+  concurrencyPolicy: "skip_if_active",
+};
 
 export function RoutinesPanel() {
   const { user } = useAuth();
@@ -29,14 +32,8 @@ export function RoutinesPanel() {
   const { workflows } = useWorkflows();
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
-  const [formData, setFormData] = useState({
-    title: "",
-    targetType: "agent" as "agent" | "workflow",
-    targetId: "",
-    cronExpression: "0 */6 * * *",
-    timezone: "UTC",
-    concurrencyPolicy: "skip_if_active",
-  });
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [formData, setFormData] = useState({ ...DEFAULT_FORM });
 
   if (!user?.role || user.role !== "admin") {
     return (
@@ -49,9 +46,52 @@ export function RoutinesPanel() {
 
   if (routinesLoading) return <LoadingState />;
 
-  const handleCreate = async () => {
+  const closeForm = () => {
+    setShowForm(false);
+    setEditingId(null);
+    setFormData({ ...DEFAULT_FORM });
+  };
+
+  const openCreate = () => {
+    setError(null);
+    setFormData({ ...DEFAULT_FORM });
+    setEditingId(null);
+    setShowForm(true);
+  };
+
+  const openEdit = (routine: Record<string, unknown>) => {
+    setError(null);
+    const assigneeAgentId = routine.assigneeAgentId as string | undefined;
+    const workflowId = routine.workflowId as string | undefined;
+    const isAgent = Boolean(assigneeAgentId);
+    setFormData({
+      title: (routine.title as string) ?? "",
+      targetType: isAgent ? "agent" : "workflow",
+      targetId: isAgent ? (assigneeAgentId ?? "") : (workflowId ?? ""),
+      cronExpression: (routine.cronExpression as string) ?? DEFAULT_FORM.cronExpression,
+      timezone: (routine.timezone as string) ?? "UTC",
+      concurrencyPolicy: (routine.concurrencyPolicy as string) ?? "skip_if_active",
+    });
+    setEditingId(routine.id as string);
+    setShowForm(true);
+  };
+
+  const handleSave = async () => {
     try {
       setError(null);
+      if (editingId) {
+        await updateRoutine({
+          routineId: editingId,
+          data: {
+            title: formData.title,
+            cronExpression: formData.cronExpression,
+            timezone: formData.timezone,
+            concurrencyPolicy: formData.concurrencyPolicy,
+          },
+        });
+        closeForm();
+        return;
+      }
       const target = formData.targetType === "agent" ? { assigneeAgentId: formData.targetId } : { workflowId: formData.targetId };
       await createRoutine({
         title: formData.title,
@@ -60,17 +100,23 @@ export function RoutinesPanel() {
         concurrencyPolicy: formData.concurrencyPolicy,
         ...target,
       });
-      setFormData({
-        title: "",
-        targetType: "agent",
-        targetId: "",
-        cronExpression: "0 */6 * * *",
-        timezone: "UTC",
-        concurrencyPolicy: "skip_if_active",
-      });
-      setShowForm(false);
+      closeForm();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to create routine");
+      setError(e instanceof Error ? e.message : editingId ? "Failed to update routine" : "Failed to create routine");
+    }
+  };
+
+  const handleTogglePause = async (routine: Record<string, unknown>) => {
+    try {
+      setError(null);
+      const id = routine.id as string;
+      const isPaused = routine.status === "paused";
+      await updateRoutine({
+        routineId: id,
+        data: { status: isPaused ? "active" : "paused" },
+      });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to update routine status");
     }
   };
 
@@ -93,6 +139,9 @@ export function RoutinesPanel() {
     }
   };
 
+  const isEditing = editingId !== null;
+  const headerButtonLabel = showForm ? "Cancel" : "New Routine";
+
   return (
     <div className="space-y-6 max-w-5xl">
       {error && (
@@ -108,15 +157,20 @@ export function RoutinesPanel() {
           <div className="text-xs text-muted mt-1">Automated schedules for agents and workflows</div>
         </div>
         <button
-          onClick={() => setShowForm(!showForm)}
+          type="button"
+          onClick={() => {
+            if (showForm) closeForm();
+            else openCreate();
+          }}
           className="px-3 py-1.5 rounded-md bg-accent text-white text-xs font-medium hover:bg-accent transition-colors"
         >
-          {showForm ? "Cancel" : "New Routine"}
+          {headerButtonLabel}
         </button>
       </div>
 
       {showForm && (
         <div className="border border-border rounded-lg p-4 bg-bg">
+          <div className="text-sm font-medium text-text mb-3">{isEditing ? "Edit Routine" : "New Routine"}</div>
           <div className="space-y-4">
             <div>
               <label className="block text-xs uppercase tracking-wide text-muted-strong mb-1">Title</label>
@@ -135,7 +189,8 @@ export function RoutinesPanel() {
                 <select
                   value={formData.targetType}
                   onChange={(e) => setFormData({ ...formData, targetType: e.target.value as "agent" | "workflow", targetId: "" })}
-                  className="w-full text-sm border border-border rounded-md px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-accent/40"
+                  disabled={isEditing}
+                  className="w-full text-sm border border-border rounded-md px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-accent/40 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   <option value="agent">Agent</option>
                   <option value="workflow">Workflow</option>
@@ -149,7 +204,8 @@ export function RoutinesPanel() {
                 <select
                   value={formData.targetId}
                   onChange={(e) => setFormData({ ...formData, targetId: e.target.value })}
-                  className="w-full text-sm border border-border rounded-md px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-accent/40"
+                  disabled={isEditing}
+                  className="w-full text-sm border border-border rounded-md px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-accent/40 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   <option value="">Select {formData.targetType === "agent" ? "an agent" : "a workflow"}</option>
                   {formData.targetType === "agent"
@@ -166,6 +222,12 @@ export function RoutinesPanel() {
                 </select>
               </div>
             </div>
+
+            {isEditing && (
+              <p className="text-xs text-muted">
+                Target is fixed for existing routines — delete and recreate to change.
+              </p>
+            )}
 
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -213,17 +275,19 @@ export function RoutinesPanel() {
 
             <div className="flex gap-2 justify-end pt-2">
               <button
-                onClick={() => setShowForm(false)}
+                type="button"
+                onClick={closeForm}
                 className="px-3 py-1.5 rounded-md border border-border text-text-secondary text-xs font-medium hover:bg-bg transition-colors"
               >
                 Cancel
               </button>
               <button
-                onClick={handleCreate}
+                type="button"
+                onClick={handleSave}
                 className="px-3 py-1.5 rounded-md bg-accent text-white text-xs font-medium hover:bg-accent transition-colors disabled:opacity-50"
-                disabled={!formData.title || !formData.targetId}
+                disabled={!formData.title || (!isEditing && !formData.targetId)}
               >
-                Create Routine
+                {isEditing ? "Save Changes" : "Create Routine"}
               </button>
             </div>
           </div>
@@ -253,31 +317,62 @@ export function RoutinesPanel() {
                   ? agents.find((a: any) => a.id === routine.assigneeAgentId)?.name || "Unknown"
                   : workflows.find((w: any) => w.id === routine.workflowId)?.name || "Unknown";
 
+                const status = routine.status || "active";
+                const isPaused = status === "paused";
+
+                const statusBadgeClass =
+                  status === "active"
+                    ? "bg-emerald-50 text-emerald-700"
+                    : status === "paused"
+                      ? "bg-amber-50 text-amber-700"
+                      : "bg-bg text-text-secondary";
+
                 return (
                   <tr key={routine.id} className="hover:bg-bg">
                     <td className="px-4 py-3 font-medium text-text">{routine.title}</td>
                     <td className="px-4 py-3 text-muted-strong text-xs">{String(targetName)}</td>
                     <td className="px-4 py-3 text-muted-strong text-xs font-mono">{routine.cronExpression}</td>
                     <td className="px-4 py-3">
-                      <span
-                        className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${
-                          routine.status === "active"
-                            ? "bg-emerald-50 text-emerald-700"
-                            : "bg-bg text-text-secondary"
-                        }`}
-                      >
-                        {routine.status || "active"}
+                      <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${statusBadgeClass}`}>
+                        {status}
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <div className="flex gap-2">
+                      <div className="flex flex-wrap gap-2">
+                        {isPaused ? (
+                          <button
+                            type="button"
+                            onClick={() => handleTogglePause(routine)}
+                            className="text-xs px-2 py-1 rounded bg-emerald-50 text-emerald-800 hover:bg-emerald-100 transition-colors"
+                          >
+                            Resume
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleTogglePause(routine)}
+                            className="text-xs px-2 py-1 rounded bg-bg border border-border text-text-secondary hover:bg-bg transition-colors"
+                          >
+                            Pause
+                          </button>
+                        )}
                         <button
+                          type="button"
                           onClick={() => handleTrigger(routine.id)}
-                          className="text-xs px-2 py-1 rounded bg-accent-tint text-accent hover:bg-accent-tint transition-colors"
+                          disabled={isPaused}
+                          className="text-xs px-2 py-1 rounded bg-accent-tint text-accent hover:bg-accent-tint transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                         >
                           Run Now
                         </button>
                         <button
+                          type="button"
+                          onClick={() => openEdit(routine)}
+                          className="text-xs px-2 py-1 rounded border border-border text-text-secondary hover:bg-bg transition-colors"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => handleDelete(routine.id)}
                           className="text-xs px-2 py-1 rounded bg-red-50 text-red-700 hover:bg-red-100 transition-colors"
                         >

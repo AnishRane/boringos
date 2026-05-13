@@ -1466,6 +1466,7 @@ export function createAdminRoutes(
     const values: Record<string, unknown> = { updatedAt: new Date() };
     if (body.title !== undefined) values.title = body.title;
     if (body.cronExpression !== undefined) values.cronExpression = body.cronExpression;
+    if (body.timezone !== undefined) values.timezone = body.timezone;
     if (body.status !== undefined) values.status = body.status;
     if (body.concurrencyPolicy !== undefined) values.concurrencyPolicy = body.concurrencyPolicy;
 
