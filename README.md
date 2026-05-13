@@ -1,5 +1,7 @@
 # BoringOS
 
+![BoringOS — The Operating System for AI](./poster.png)
+
 > The operating system for agents. You ship Modules; the agent
 > reads skills and calls tools. Everything else is plumbing.
 
