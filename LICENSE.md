@@ -49,10 +49,4 @@ If you have a use case that may fall on the edge of "competing managed service,"
 
 ---
 
-## CLA
-
-Contributions to permissively-licensed packages (MIT / Apache 2.0) require signing the [CLA](./CLA.md). This is enforced by a GitHub bot. Contributions to BSL-licensed packages do not require a CLA but are still subject to contribution review.
-
----
-
-*Last updated: 2026-05-03*
+*Last updated: 2026-05-13*

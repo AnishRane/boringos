@@ -2,17 +2,6 @@
 
 We welcome contributions! Here's how to get started.
 
-## CLA Requirement
-
-All contributors must sign our [Contributor License Agreement](CLA.md) before their first PR can be merged. This is a one-time process handled automatically:
-
-1. Open a pull request
-2. The CLA bot will comment if you haven't signed yet
-3. Reply with: **I have read the CLA Document and I hereby sign the CLA**
-4. All future contributions are covered — no need to sign again
-
-The CLA ensures we can maintain and evolve BoringOS (including potential relicensing) while protecting both the project and contributors.
-
 ## Getting Started
 
 ```bash

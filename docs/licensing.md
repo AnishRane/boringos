@@ -53,27 +53,11 @@ After **4 years** from the release of each version, that version automatically c
 
 ---
 
-## 4. CLA (Contributor License Agreement)
+## 4. Contributions
 
-The framework already has `CLA.md` enforced via the bot. This applies to any permissively-licensed package (MIT / Apache 2.0) we maintain.
+Contributions are accepted under the inbound = outbound rule: by submitting a pull request, you license your contribution under the same license as the package it lands in (MIT for kernel/SDK/connectors, BUSL-1.1 for the shell).
 
-**Why we require a CLA:**
-
-- Without it, we cannot relicense our own code in the future. External contributors hold copyrights we can't override.
-- The MIT/Apache 2.0 packages are the foundation; we must preserve the option to dual-license, change to a more protective license, or grant unusual rights to specific customers.
-
-**The CLA grants us:**
-
-- Copyright assignment OR perpetual unlimited license to the contribution
-- Patent grant
-- The right to relicense
-
-**The CLA does not grant us:**
-
-- Exclusive ownership (contributor keeps their copyright in the assignment-version)
-- Any rights to the contributor's other code
-
-CLA is enforced via a GitHub bot on every PR to permissively-licensed repos. PRs from un-signed contributors are blocked until the CLA is signed.
+We do not require a separate CLA. Contributors retain their copyright; we accept the trade-off of not being able to unilaterally relicense external contributions in exchange for a lower-friction contribution path.
 
 ---
 
@@ -180,7 +164,7 @@ When in doubt, contact us. We grant additional permissions liberally for non-com
 
 Reserved for changes we may make as the platform matures:
 
-- **Apache 2.0 across the framework.** If patent risk becomes material, we may move framework packages from MIT to Apache 2.0. The CLA permits this for our own code; CLA-signed external contributions are also covered. Without a CLA we couldn't make this move.
+- **Apache 2.0 across the framework.** If patent risk becomes material, we may move framework packages from MIT to Apache 2.0 for new releases. Existing external contributions stay under their original MIT terms.
 - **Foundation hand-off.** If the framework reaches sufficient maturity and ecosystem, we may donate it to a foundation (CNCF, Apache, OpenJS) and step back from primary maintenance — keeping the shell + apps as our commercial focus.
 - **Earlier BSL conversion.** We may shorten the BSL → Apache 2.0 conversion window from 4 years to 3 if the commercial moat is durable enough that earlier conversion accelerates ecosystem trust.
 
@@ -192,7 +176,6 @@ These are options, not commitments.
 
 - [Overview](./overview.md) — the architecture this licensing model maps to
 - [Publishing & Install](./developer/publishing-and-install.md) — marketplace policies enforce licensing declarations
-- `CLA.md` (in each permissively-licensed repo) — full CLA text and signing flow
 
 ---
 
