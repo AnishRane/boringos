@@ -6,11 +6,11 @@
 
   Before opening a PR, please file an issue using one of our templates so we can scope the change together. Each template is a structured form on GitHub:
 
-  - 🐛 **[Bug report](https://github.com/AnishRane/boringos/issues/new?template=bug_report.yml)** — something isn't working as expected. Include reproduction steps, BoringOS version, Node version (≥22), and the agent runtime you're using (claude / chatgpt / gemini / ollama / command / webhook).
-  - 🚀 **[Feature request](https://github.com/AnishRane/boringos/issues/new?template=feature_request.yml)** — propose a new capability. Call out which primitive it touches: **Skill**, **Tool**, **Module**, runtime, queue, or persona.
-  - 📚 **[Docs feedback](https://github.com/AnishRane/boringos/issues/new?template=docs_feedback.yml)** — unclear, missing, broken, or outdated docs. Point to the file (`CLAUDE.md`, `BUILD-A-MODULE.md`, `docs/…`) or URL.
+  - 🐛 **[Bug report](https://github.com/BoringOS-dev/boringos/issues/new?template=bug_report.yml)** — something isn't working as expected. Include reproduction steps, BoringOS version, Node version (≥22), and the agent runtime you're using (claude / chatgpt / gemini / ollama / command / webhook).
+  - 🚀 **[Feature request](https://github.com/BoringOS-dev/boringos/issues/new?template=feature_request.yml)** — propose a new capability. Call out which primitive it touches: **Skill**, **Tool**, **Module**, runtime, queue, or persona.
+  - 📚 **[Docs feedback](https://github.com/BoringOS-dev/boringos/issues/new?template=docs_feedback.yml)** — unclear, missing, broken, or outdated docs. Point to the file (`CLAUDE.md`, `BUILD-A-MODULE.md`, `docs/…`) or URL.
 
-  Please [search existing issues](https://github.com/AnishRane/boringos/issues) before filing — duplicates slow everyone down. If you're unsure whether something is a bug or intended behavior, the bug template is the right starting point.
+  Please [search existing issues](https://github.com/BoringOS-dev/boringos/issues) before filing — duplicates slow everyone down. If you're unsure whether something is a bug or intended behavior, the bug template is the right starting point.
 
   For larger changes (new Module, new runtime, schema changes), open a feature request first so we can align on the approach before you write code.
 
