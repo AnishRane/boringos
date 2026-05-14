@@ -1,0 +1,51 @@
+name: 📚 Docs Feedback
+description: Help us improve the BoringOS documentation
+labels: ['type: docs-feedback']
+title: '📚 Docs Feedback: '
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please provide a searchable summary of the issue in the title above ⬆️.
+
+        Thanks for helping make the BoringOS docs better! ❤️
+  - type: checkboxes
+    attributes:
+      label: Duplicates
+      description: Please [search the history](https://github.com/BoringOS-dev/boringos/issues) to see if an issue already exists for the same problem.
+      options:
+        - label: I have searched the existing issues
+          required: true
+
+  - type: dropdown
+    attributes:
+      label: Kind of issue
+      description: What kind of problem are you facing?
+      options:
+        - Unclear explanations
+        - Missing information
+        - Broken example or snippet
+        - Outdated content
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: doc-location
+    attributes:
+      label: "📍 Where is the issue?"
+      description: "File path (e.g. `CLAUDE.md`, `BUILD-A-MODULE.md`, `docs/install-flow.md`) or URL."
+      placeholder: "docs/new_thesis.md"
+
+  - type: textarea
+    attributes:
+      label: Issue description
+      description: |
+        Let us know what went wrong when you were using this documentation and what we could do to improve it.
+      value: |
+        I was looking for ... and it appears that ...
+
+  - type: textarea
+    attributes:
+      label: Context 🔦
+      description: What are you trying to accomplish with BoringOS? What brought you to this page? Your context helps us come up with solutions that benefit the whole community.
