@@ -43,7 +43,7 @@ body:
     id: no-duplicate-issues
     attributes:
       label: "👀 Have you checked if this feature has been requested before?"
-      description: Please [search the history](https://github.com/AnishRane/boringos/issues) to see if an issue already exists for the same idea.
+      description: Please [search the history](https://github.com/BoringOS-dev/boringos/issues) to see if an issue already exists for the same idea.
       options:
         - label: "I checked and didn't find a similar issue"
           required: true
