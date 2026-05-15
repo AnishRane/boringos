@@ -18,6 +18,7 @@ import {
 } from "react";
 
 import { useAuth } from "../auth/AuthProvider.js";
+import { useTheme } from "../theme/index.js";
 
 import { BORINGOS_BRAND, resolveBrand } from "./defaults.js";
 import type { Brand, PartialBrand } from "./types.js";
@@ -113,6 +114,7 @@ async function saveBrandSettings(
 
 export function BrandProvider({ children }: { children: ReactNode }) {
   const { token, user } = useAuth();
+  const { effectiveTheme } = useTheme();
   const [partial, setPartial] = useState<PartialBrand>({});
   const [isLoading, setLoading] = useState(false);
 
@@ -141,23 +143,30 @@ export function BrandProvider({ children }: { children: ReactNode }) {
   // Bridge: write resolved brand colors to CSS custom properties at
   // :root. Every shell screen that uses semantic tokens (bg-accent,
   // text-accent, etc.) repaints automatically. See task_18 §2b.
+  //
+  // Derive hover/bright variants by mixing the brand primary with the
+  // current canvas color — `white` in light mode, a deep slate in dark
+  // mode — so hovers stay perceptibly distinct from the base accent on
+  // both backgrounds. The dark tint alpha is higher because subtle
+  // tints disappear against deep canvases.
   useEffect(() => {
+    const isDark = effectiveTheme === "dark";
+    const mixTarget = isDark ? "#0B0E14" : "white";
+    const tintAlpha = isDark ? 18 : 10;
+
     const root = document.documentElement;
     root.style.setProperty("--color-accent", brand.primaryColor);
-    // Derive lighter accents and a subtle tint via color-mix so hover states
-    // actually contrast and tinted surfaces stay calm. Works for any brand
-    // primary, not just the Hebbs amber default.
     root.style.setProperty(
       "--color-accent-light",
-      `color-mix(in srgb, ${brand.primaryColor} 80%, white)`,
+      `color-mix(in srgb, ${brand.primaryColor} 80%, ${mixTarget})`,
     );
     root.style.setProperty(
       "--color-accent-bright",
-      `color-mix(in srgb, ${brand.primaryColor} 65%, white)`,
+      `color-mix(in srgb, ${brand.primaryColor} 65%, ${mixTarget})`,
     );
     root.style.setProperty(
       "--color-accent-tint",
-      `color-mix(in srgb, ${brand.primaryColor} 10%, transparent)`,
+      `color-mix(in srgb, ${brand.primaryColor} ${tintAlpha}%, transparent)`,
     );
     root.style.setProperty("--color-navy", brand.secondaryColor);
     if (brand.faviconUrl) {
@@ -165,7 +174,13 @@ export function BrandProvider({ children }: { children: ReactNode }) {
       if (link) link.href = brand.faviconUrl;
     }
     document.title = brand.productName;
-  }, [brand.primaryColor, brand.secondaryColor, brand.faviconUrl, brand.productName]);
+  }, [
+    brand.primaryColor,
+    brand.secondaryColor,
+    brand.faviconUrl,
+    brand.productName,
+    effectiveTheme,
+  ]);
 
   const setBrand = useCallback(
     async (updates: PartialBrand) => {

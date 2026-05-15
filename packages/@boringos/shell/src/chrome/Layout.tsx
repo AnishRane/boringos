@@ -7,8 +7,10 @@ import { Toaster } from "sonner";
 import { Sidebar } from "./Sidebar.js";
 import { CommandPalette } from "./CommandPalette.js";
 import { ConnectorsHealthIndicator } from "./ConnectorsHealthIndicator.js";
+import { useTheme } from "../theme/index.js";
 
 export function Layout() {
+  const { effectiveTheme } = useTheme();
   return (
     <div className="flex h-screen overflow-hidden bg-bg text-text">
       <Sidebar />
@@ -19,7 +21,7 @@ export function Layout() {
       <CommandPalette />
       <Toaster
         position="bottom-right"
-        theme="light"
+        theme={effectiveTheme}
         closeButton
         toastOptions={{
           style: {
