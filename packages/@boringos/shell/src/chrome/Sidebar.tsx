@@ -122,8 +122,8 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="w-[248px] bg-bg border-r border-border p-2 flex flex-col shrink-0 overflow-y-auto">
-      <div className="px-2 pb-3 relative">
+    <aside className="w-[248px] h-full bg-bg border-r border-border p-2 flex flex-col shrink-0 overflow-hidden">
+      <div className="px-2 pb-3 relative shrink-0">
         <button
           type="button"
           onClick={() => hasMultipleTenants && setShowTenantMenu((v) => !v)}
@@ -184,7 +184,7 @@ export function Sidebar() {
         )}
       </div>
 
-      <nav className="flex flex-col gap-0.5 flex-1">
+      <nav className="flex flex-col gap-0.5 flex-1 min-h-0 overflow-y-auto">
         <GroupHeading>Work</GroupHeading>
         <NavGroup items={WORK_ITEMS} />
 
@@ -218,7 +218,7 @@ export function Sidebar() {
       </nav>
 
       {user && (
-        <div className="mt-auto border-t border-border pt-3 px-2">
+        <div className="mt-auto border-t border-border pt-3 px-2 shrink-0">
           <div className="flex items-center gap-2">
             <div className="w-7 h-7 rounded-full bg-accent-tint text-accent flex items-center justify-center text-xs font-semibold shrink-0">
               {user.name.charAt(0).toUpperCase()}
