@@ -134,7 +134,17 @@ A guided walk through what BoringOS actually looks like running. First the **She
 
 ![Company detail](./repo-assets/company_detail.png)
 
-[← Prev](#10-contact-dossier--research-grade-context) · [↑ Tour](#product-tour)
+[← Prev](#10-contact-dossier--research-grade-context) · [Next →](#12-copilot--crm--one-prompt-the-full-operating-system) · [↑ Tour](#product-tour)
+
+---
+
+#### 12. Copilot × CRM — one prompt, the full operating system
+
+> "I just met Sam Altman at the GPT-5.5 event — scan everything we have on OpenAI and draft a follow-up." One turn reaches across deals, contacts, dossiers, and the inbox; the reply is links and decisions, not a chat transcript.
+
+![Copilot — OpenAI follow-up](./repo-assets/copilot_openai.png)
+
+[← Prev](#11-company-detail--account-intelligence) · [↑ Tour](#product-tour)
 
 ---
 
