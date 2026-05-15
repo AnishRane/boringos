@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // `triage` capability module — wraps the inbox-classification
 // workflow under a stable tool namespace. Pure consumer: no

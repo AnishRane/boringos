@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Unit coverage for the Ed25519 signature verifier used by the
 // `.hebbsmod` upload route (task_22 U3.4).

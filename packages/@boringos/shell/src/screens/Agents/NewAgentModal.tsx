@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Create-agent modal triggered by the "+ New" button on the Agents
 // header. Two paths:

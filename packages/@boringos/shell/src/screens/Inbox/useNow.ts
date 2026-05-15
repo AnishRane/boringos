@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Re-render hook that returns the current Date and updates at the
 // given interval. Cheap — one setInterval per mounted component;

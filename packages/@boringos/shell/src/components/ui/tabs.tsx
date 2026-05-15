@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: GPL-3.0-or-later
 
 import * as TabsPrimitive from "@radix-ui/react-tabs";
 import { forwardRef, type ComponentPropsWithoutRef, type ElementRef } from "react";

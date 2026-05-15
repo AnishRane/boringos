@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Wraps protected routes — redirects to /login if no session.
 // Used in App.tsx around the Layout that hosts the shell screens.

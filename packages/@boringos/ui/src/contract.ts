@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Plugin UI Contract — task_19_plugin_ui_runtime.
 //
@@ -90,6 +90,30 @@ export interface InboxFilter {
   match: (item: { source?: string; metadata?: Record<string, unknown> }) => boolean;
 }
 
+/** Grid footprint. small = 1 col, medium = 2 cols, large = full row. */
+export type DashboardWidgetSize = "small" | "medium" | "large";
+/** Vertical placement bucket on the Home screen. */
+export type DashboardWidgetSlot = "primary" | "secondary";
+
+/**
+ * A widget contributed to the shell Home dashboard. The shell wraps
+ * each widget in an error boundary + Suspense fallback and arranges
+ * widgets by (slot, order, moduleId) within a CSS grid. The widget
+ * component receives no required props and is responsible for its
+ * own data fetching via the existing `useTool` / framework hooks.
+ */
+export interface DashboardWidget {
+  /** Stable id within the module's widget set. */
+  id: string;
+  /** Header label rendered above the widget body. */
+  title: string;
+  size: DashboardWidgetSize;
+  slot: DashboardWidgetSlot;
+  element: PluginElement;
+  /** Sort hint within (slot, moduleId). Lower first. Defaults to 100. */
+  order?: number;
+}
+
 /**
  * The complete plugin UI contribution. A plugin exports one of these
  * (typically named `<id>UI`); the shell registers it with `pluginHost.register(...)`.
@@ -105,6 +129,8 @@ export interface PluginUI {
   settingsPanels?: SettingsPanel[];
   copilotTools?: CopilotTool[];
   inboxFilters?: InboxFilter[];
+  /** Widgets contributed to the shell Home dashboard (task_26). */
+  dashboardWidgets?: DashboardWidget[];
 }
 
 // ─────────────────────────────────────────────────────────────────

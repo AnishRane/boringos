@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Inbox snooze ticker — every 30s, flip any snoozed inbox_items whose
 // snooze_until has elapsed back to status='unread' (and clear the

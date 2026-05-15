@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Sleek per-kind node renderers. Aim: small, mono, low-contrast,
 // status visible at a glance via a dot — not a bulky ring.

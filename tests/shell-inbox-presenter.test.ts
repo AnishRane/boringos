@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Pure-helper coverage for Inbox/presenter.ts. The list-row formatting
 // is on the user's hot path — every row renders through these on every

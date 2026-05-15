@@ -242,38 +242,94 @@ the Module.
 
 ## UI registration
 
-Modules can ship browser-facing surface via `ui`. The shell imports
-the Module's React exports at host-app build time and renders
-matching nav entries / panels for any tenant that has the Module
-installed.
+A Module's browser-facing surface lives in a separate `PluginUI`
+object, exported from the Module's `ui/index.mjs` bundle (see the
+`.hebbsmod` packaging in `BUILD-A-MODULE.md`). The shell's
+`pluginHost` registers it at boot via `pluginHost.register(ui)`;
+contributions are gated per-tenant by `useInstalledModules()`.
 
 ```ts
-ui: {
-  screens: [
+// packages/web/src/ui.ts — typical layout in a hybrid module
+import type { PluginUI } from "@boringos/ui";
+
+import { DealsPage } from "./pages/Deals.js";
+import { DealDetailPanel } from "./panels/DealDetail.js";
+import { PipelineSettings } from "./settings/PipelineSettings.js";
+import { DealsClosingThisWeek } from "./dashboard/DealsClosingThisWeek.js";
+
+export const crmUI: PluginUI = {
+  moduleId: "crm",
+  displayName: "CRM",
+  navItems: [
+    { id: "deals", label: "Deals", path: "/deals", element: DealsPage, order: 20 },
+    { id: "deal-detail", label: "Deal", path: "/deals/:id", element: DealsPage, hidden: true },
+  ],
+  entityPanels: [
+    { entityKind: "crm_deal", id: "overview", label: "Overview", element: DealDetailPanel },
+  ],
+  entityActions: [
+    { entityKind: "crm_deal", id: "mark-won", label: "Mark won", invoke: markWon },
+  ],
+  settingsPanels: [
+    { id: "crm.pipeline", label: "Pipeline configuration", element: PipelineSettings },
+  ],
+  dashboardWidgets: [
     {
-      id: "deals",
-      label: "Deals",
-      icon: "briefcase",
-      path: "/apps/crm/deals",
-      component: "DealsScreen",
+      id: "deals-closing-this-week",
+      title: "Closing this week",
+      size: "medium",
+      slot: "secondary",
+      element: DealsClosingThisWeek,
     },
   ],
-  taskPanels: [
-    {
-      id: "deal-context",
-      label: "Linked deal",
-      component: "DealContextPanel",
-      appliesTo: { taskOriginKind: "crm" },
-    },
-  ],
+  copilotTools: [/* ... */],
   inboxFilters: [/* ... */],
-  settingsPanels: [/* ... */],
-}
+};
 ```
 
-`component` is a symbolic name — the shell resolves it against the
-Module package's React exports. The actual React rendering happens
-in the shell, not the Module.
+`element` is a **real `React.ComponentType` reference** (or a
+`React.lazy` thunk) — not a symbolic name. The Module's UI bundle
+ships React components, the shell mounts them, and they share the
+host's React + plugin-host context. See `BUILD-A-MODULE.md` for
+the `kind: "hybrid"` + `ui.sourcePath` packaging that wires the
+sibling `packages/web/` build into the `.hebbsmod`.
+
+### Contribution surfaces
+
+| Field | What it adds | Gating |
+|---|---|---|
+| `navItems` | Sidebar entries + routes (`hidden: true` mounts the route without the link) | Per-tenant install |
+| `entityPanels` | Tabs on the entity detail screen (`entityKind` = the entity row's kind) | Per-tenant install |
+| `entityActions` | Context-menu actions on entities | Per-tenant install + optional `visible(entity)` predicate |
+| `settingsPanels` | Tabs in the admin Settings screen | Per-tenant install |
+| `copilotTools` | Tool ids the copilot UI auto-suggests | Per-tenant install |
+| `inboxFilters` | Inbox-page filters (`match(item)` predicate) | Per-tenant install |
+| `dashboardWidgets` | Tiles on the shell Home dashboard (task_26) | Per-tenant install |
+
+### Dashboard widgets
+
+Each widget declares its grid footprint and vertical placement:
+
+```ts
+dashboardWidgets: [
+  {
+    id: "deals-closing-this-week",      // stable, module-local
+    title: "Closing this week",         // header label
+    size: "medium",                      // "small" | "medium" | "large"
+    slot: "secondary",                   // "primary" | "secondary"
+    element: DealsClosingThisWeek,       // React component, no required props
+    order: 100,                          // optional sort hint within (slot, moduleId)
+  },
+],
+```
+
+The Home grid is 4 columns wide on `md+`: `small` spans 1 col,
+`medium` spans 2, `large` spans 4 (full row). `primary` widgets
+render above `secondary` with a gutter between. The shell wraps
+every widget in a per-widget error boundary + Suspense skeleton —
+a broken or slow widget never blacks out the page. The widget
+fetches its own data via the standard plugin hooks
+(`useTool`, `useToolMutation`) or your existing framework hooks.
 
 ---
 

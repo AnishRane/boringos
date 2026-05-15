@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Thin fetch wrappers around /api/admin/workflows + /api/admin/*.
 // Centralised so the editor doesn't sprinkle URLs everywhere.

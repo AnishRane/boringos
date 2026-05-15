@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // tool-catalog provider — emits the `## Available tools`
 // section of the agent's system prompt by walking the

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Auto-layout via elkjs. Left-to-right layered layout, snug spacing
 // to match the sleek node aesthetic.

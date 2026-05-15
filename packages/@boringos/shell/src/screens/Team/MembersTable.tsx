@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: GPL-3.0-or-later
 
 import type { TeamMember } from "@boringos/ui";
 import { ROLE_OPTIONS, formatJoined, initials, roleBadge } from "./presenter.js";

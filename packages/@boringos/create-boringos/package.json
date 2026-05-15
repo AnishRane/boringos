@@ -10,7 +10,7 @@
     "build": "tsc -b && cp -r src/templates dist/templates",
     "typecheck": "tsc --noEmit"
   },
-  "license": "MIT",
+  "license": "GPL-3.0-or-later",
   "devDependencies": {
     "@types/node": "^22.0.0",
     "typescript": "^5.7.3"

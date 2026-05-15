@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Pure helpers for the Inbox screen — kept separate from React so the
 // formatting/parsing logic can be unit-tested without a jsdom harness

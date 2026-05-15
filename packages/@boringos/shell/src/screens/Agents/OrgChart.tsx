@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Recursive tree rendering of the cabinet hierarchy. Click a node to
 // open the same right-rail detail panel the grid uses.

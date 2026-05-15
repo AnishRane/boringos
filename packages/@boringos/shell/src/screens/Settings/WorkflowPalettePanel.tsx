@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Settings → Workflow palette. Shows the block kinds the visual
 // editor can offer: 5 control-flow primitives baked into the

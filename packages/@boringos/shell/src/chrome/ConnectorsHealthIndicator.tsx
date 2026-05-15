@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // N7 — Compact connector-health indicator. Floats top-right in the
 // shell chrome. Hidden when every connector is healthy; surfaces a

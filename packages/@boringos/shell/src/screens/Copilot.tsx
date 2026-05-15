@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Copilot screen — the implementation. The legacy `/api/copilot/*`
 // API was deleted; copilot conversations are now tasks with

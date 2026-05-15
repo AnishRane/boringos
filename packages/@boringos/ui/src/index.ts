@@ -86,6 +86,9 @@ export type {
   SettingsPanel,
   CopilotTool,
   InboxFilter,
+  DashboardWidget,
+  DashboardWidgetSize,
+  DashboardWidgetSlot,
   ModuleInstallEvent,
 } from "./contract.js";
 

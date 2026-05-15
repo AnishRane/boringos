@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Slack HTTP client. The legacy ConnectorDefinition wrapper was
 // deleted with the connector framework — `SlackClient` is

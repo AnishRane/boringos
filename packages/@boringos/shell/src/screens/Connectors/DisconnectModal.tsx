@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Disconnect confirmation modal (N6). Tells the user what will happen
 // — credentials revoked, sync workflows paused (not deleted) — before

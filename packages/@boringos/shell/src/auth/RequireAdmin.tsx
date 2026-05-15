@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Route guard for admin-only screens. Wrapped at the route table in
 // App.tsx so any direct navigation (sidebar click, URL bar, deep

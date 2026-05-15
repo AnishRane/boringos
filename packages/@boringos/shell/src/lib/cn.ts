@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Standard `cn` helper used by shadcn-style components — concatenates
 // class names with Tailwind-aware conflict resolution.

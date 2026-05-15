@@ -406,20 +406,12 @@ pnpm test:run
 
 ## License
 
-This monorepo is mixed-license. The kernel and SDKs are MIT so
-they win by being everywhere; the shell is source-available
-under BUSL-1.1 to keep the commercial surface protected. Each
-package directory contains its own `LICENSE` file.
+BoringOS is licensed under the **GNU General Public License,
+version 3 or later** (`GPL-3.0-or-later`). The full text lives
+in [`LICENSE`](LICENSE) at the repo root and applies to every
+package in this monorepo, including the shell.
 
-| Path | SPDX | Why |
-|---|---|---|
-| `packages/@boringos/*` (kernel) | `MIT` | Maximize adoption; SDKs and primitives win by being everywhere |
-| `packages/@boringos/connector-*` (Slack, Google) | `MIT` | Same reasoning; community-friendly |
-| `packages/@boringos/module-sdk` | `MIT` | The contract third-party developers build Modules against |
-| `packages/@boringos/shell` | `BUSL-1.1` (auto-converts to `Apache-2.0` after 4 yr) | Commercial surface; competitors blocked from hosting |
-
-The repo-default `LICENSE` file at the root is **MIT** — it
-applies to anything not otherwise marked. See [`LICENSE.md`](LICENSE.md)
-for the full matrix and BUSL specifics.
+See [`LICENSE.md`](LICENSE.md) for the short index and
+[`docs/licensing.md`](docs/licensing.md) for the longer rationale.
 
 Contributions welcome — see [`CONTRIBUTING.md`](CONTRIBUTING.md).

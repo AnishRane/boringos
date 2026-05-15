@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // `workflow` Module — exposes workflow operations as tools so
 // agents (and other tools) can list, run, and inspect workflows

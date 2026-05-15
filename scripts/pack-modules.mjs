@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // pack-modules — workspace-level orchestrator that packs every
 // standalone Module package into a `.hebbsmod` via the

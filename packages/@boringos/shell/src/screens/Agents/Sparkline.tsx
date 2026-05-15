@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Tiny inline bar sparkline. Each bar = one day's run count, scaled
 // to the max bar in the series. No chart lib — twelve <div>s.

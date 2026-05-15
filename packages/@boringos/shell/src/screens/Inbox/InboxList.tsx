@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Inbox list pane — scrollable rows with subject / sender / time /
 // snippet. Phase A1 baseline; A3 layers on triage chips + score, A6

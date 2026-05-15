@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // `module_installs` — per-tenant install state for Modules.
 // Phase 9 of task_12.

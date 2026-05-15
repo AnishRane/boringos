@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Inbox detail pane — shows the selected thread. Older messages
 // collapse to one-line summaries that expand on click; the latest

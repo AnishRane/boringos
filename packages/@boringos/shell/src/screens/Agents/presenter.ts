@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Pure helpers for the Agents screen — colors, initials, status text,
 // fleet aggregates. Kept logic-only so they can be unit-tested without

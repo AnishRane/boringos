@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Budgets — top-level admin screen for spend policies + incidents.
 // Promoted out of Settings → Budgets tab in task_16 phase 5.

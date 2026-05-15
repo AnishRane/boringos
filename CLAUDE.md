@@ -10,7 +10,7 @@ An **open-source framework for building agentic platforms** — agents receive t
 
 ## Tech stack
 
-Hono on Node ≥ 22, TypeScript ESM (`"type": "module"`, `.js` imports for local files), pnpm 9, Drizzle ORM on Postgres (embedded by default, external via `DATABASE_URL`), Vitest, MIT.
+Hono on Node ≥ 22, TypeScript ESM (`"type": "module"`, `.js` imports for local files), pnpm 9, Drizzle ORM on Postgres (embedded by default, external via `DATABASE_URL`), Vitest, GPL-3.0-or-later.
 
 ## Commands
 

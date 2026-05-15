@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Static plugins co-bundled at build time. Used for development of
 // modules that haven't been packaged into `.hebbsmod` yet — useful

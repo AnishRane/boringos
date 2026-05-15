@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Tasks — two-pane layout (list + detail).
 // Tabs are intent-based (My todos / Watching / Done / System / All)

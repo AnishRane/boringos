@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Modules screen — single coherent page for upload, browse, install,
 // uninstall, and delete of `.hebbsmod` packages plus built-in modules.

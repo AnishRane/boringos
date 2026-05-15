@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Connectors screen. Replaces the Phase 1 placeholder. Lists every
 // connector kind registered with the framework plus the per-tenant

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Dev server. Boots @boringos/core on port 3030 with embedded
 // Postgres so the @boringos/shell SPA (port 5174) has a real

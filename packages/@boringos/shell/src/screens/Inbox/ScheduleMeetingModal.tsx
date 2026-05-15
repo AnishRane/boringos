@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Schedule-from-inbox modal. Pre-fills attendees + title from the
 // inbox item, calls google.find_free_slots, lets the user pick a

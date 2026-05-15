@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // task_22 / U2.2 — GO/NO-GO gate (kept around as an end-to-end
 // regression after U5 cut CRM over to upload-only).

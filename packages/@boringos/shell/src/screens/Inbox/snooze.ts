@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Pure helpers for snooze presets. The framework only stores
 // snooze_until as a wall-clock timestamp — the preset names are a

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // React Flow 12 canvas for workflow. Sleek nodes, elkjs auto-layout,
 // drag/connect/delete, condition nodes with two output handles, status

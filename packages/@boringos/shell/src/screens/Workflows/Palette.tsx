@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Cmd-K palette — fuzzy block insertion. Shows control-flow primitives
 // at the top, then tools grouped by module. Compact, keyboard-first.

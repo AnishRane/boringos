@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // At shell boot, walk modules.config.ts and register each plugin's
 // PluginUI contribution into pluginHost. Called once from main.tsx

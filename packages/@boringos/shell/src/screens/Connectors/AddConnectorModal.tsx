@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Add-connector wizard modal (N4). Generic — driven entirely by the
 // connector manifest data flowing through ConnectorViewModel. Hits the

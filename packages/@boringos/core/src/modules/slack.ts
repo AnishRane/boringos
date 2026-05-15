@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // `slack` connector Module — wrapper around the existing
 // SlackClient. Tools mirror 's actions exactly (send_message,

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Tiptap-backed rich text editor for the reply composer. Plain
 // `<textarea>` was the wrong default for a CRM — recipients judge

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Internal entry — re-exports the Module / Tool / Skill registries
 // + dispatcher + install-manager + setting-registry.

@@ -9,7 +9,7 @@
     "typecheck": "tsc --noEmit",
     "preview": "vite preview"
   },
-  "license": "BUSL-1.1",
+  "license": "GPL-3.0-or-later",
   "dependencies": {
     "@boringos/ui": "workspace:*",
     "@radix-ui/react-dialog": "^1.1.15",

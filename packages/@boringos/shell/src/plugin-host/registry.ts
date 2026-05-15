@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Plugin host registry — task_19. In-memory store of every
 // `PluginUI` contribution registered at shell boot from
@@ -21,6 +21,7 @@ import type {
   SettingsPanel,
   CopilotTool,
   InboxFilter,
+  DashboardWidget,
 } from "@boringos/ui";
 
 export interface PluginHost {
@@ -46,6 +47,8 @@ export interface PluginHost {
   copilotTools: Array<CopilotTool & { moduleId: string }>;
   /** Inbox filters (flat). */
   inboxFilters: Array<InboxFilter & { moduleId: string }>;
+  /** Dashboard widgets (sorted by slot, order, moduleId). */
+  dashboardWidgets: Array<DashboardWidget & { moduleId: string }>;
 }
 
 function createPluginHost(): PluginHost {
@@ -153,6 +156,21 @@ function createPluginHost(): PluginHost {
         }
       }
       return out;
+    },
+    get dashboardWidgets() {
+      const out: Array<DashboardWidget & { moduleId: string }> = [];
+      for (const m of modules) {
+        for (const w of m.dashboardWidgets ?? []) {
+          out.push({ ...w, moduleId: m.moduleId });
+        }
+      }
+      const slotRank: Record<string, number> = { primary: 0, secondary: 1 };
+      return out.sort(
+        (a, b) =>
+          (slotRank[a.slot] ?? 99) - (slotRank[b.slot] ?? 99) ||
+          (a.order ?? 100) - (b.order ?? 100) ||
+          a.moduleId.localeCompare(b.moduleId),
+      );
     },
   };
 }

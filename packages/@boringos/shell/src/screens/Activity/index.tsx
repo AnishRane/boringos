@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Activity — chronological feed of activity_log rows. Filters work
 // client-side on the most-recent N rows fetched from the admin API

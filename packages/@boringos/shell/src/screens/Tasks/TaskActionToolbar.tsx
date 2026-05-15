@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Action toolbar in the task detail header. Buttons are text-first so
 // the affordance is obvious; mirrors the inbox toolbar's idiom.

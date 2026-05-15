@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Fork-from-step modal — used by the run drawer's "Replay from this
 // step" affordance. Lets the user edit the resolved inputs of a

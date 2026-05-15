@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Drive — browse tenant artifacts. Two-pane layout: left is a
 // breadcrumb + folder/file list at the current prefix; right is

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // `module_migrations` — tracks which Module.schema migrations
 // have been applied per (tenant, module). Part of the module

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Default BoringOS brand. Used when a tenant has not customized any
 // brand.* setting in tenant_settings.

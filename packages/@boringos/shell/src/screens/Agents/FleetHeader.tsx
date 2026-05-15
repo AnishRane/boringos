@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Cabinet-wide stats strip. Pulls from the server-side /agents/stats
 // aggregate; falls back to client-computed numbers from the agents

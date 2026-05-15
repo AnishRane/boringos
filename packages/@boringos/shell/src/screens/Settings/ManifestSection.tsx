@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Auto-renders the tenant settings manifest in the Settings → General
 // tab. Groups by ownerId so each module/app gets its own subsection.

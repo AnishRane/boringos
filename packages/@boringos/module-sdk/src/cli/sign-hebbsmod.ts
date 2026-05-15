@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // sign-hebbsmod — produce + attach a detached Ed25519 signature
 // for a `.hebbsmod` bundle (or a packed directory) so the host's

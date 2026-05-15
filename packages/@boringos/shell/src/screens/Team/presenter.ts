@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: GPL-3.0-or-later
 
 export const ROLE_OPTIONS = [
   { value: "admin", label: "Admin" },

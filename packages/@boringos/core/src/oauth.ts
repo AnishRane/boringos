@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // OAuth machinery — moved here from `@boringos/connector` when the
 // OAuth callbacks live on the framework HTTP surface (not a "connector")

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Modules → Installed tab. Lists every Module the host has registered,
 // marks installed/not for the active tenant, and lets admins install

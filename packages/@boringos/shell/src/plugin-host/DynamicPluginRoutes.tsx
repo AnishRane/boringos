@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Emits one <Route> per plugin nav item, gated by
 // <RequireInstall moduleId={...}>. Mount inside the auth-gated

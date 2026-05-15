@@ -14,7 +14,7 @@
     "build": "tsc && node -e \"require('fs').cpSync('src/modules','dist/modules',{recursive:true,filter:(p)=>p.endsWith('.md')||require('fs').statSync(p).isDirectory()})\"",
     "typecheck": "tsc --noEmit"
   },
-  "license": "MIT",
+  "license": "GPL-3.0-or-later",
   "dependencies": {
     "@boringos/agent": "workspace:*",
     "@boringos/connector-google": "workspace:*",

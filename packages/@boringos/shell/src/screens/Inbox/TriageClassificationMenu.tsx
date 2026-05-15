@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Click the triage classification chip → small dropdown to override
 // the agent's call. Tracks the override on metadata.triage so future

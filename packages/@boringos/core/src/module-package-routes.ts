@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // task_22 U3.1 / U3.3 / U3.5 — `.hebbsmod` package upload + delete +
 // list routes. Mounts under `/api/admin/modules`.

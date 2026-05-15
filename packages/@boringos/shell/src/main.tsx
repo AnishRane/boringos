@@ -1,8 +1,9 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: GPL-3.0-or-later
 
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { App } from "./App.js";
+import { registerBuiltinPlugins } from "./builtin-plugins/index.js";
 import { bootPlugins } from "./plugin-host/boot.js";
 import "./index.css";
 
@@ -11,6 +12,7 @@ import "./index.css";
 // plugin contributions). IIFE'd to avoid top-level await for the
 // esbuild target.
 (async () => {
+  registerBuiltinPlugins();
   await bootPlugins();
   ReactDOM.createRoot(document.getElementById("root")!).render(
     <React.StrictMode>

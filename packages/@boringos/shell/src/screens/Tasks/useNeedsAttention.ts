@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Derives the set of task ids that should bubble into "My todos"
 // because something went wrong on the agent side. Two signals today:

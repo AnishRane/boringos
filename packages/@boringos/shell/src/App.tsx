@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Shell App — public auth routes (Login, Signup) + auth-gated chrome
 // hosting the shell-mandatory screens. Admin-only routes are wrapped

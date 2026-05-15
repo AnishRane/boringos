@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Brand contract — what every shell consumer reads via useBrand().
 // Per docs/shell-screens.md § 13 (Branding subsection).

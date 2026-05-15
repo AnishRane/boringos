@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Per-run + per-agent context providers. legacy prompt providers
 // (memory-skill, drive-skill, approvals-skill, chief-of-staff,

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: GPL-3.0-or-later
 
 export { BrandProvider, useBrand } from "./BrandProvider.js";
 export { BORINGOS_BRAND, resolveBrand } from "./defaults.js";

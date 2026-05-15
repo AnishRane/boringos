@@ -274,17 +274,77 @@ above. Below is the eight-dimensional surface — items marked with
 
 | Field | Status |
 |---|---|
-| `skills` | ✅ inline; 🔜 SKILL.md files in Phase 6 |
+| `skills` | ✅ |
 | `tools` | ✅ |
-| `dependsOn` / `provides` | 🔜 Phase 9 (capability resolution) |
-| `schema` (Drizzle migrations, prefixed `<id>__`) | 🔜 Phase 8 (CRM port) |
-| `ui` (screens, panels, settings) | 🔜 Phase 10 |
-| `workflows` (default seeded) | 🔜 Phase 9 |
-| `agents` (default seeded) | 🔜 Phase 9 |
-| `routines` (cron / event / webhook) | 🔜 Phase 9 |
-| `webhooks` (inbound HTTP) | 🔜 Phase 7 connector polish |
-| `oauth` | 🔜 Phase 7 connector polish |
-| `lifecycle.{onInstall, onUninstall, onTenantCreate}` | 🔜 Phase 5 polish |
+| `dependsOn` / `provides` | ✅ (capability resolution) |
+| `schema` (Drizzle migrations, prefixed `<id>__`) | ✅ |
+| `ui` — `PluginUI` (navItems, entityPanels, entityActions, settingsPanels, inboxFilters, copilotTools, dashboardWidgets) | ✅ — see [`MODULES.md` § UI registration](MODULES.md#ui-registration) |
+| `workflows` (default seeded) | ✅ |
+| `agents` (default seeded) | ✅ |
+| `routines` (cron / event / webhook) | ✅ |
+| `webhooks` (inbound HTTP) | ✅ |
+| `oauth` | ✅ |
+| `lifecycle.{onInstall, onUninstall, onTenantCreate}` | ✅ |
+
+---
+
+## Adding UI — the `PluginUI` bundle
+
+A module that ships a browser surface exports a `PluginUI` object
+from a sibling React bundle (`packages/web/src/ui.ts` by
+convention). The shell loads that bundle at runtime via
+`/modules/<id>/ui/index.mjs`, finds the `PluginUI` export, and
+calls `pluginHost.register(ui)`. Contributions appear under the
+right surfaces (sidebar, settings, entity panels, Home dashboard,
+copilot, inbox) within ~1s of install, and disappear within ~1s
+of uninstall — no shell reload required.
+
+```ts
+// packages/web/src/ui.ts
+import type { PluginUI } from "@boringos/ui";
+
+import { DealsPage } from "./pages/Deals.js";
+import { DealDetailPanel } from "./panels/DealDetail.js";
+import { PipelineByStage } from "./dashboard/PipelineByStage.js";
+
+export const myModuleUI: PluginUI = {
+  moduleId: "crm",          // must match Module.id on the server
+  displayName: "CRM",       // sidebar group label
+  navItems: [
+    { id: "deals", label: "Deals", path: "/deals", element: DealsPage },
+  ],
+  entityPanels: [
+    { entityKind: "crm_deal", id: "overview", label: "Overview", element: DealDetailPanel },
+  ],
+  dashboardWidgets: [
+    {
+      id: "pipeline-by-stage",
+      title: "Pipeline by stage",
+      size: "medium",       // "small" | "medium" | "large"
+      slot: "secondary",    // "primary" | "secondary"
+      element: PipelineByStage,
+      order: 100,
+    },
+  ],
+};
+
+export default myModuleUI;
+```
+
+The full contribution surface — `navItems`, `entityPanels`,
+`entityActions`, `settingsPanels`, `copilotTools`, `inboxFilters`,
+`dashboardWidgets` — is documented in
+[`MODULES.md` § UI registration](MODULES.md#ui-registration).
+
+### Packaging the UI bundle
+
+Wire the sibling React build into the `.hebbsmod` by setting
+`ui.sourcePath` in `module.json` (see the
+[`Pointing at a sibling UI build`](#pointing-at-a-sibling-ui-build-uisourcepath)
+section below). The shell-side externals are
+`react`, `react-dom`, `react-router-dom`, `@boringos/ui` — never
+bundle these into your `index.mjs` or you'll fork the React tree
+and break every hook.
 
 ---
 

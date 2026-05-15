@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Generic widget for a single SettingDefinition. Switches on `type`.
 // Used by ManifestSection to auto-render the General tab from the

@@ -32,4 +32,4 @@ Boots Vite on port 5174. Proxies `/api/*` to `localhost:3000` (where the BoringO
 
 ## License
 
-[BUSL-1.1](./LICENSE) — Business Source License 1.1, auto-converts to Apache 2.0 four years after each version's release. See the repo's [LICENSE.md](../../../LICENSE.md) for the full per-package matrix.
+[GPL-3.0-or-later](./LICENSE) — GNU General Public License, version 3 or later. See the repo's [LICENSE.md](../../../LICENSE.md) for the short index and [docs/licensing.md](../../../docs/licensing.md) for the longer rationale.

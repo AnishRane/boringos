@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Bottom drawer that collapses to a strip and lifts up to show the
 // span tree of the active run. Clicking a span pans the canvas and

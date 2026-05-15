@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Bridges the shell's AuthProvider into @boringos/ui's BoringOSProvider.
 // Constructs a BoringOSClient from the active session token + tenantId,

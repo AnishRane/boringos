@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // skills provider — emits the `## Skills` section of the
 // agent's system prompt by walking the SkillRegistry.

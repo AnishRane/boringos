@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // AuthProvider — wraps the shell with session state.
 // Lifted from boringos-crm/packages/web/src/lib/auth.tsx, adapted to:

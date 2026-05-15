@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // BrandProvider — loads the tenant's brand.* settings on auth, exposes
 // the resolved Brand (with BoringOS defaults filled in) to chrome and

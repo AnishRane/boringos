@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Settings → Agents (Operational) panel.
 // Global pause toggle + per-agent controls: pause/resume, change model, view runs.

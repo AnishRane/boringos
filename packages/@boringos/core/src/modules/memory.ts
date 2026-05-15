@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // `memory` Module — wraps the configured MemoryProvider, exposing
 // `memory.{remember, recall, forget}` tools plus a SKILL.md teaching

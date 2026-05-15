@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: GPL-3.0-or-later
 
 import { useState } from "react";
 import type { PendingInvitation } from "@boringos/ui";

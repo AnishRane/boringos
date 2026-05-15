@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Snooze preset arithmetic + relative-time formatter. Both are pure
 // helpers used heavily on every list render of the snoozed tab.

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BUSL-1.1
+// SPDX-License-Identifier: GPL-3.0-or-later
 //
 // MIME builder tests. The reply path was rewritten from a hand-rolled
 // `text/plain` string to a real multipart/alternative builder. These
