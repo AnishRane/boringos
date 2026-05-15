@@ -295,7 +295,15 @@ function ActiveThread(props: {
                       : "bg-accent text-white"
                   }`}
                 >
-                  <Markdown source={c.body} compact />
+                  <Markdown
+                    source={c.body}
+                    compact
+                    linkClass={
+                      fromCopilot
+                        ? undefined
+                        : "[&_a]:text-white [&_a]:underline hover:[&_a]:text-white/90"
+                    }
+                  />
                   <div
                     className={`text-[10px] mt-1 ${
                       fromCopilot ? "text-muted" : "text-white/70"
