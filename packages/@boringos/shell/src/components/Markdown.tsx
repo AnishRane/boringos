@@ -53,16 +53,24 @@ export interface MarkdownProps {
   className?: string;
   /** Compact spacing — used in dense surfaces like comment rows. */
   compact?: boolean;
+  /**
+   * Override the link color/style. Defaults to `text-accent`. Set this
+   * to e.g. `"text-white"` when rendering inside an `bg-accent` bubble
+   * (Copilot user messages) so links stay readable. (Closes #8.)
+   */
+  linkClass?: string;
 }
 
-const PROSE_CLASS_BASE =
+// Prose styling minus the link rule — links are appended dynamically
+// in the component so callers can override via `linkClass`.
+const PROSE_CLASS_BASE_NO_LINK =
   // Tight, neutral typography. Avoid Tailwind's `prose` plugin so we
   // don't pull a 10kb stylesheet for a few markdown surfaces — set
   // the spacing/typography we actually need explicitly.
   //
   // No `text-{color}` here on purpose: text color is inherited from
   // the parent bubble. That lets Copilot user-message bubbles
-  // (white on black) render correctly without fighting a hardcoded
+  // (white on accent) render correctly without fighting a hardcoded
   // dark color. Parents that need a specific color pass it via
   // `className`.
   "text-sm leading-relaxed " +
@@ -73,7 +81,6 @@ const PROSE_CLASS_BASE =
   "[&_ul]:list-disc [&_ul]:ml-5 [&_ul]:my-1.5 " +
   "[&_ol]:list-decimal [&_ol]:ml-5 [&_ol]:my-1.5 " +
   "[&_li]:my-0.5 " +
-  "[&_a]:text-accent [&_a]:underline hover:[&_a]:text-accent " +
   "[&_code]:bg-bg-warm [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-[0.85em] [&_code]:font-mono " +
   "[&_pre]:bg-bg-warm [&_pre]:p-2 [&_pre]:rounded-md [&_pre]:my-2 [&_pre]:overflow-x-auto " +
   "[&_pre>code]:bg-transparent [&_pre>code]:p-0 " +
@@ -82,10 +89,12 @@ const PROSE_CLASS_BASE =
   "[&_table]:my-2 [&_th]:border [&_th]:border-border [&_th]:px-2 [&_th]:py-1 [&_th]:bg-bg [&_th]:font-medium " +
   "[&_td]:border [&_td]:border-border [&_td]:px-2 [&_td]:py-1";
 
+const DEFAULT_LINK_CLASS = "[&_a]:text-accent [&_a]:underline hover:[&_a]:text-accent";
+
 const PROSE_CLASS_COMPACT =
   "[&_p]:my-1 [&_ul]:my-1 [&_ol]:my-1 [&_h1]:mt-1 [&_h1]:mb-1 [&_h2]:mt-1 [&_h2]:mb-1";
 
-export function Markdown({ source, className, compact }: MarkdownProps) {
+export function Markdown({ source, className, compact, linkClass }: MarkdownProps) {
   const html = useMemo(() => {
     if (!source) return "";
     try {
@@ -100,7 +109,8 @@ export function Markdown({ source, className, compact }: MarkdownProps) {
   if (!html) return null;
 
   const cls = [
-    PROSE_CLASS_BASE,
+    PROSE_CLASS_BASE_NO_LINK,
+    linkClass ?? DEFAULT_LINK_CLASS,
     compact ? PROSE_CLASS_COMPACT : "",
     className ?? "",
   ]

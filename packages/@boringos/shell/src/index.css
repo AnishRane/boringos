@@ -62,9 +62,58 @@
   --color-danger: #F43F5E;
   --color-info: #06B6D4;
 
+  /* Soft tints for badges/notices — readable against either bg. */
+  --color-success-tint: rgba(79, 107, 87, 0.12);
+  --color-warning-tint: rgba(217, 119, 6, 0.12);
+  --color-danger-tint: rgba(244, 63, 94, 0.12);
+  --color-info-tint: rgba(6, 182, 212, 0.12);
+
+  /* Dot-grid background tint — token so dark mode can override. */
+  --color-grid-dot: rgba(11, 18, 32, 0.045);
+
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, "Cascadia Code", monospace;
   --font-logo: "Space Grotesk", "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+
+/* ── Dark theme overrides ───────────────────────────────────────────────────
+ *  Activated by ThemeProvider via `data-theme="dark"` on <html>.
+ *  Only structural tokens flip — brand accent (set by BrandProvider) stays.
+ *  The early no-flash boot script in index.html sets this attribute before
+ *  React mounts.
+ */
+[data-theme="dark"] {
+  /* Surfaces — ink-deep canvas; surfaces lift via lighter slate, not white. */
+  --color-bg: #0B0E14;
+  --color-bg-warm: #111827;
+  --color-surface: #111827;
+  --color-surface-raised: #172038;
+  --color-surface-tint: rgba(255, 255, 255, 0.04);
+  --color-border: #1F2937;
+  --color-border-subtle: #1A2235;
+
+  /* Text — slate-lights inverted from the light palette. */
+  --color-text: #E5E7EB;
+  --color-text-secondary: #CBD5E1;
+  --color-muted: #9CA3AF;
+  --color-muted-strong: #D1D5DB;
+
+  /* Accent tint stays brand-driven; the alpha is bumped so it shows up
+   * against deep backgrounds. */
+  --color-accent-tint: color-mix(in srgb, var(--color-accent) 18%, transparent);
+
+  /* State channels — slightly muted for low-contrast backgrounds. */
+  --color-success: #86EFAC;
+  --color-warning: #FCD34D;
+  --color-danger: #FCA5A5;
+  --color-info: #67E8F9;
+  --color-success-tint: rgba(134, 239, 172, 0.12);
+  --color-warning-tint: rgba(252, 211, 77, 0.14);
+  --color-danger-tint: rgba(252, 165, 165, 0.14);
+  --color-info-tint: rgba(103, 232, 249, 0.12);
+
+  /* Grid dots fade into the deep background. */
+  --color-grid-dot: rgba(255, 255, 255, 0.04);
 }
 
 @layer base {
@@ -81,12 +130,97 @@
     color: var(--color-text);
   }
 
-  /* Subtle dot grid on the body — ink-toned, not warm-stone. */
+  /* Subtle dot grid on the body — token-driven so dark mode flips. */
   body {
-    background-image: radial-gradient(circle, rgba(11, 18, 32, 0.045) 1px, transparent 1px);
+    background-image: radial-gradient(circle, var(--color-grid-dot) 1px, transparent 1px);
     background-size: 24px 24px;
   }
 }
+
+/* ── Dark-mode compatibility shims ──────────────────────────────────────────
+ *  Many existing shell screens use raw Tailwind palette utilities (bg-white,
+ *  bg-red-50, etc.) that were perfect for the warm-paper light theme but
+ *  break in dark mode. Rather than rewrite ~50 files in this PR, remap the
+ *  most common card-surface and badge-tint utilities to semantic tokens
+ *  when [data-theme="dark"] is active. New code should prefer semantic
+ *  tokens (bg-surface-raised, bg-danger-tint, etc.) directly.
+ */
+[data-theme="dark"] .bg-white { background-color: var(--color-surface-raised) !important; }
+
+[data-theme="dark"] .bg-red-50,
+[data-theme="dark"] .bg-rose-50 { background-color: var(--color-danger-tint) !important; }
+[data-theme="dark"] .text-red-700,
+[data-theme="dark"] .text-red-600,
+[data-theme="dark"] .text-rose-700,
+[data-theme="dark"] .text-rose-600 { color: var(--color-danger) !important; }
+[data-theme="dark"] .border-red-200,
+[data-theme="dark"] .border-rose-200 { border-color: var(--color-danger) !important; opacity: 0.6; }
+
+[data-theme="dark"] .bg-yellow-50,
+[data-theme="dark"] .bg-amber-50 { background-color: var(--color-warning-tint) !important; }
+[data-theme="dark"] .text-yellow-700,
+[data-theme="dark"] .text-yellow-800,
+[data-theme="dark"] .text-yellow-900,
+[data-theme="dark"] .text-amber-700,
+[data-theme="dark"] .text-amber-800,
+[data-theme="dark"] .text-amber-900 { color: var(--color-warning) !important; }
+[data-theme="dark"] .border-yellow-200,
+[data-theme="dark"] .border-amber-200 { border-color: var(--color-warning) !important; opacity: 0.6; }
+
+[data-theme="dark"] .bg-emerald-50,
+[data-theme="dark"] .bg-green-50 { background-color: var(--color-success-tint) !important; }
+[data-theme="dark"] .text-emerald-700,
+[data-theme="dark"] .text-emerald-600,
+[data-theme="dark"] .text-green-700,
+[data-theme="dark"] .text-green-600 { color: var(--color-success) !important; }
+[data-theme="dark"] .border-emerald-200,
+[data-theme="dark"] .border-green-200 { border-color: var(--color-success) !important; opacity: 0.6; }
+
+[data-theme="dark"] .bg-blue-50,
+[data-theme="dark"] .bg-cyan-50,
+[data-theme="dark"] .bg-sky-50 { background-color: var(--color-info-tint) !important; }
+[data-theme="dark"] .text-blue-700,
+[data-theme="dark"] .text-blue-600,
+[data-theme="dark"] .text-sky-700,
+[data-theme="dark"] .text-sky-600 { color: var(--color-info) !important; }
+
+/* Neutral palette utilities (slate/gray/zinc/neutral/stone) — common for
+ * borders, dividers, and muted text. Remap to our semantic border/muted
+ * tokens so neutral surfaces don't render as glaring light blocks. */
+[data-theme="dark"] .bg-slate-50,
+[data-theme="dark"] .bg-slate-100,
+[data-theme="dark"] .bg-gray-50,
+[data-theme="dark"] .bg-gray-100,
+[data-theme="dark"] .bg-zinc-50,
+[data-theme="dark"] .bg-zinc-100,
+[data-theme="dark"] .bg-neutral-50,
+[data-theme="dark"] .bg-neutral-100,
+[data-theme="dark"] .bg-stone-50,
+[data-theme="dark"] .bg-stone-100 { background-color: var(--color-bg-warm) !important; }
+
+[data-theme="dark"] .text-slate-500,
+[data-theme="dark"] .text-slate-600,
+[data-theme="dark"] .text-gray-500,
+[data-theme="dark"] .text-gray-600,
+[data-theme="dark"] .text-zinc-500,
+[data-theme="dark"] .text-zinc-600,
+[data-theme="dark"] .text-neutral-500,
+[data-theme="dark"] .text-neutral-600 { color: var(--color-muted) !important; }
+
+[data-theme="dark"] .text-slate-700,
+[data-theme="dark"] .text-slate-800,
+[data-theme="dark"] .text-slate-900,
+[data-theme="dark"] .text-gray-700,
+[data-theme="dark"] .text-gray-800,
+[data-theme="dark"] .text-gray-900 { color: var(--color-text) !important; }
+
+[data-theme="dark"] .border-slate-200,
+[data-theme="dark"] .border-slate-300,
+[data-theme="dark"] .border-gray-200,
+[data-theme="dark"] .border-gray-300,
+[data-theme="dark"] .border-zinc-200,
+[data-theme="dark"] .border-neutral-200,
+[data-theme="dark"] .border-stone-200 { border-color: var(--color-border) !important; }
 
 /* Marketing-style "dark band" used on Login + onboarding only. Anchored
  * on Ink so brand.secondaryColor overrides flow through naturally. */
