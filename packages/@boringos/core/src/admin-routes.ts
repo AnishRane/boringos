@@ -947,12 +947,19 @@ export function createAdminRoutes(
     const taskId = c.req.param("id");
     const tenantId = c.get("tenantId");
 
+    // Persist whichever author the caller specified. The shell + admin
+    // tooling default to the session user; programmatic seeds and
+    // internal callers may stamp an `authorAgentId` to attribute the
+    // comment to a specific agent (Copilot replies, system narration).
     await db.insert(taskComments).values({
       id,
       taskId,
       tenantId,
       body: body.body as string,
-      authorUserId: body.authorUserId as string | undefined,
+      authorUserId:
+        (body.authorUserId as string | undefined) ??
+        (body.authorAgentId ? undefined : c.get("userId") ?? undefined),
+      authorAgentId: body.authorAgentId as string | undefined,
     });
     emit("task:comment_added", tenantId, { taskId, commentId: id });
     await logActivity(tenantId, "comment.created", "task_comment", id, { taskId });
@@ -2228,6 +2235,31 @@ export function createAdminRoutes(
     return c.json({ items: rows });
   });
 
+  // POST /inbox — direct inbox item creation. Used by demo seeds and
+  // any caller that wants to push a synthetic inbound item without
+  // wiring a connector. Production callers normally rely on Gmail /
+  // Slack connectors instead; this endpoint stays minimal.
+  app.post("/inbox", async (c) => {
+    const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>;
+    const id = generateId();
+    const source = (body.source as string) ?? "manual";
+    const sourceId = (body.sourceId as string) ?? `manual-${id}`;
+    await db.insert(inboxItems).values({
+      id,
+      tenantId: c.get("tenantId"),
+      assigneeUserId: (body.assigneeUserId as string) ?? c.get("userId") ?? null,
+      source,
+      sourceId,
+      subject: (body.subject as string) ?? "(no subject)",
+      body: (body.body as string) ?? null,
+      from: (body.from as string) ?? null,
+      status: (body.status as string) ?? "unread",
+      metadata: (body.metadata as Record<string, unknown> | undefined) ?? undefined,
+    });
+    const rows = await db.select().from(inboxItems).where(eq(inboxItems.id, id)).limit(1);
+    return c.json(rows[0], 201);
+  });
+
   app.get("/inbox/:id", async (c) => {
     const rows = await db.select().from(inboxItems).where(
       and(eq(inboxItems.id, c.req.param("id")), eq(inboxItems.tenantId, c.get("tenantId"))),
@@ -2371,8 +2403,51 @@ export function createAdminRoutes(
     const rows = await db.select().from(costEvents)
       .where(eq(costEvents.tenantId, c.get("tenantId")))
       .orderBy(desc(costEvents.createdAt))
-      .limit(100);
-    return c.json({ costs: rows });
+      .limit(500);
+    // Mirror the canonical camelCase row plus snake_case aliases so panels
+    // that read either shape (e.g. Settings → Agents reads `agent_id`)
+    // light up without a separate transform layer.
+    const out = rows.map((r) => ({
+      ...r,
+      agent_id: r.agentId,
+      run_id: r.runId,
+      input_tokens: r.inputTokens,
+      output_tokens: r.outputTokens,
+      cache_creation_tokens: r.cacheCreationTokens,
+      cache_read_tokens: r.cacheReadTokens,
+      cost_usd: r.costUsd,
+      created_at: r.createdAt,
+    }));
+    return c.json({ costs: out });
+  });
+
+  // POST /dev/cost-events — dev-only bulk insert used by the real-demo
+  // seeder so the Budgets screen lights up with realistic month-over-
+  // month spend without running real agents. Gated on
+  // BORINGOS_DEMO_FAKE_AI so production deployments cannot reach it.
+  app.post("/dev/cost-events", async (c) => {
+    if (process.env.BORINGOS_DEMO_FAKE_AI !== "1" && process.env.BORINGOS_DEMO_FAKE_AI !== "true") {
+      return c.json({ error: "dev endpoints disabled" }, 403);
+    }
+    const body = (await c.req.json().catch(() => ({}))) as { rows?: Array<Record<string, unknown>> };
+    const rows = Array.isArray(body.rows) ? body.rows : [];
+    if (rows.length === 0) return c.json({ inserted: 0 });
+    const tenantId = c.get("tenantId");
+    const toInsert = rows.map((r) => ({
+      id: (r.id as string) ?? generateId(),
+      tenantId,
+      agentId: r.agentId as string,
+      runId: (r.runId as string) ?? null,
+      inputTokens: Number(r.inputTokens ?? 0),
+      outputTokens: Number(r.outputTokens ?? 0),
+      cacheCreationTokens: Number(r.cacheCreationTokens ?? 0),
+      cacheReadTokens: Number(r.cacheReadTokens ?? 0),
+      model: (r.model as string) ?? null,
+      costUsd: r.costUsd !== undefined ? String(r.costUsd) : null,
+      createdAt: r.createdAt ? new Date(r.createdAt as string) : new Date(),
+    }));
+    await db.insert(costEvents).values(toInsert as Array<typeof costEvents.$inferInsert>);
+    return c.json({ inserted: toInsert.length });
   });
 
   // ── Entity References ────────────────────────────────────────────────────

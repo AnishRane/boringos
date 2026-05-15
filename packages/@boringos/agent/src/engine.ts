@@ -1,8 +1,21 @@
 import { eq, and } from "drizzle-orm";
 import type { Db } from "@boringos/db";
-import { agents, agentWakeupRequests, agentRuns, costEvents, tasks, tenantSettings } from "@boringos/db";
+import {
+  agents,
+  agentWakeupRequests,
+  agentRuns,
+  costEvents,
+  tasks,
+  taskComments,
+  tenantSettings,
+} from "@boringos/db";
 import type { MemoryProvider } from "@boringos/memory";
-import type { RuntimeRegistry, AgentRunCallbacks, CostEvent } from "@boringos/runtime";
+import type {
+  RuntimeRegistry,
+  AgentRunCallbacks,
+  CostEvent,
+  RuntimeExecutionResult,
+} from "@boringos/runtime";
 import type { StorageBackend } from "@boringos/drive";
 import type { QueueAdapter } from "@boringos/pipeline";
 // legacy connector registry removed — modules are the only catalog now.
@@ -359,23 +372,59 @@ export function createAgentEngine(config: AgentEngineConfig): AgentEngine {
     };
 
     try {
-      const result = await runtime.execute(
-        {
+      const demoFake =
+        process.env.BORINGOS_DEMO_FAKE_AI === "1" || process.env.BORINGOS_DEMO_FAKE_AI === "true";
+      let result: RuntimeExecutionResult;
+
+      if (demoFake) {
+        const demoReply =
+          (process.env.BORINGOS_DEMO_FAKE_AI_REPLY?.trim() &&
+            process.env.BORINGOS_DEMO_FAKE_AI_REPLY.trim()) ||
+          [
+            "## Demo mode",
+            "",
+            "This is a **deterministic canned reply**. No live model or agent CLI was invoked (`BORINGOS_DEMO_FAKE_AI=1`).",
+            "",
+            "_Use this path for scripted demos, screenshots, and CI without API keys._",
+          ].join("\n");
+
+        await lifecycle.appendLog(
           runId,
-          agentId: job.agentId,
-          tenantId: job.tenantId,
-          taskId: job.taskId,
-          wakeReason: job.wakeReason,
-          config: runtimeConfig,
-          systemInstructions,
-          contextMarkdown,
-          callbackUrl,
-          callbackToken,
-          previousSessionId,
-          workspaceCwd: workDir ?? undefined,
-        },
-        callbacks,
-      );
+          "[demo] BORINGOS_DEMO_FAKE_AI=1 — skipping runtime.execute(); posting canned reply as task comment.",
+        );
+        callbacks.onComplete({
+          exitCode: 0,
+          sessionId: previousSessionId,
+        });
+        if (job.taskId) {
+          await db.insert(taskComments).values({
+            id: generateId(),
+            taskId: job.taskId,
+            tenantId: job.tenantId,
+            body: demoReply,
+            authorAgentId: job.agentId,
+          });
+        }
+        result = { exitCode: 0, sessionId: previousSessionId };
+      } else {
+        result = await runtime.execute(
+          {
+            runId,
+            agentId: job.agentId,
+            tenantId: job.tenantId,
+            taskId: job.taskId,
+            wakeReason: job.wakeReason,
+            config: runtimeConfig,
+            systemInstructions,
+            contextMarkdown,
+            callbackUrl,
+            callbackToken,
+            previousSessionId,
+            workspaceCwd: workDir ?? undefined,
+          },
+          callbacks,
+        );
+      }
 
       await afterRun.run({
         agentId: job.agentId,

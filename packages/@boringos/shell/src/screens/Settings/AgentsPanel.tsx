@@ -45,9 +45,11 @@ export function AgentsPanel() {
   const globalPaused = settings?.agents_paused === "true";
   const agentSpendMap = new Map<string, number>();
   costs.forEach((cost: any) => {
-    if (cost.agent_id) {
-      agentSpendMap.set(cost.agent_id, (agentSpendMap.get(cost.agent_id) || 0) + (cost.costUsd || 0));
-    }
+    const aid = cost.agent_id ?? cost.agentId;
+    if (!aid) return;
+    const usd = Number(cost.costUsd ?? cost.cost_usd ?? 0);
+    if (!Number.isFinite(usd)) return;
+    agentSpendMap.set(aid, (agentSpendMap.get(aid) || 0) + usd);
   });
 
   const handleGlobalPause = async (paused: boolean) => {
