@@ -8,7 +8,7 @@ regenerate only when the source module changes.
 
 | File | Module | Notes |
 |---|---|---|
-| `crm-0.2.0.hebbsmod` | `@boringos-crm/server` | Hybrid module (owns its own schema). Bundle includes `module.json`, `index.mjs`, and the seven CRM SKILL.md files. No `migrations/` dir (CRM emits its DDL via `crmMigrations` inlined in the bundle). No `ui/` (CRM's UI lives in the sibling `boringos-crm/packages/web` package and is not yet packed — U4 will tackle UI bundling). |
+| `crm-0.3.0.hebbsmod` | `@boringos-crm/server` | Hybrid module (owns its own schema). Bundle includes `module.json`, `index.mjs`, and the seven CRM SKILL.md files. No `migrations/` dir (CRM emits its DDL via `crmMigrations` inlined in the bundle). No `ui/` (CRM's UI lives in the sibling `boringos-crm/packages/web` package and is not yet packed — U4 will tackle UI bundling). |
 
 ## Regenerate
 

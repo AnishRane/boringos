@@ -13,7 +13,7 @@
  *   GET  /modules/crm/ui/missing.txt               → 404
  *   GET  /modules/crm/ui/index.mjs (after delete)  → 404
  *
- * The fixture is the same `tests/fixtures/crm-0.2.0.hebbsmod` the
+ * The fixture is the same `tests/fixtures/crm-0.3.0.hebbsmod` the
  * upload test uses; this test goes through the public upload
  * endpoint so the on-disk extract + DB row are exercised end-to-end.
  */
@@ -82,13 +82,13 @@ describe("task_22 U4.1 — GET /modules/:id/ui/*", () => {
         expect(beforeUploadRes.status).toBe(404);
 
         // ── 1. Upload the fixture ────────────────────────────────
-        const fixturePath = join(__dirname, "fixtures", "crm-0.2.0.hebbsmod");
+        const fixturePath = join(__dirname, "fixtures", "crm-0.3.0.hebbsmod");
         const bytes = await readFile(fixturePath);
         const form = new FormData();
         form.append(
           "file",
           new Blob([bytes], { type: "application/zip" }),
-          "crm-0.2.0.hebbsmod",
+          "crm-0.3.0.hebbsmod",
         );
         const uploadRes = await fetch(
           `${server.url}/api/admin/modules/upload`,
@@ -159,7 +159,7 @@ describe("task_22 U4.1 — GET /modules/:id/ui/*", () => {
 
         // ── 6. Delete the module → UI 404s ───────────────────────
         const delRes = await fetch(
-          `${server.url}/api/admin/modules/crm?version=0.2.0&force=true`,
+          `${server.url}/api/admin/modules/crm?version=0.3.0&force=true`,
           { method: "DELETE", headers: { "X-Tenant-Id": tenantId } },
         );
         expect(delRes.status).toBe(200);

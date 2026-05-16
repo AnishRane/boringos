@@ -62,14 +62,14 @@ describe("task_26 — CRM .hebbsmod includes dashboard widgets", () => {
         process.cwd(),
         "tests",
         "fixtures",
-        "crm-0.2.0.hebbsmod",
+        "crm-0.3.0.hebbsmod",
       );
       const bundle = await readFile(fixturePath);
       const form = new FormData();
       form.append(
         "file",
         new Blob([bundle], { type: "application/zip" }),
-        "crm-0.2.0.hebbsmod",
+        "crm-0.3.0.hebbsmod",
       );
       const uploadRes = await fetch(`${baseUrl}/api/admin/modules/upload`, {
         method: "POST",

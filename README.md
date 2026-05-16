@@ -352,8 +352,11 @@ audited in one table.
 ## Reference docs
 
 - [`BUILD-A-MODULE.md`](BUILD-A-MODULE.md) — step-by-step guide to
-  shipping your first Module
-- [`MODULES.md`](MODULES.md) — Module manifest spec
+  shipping your first Module (including dashboard widgets +
+  Light/Dark theme support)
+- [`MODULES.md`](MODULES.md) — Module manifest spec, including the
+  [`--bos-*` theme contract](MODULES.md#theme-support---the---bos--contract)
+  every UI-shipping Module should follow
 - [`TOOLS.md`](TOOLS.md) — Tool spec, error model, audit, idempotency
 - [`SKILLS.md`](SKILLS.md) — Skill spec, file format, priorities
 - [`CLAUDE.md`](CLAUDE.md) — orientation for contributors

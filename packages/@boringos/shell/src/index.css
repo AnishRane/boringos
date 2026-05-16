@@ -1,4 +1,5 @@
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@600;700&display=swap");
+@import "@boringos/ui/theme.css";
 @import "tailwindcss";
 
 /* Third-party Module UIs ship their own CSS inlined into their
@@ -18,8 +19,11 @@
  *  Color carries state, not branding. The canvas (paper + ink) holds the
  *  room; the brights are reserved for moments that earn them.
  *
- *  BrandProvider rewrites --color-accent / --color-navy at runtime when
- *  tenant_settings carries brand.* keys.
+ *  Structural tokens (bg, text, border, accent, state channels) are
+ *  aliased to the `--bos-*` contract published by `@boringos/ui/theme.css`
+ *  so runtime-loaded module UIs inherit the same theme without their own
+ *  hardcoded values. BrandProvider still rewrites `--color-accent` at
+ *  runtime when tenant_settings carries brand.* keys.
  */
 @theme {
   /* Awake palette — named anchors, also exposed as Tailwind utilities. */
@@ -30,90 +34,45 @@
   --color-signal: #F43F5E;
   --color-spark: #06B6D4;
 
-  /* Surfaces — paper anchors the canvas; surfaces lift via white, not warmth. */
-  --color-bg: #F8F6F1;
-  --color-bg-warm: #F1ECE3;
-  --color-surface: #FFFFFF;
-  --color-surface-raised: #FFFFFF;
-  --color-surface-tint: rgba(11, 18, 32, 0.03);
-  --color-border: #E6E1D6;
-  --color-border-subtle: #EFEAE0;
+  /* Structural tokens — aliased to the cross-bundle --bos-* contract. */
+  --color-bg:               var(--bos-bg);
+  --color-bg-warm:          var(--bos-bg-warm);
+  --color-surface:          var(--bos-surface);
+  --color-surface-raised:   var(--bos-surface-raised);
+  --color-surface-tint:     var(--bos-surface-tint);
+  --color-border:           var(--bos-border);
+  --color-border-subtle:    var(--bos-border-subtle);
 
-  /* Text — ink-blue, deeper than slate; muted reads cool, not warm. */
-  --color-text: #0B1220;
-  --color-text-secondary: #2A3447;
-  --color-muted: #5C6478;
-  --color-muted-strong: #3D4456;
+  --color-text:             var(--bos-text);
+  --color-text-secondary:   var(--bos-text-secondary);
+  --color-muted:            var(--bos-muted);
+  --color-muted-strong:     var(--bos-muted-strong);
 
-  /* Accent (Sun) — only one accent. Hover/bright derive lighter, tint stays subtle. */
-  --color-accent: #B45309;
-  --color-accent-light: #D97706;
-  --color-accent-bright: #F59E0B;
-  --color-accent-tint: rgba(180, 83, 9, 0.10);
+  --color-accent:           var(--bos-accent);
+  --color-accent-light:     var(--bos-accent-light);
+  --color-accent-bright:    var(--bos-accent-bright);
+  --color-accent-tint:      var(--bos-accent-tint);
 
-  /* State channels — each maps to a palette anchor. */
+  /* Shell-only palette aliases (kept for back-compat with existing classes). */
   --color-cyan: #06B6D4;
   --color-green: #4F6B57;
-  --color-red: #F43F5E;
+  --color-red:  #F43F5E;
   --color-navy: #0B1220;
 
-  --color-success: #4F6B57;
-  --color-warning: #D97706;
-  --color-danger: #F43F5E;
-  --color-info: #06B6D4;
+  --color-success:          var(--bos-success);
+  --color-warning:          var(--bos-warning);
+  --color-danger:           var(--bos-danger);
+  --color-info:             var(--bos-info);
+  --color-success-tint:     var(--bos-success-tint);
+  --color-warning-tint:     var(--bos-warning-tint);
+  --color-danger-tint:      var(--bos-danger-tint);
+  --color-info-tint:        var(--bos-info-tint);
 
-  /* Soft tints for badges/notices — readable against either bg. */
-  --color-success-tint: rgba(79, 107, 87, 0.12);
-  --color-warning-tint: rgba(217, 119, 6, 0.12);
-  --color-danger-tint: rgba(244, 63, 94, 0.12);
-  --color-info-tint: rgba(6, 182, 212, 0.12);
-
-  /* Dot-grid background tint — token so dark mode can override. */
-  --color-grid-dot: rgba(11, 18, 32, 0.045);
+  --color-grid-dot:         var(--bos-grid-dot);
 
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, "Cascadia Code", monospace;
   --font-logo: "Space Grotesk", "Inter", ui-sans-serif, system-ui, sans-serif;
-}
-
-/* ── Dark theme overrides ───────────────────────────────────────────────────
- *  Activated by ThemeProvider via `data-theme="dark"` on <html>.
- *  Only structural tokens flip — brand accent (set by BrandProvider) stays.
- *  The early no-flash boot script in index.html sets this attribute before
- *  React mounts.
- */
-[data-theme="dark"] {
-  /* Surfaces — ink-deep canvas; surfaces lift via lighter slate, not white. */
-  --color-bg: #0B0E14;
-  --color-bg-warm: #111827;
-  --color-surface: #111827;
-  --color-surface-raised: #172038;
-  --color-surface-tint: rgba(255, 255, 255, 0.04);
-  --color-border: #1F2937;
-  --color-border-subtle: #1A2235;
-
-  /* Text — slate-lights inverted from the light palette. */
-  --color-text: #E5E7EB;
-  --color-text-secondary: #CBD5E1;
-  --color-muted: #9CA3AF;
-  --color-muted-strong: #D1D5DB;
-
-  /* Accent tint stays brand-driven; the alpha is bumped so it shows up
-   * against deep backgrounds. */
-  --color-accent-tint: color-mix(in srgb, var(--color-accent) 18%, transparent);
-
-  /* State channels — slightly muted for low-contrast backgrounds. */
-  --color-success: #86EFAC;
-  --color-warning: #FCD34D;
-  --color-danger: #FCA5A5;
-  --color-info: #67E8F9;
-  --color-success-tint: rgba(134, 239, 172, 0.12);
-  --color-warning-tint: rgba(252, 211, 77, 0.14);
-  --color-danger-tint: rgba(252, 165, 165, 0.14);
-  --color-info-tint: rgba(103, 232, 249, 0.12);
-
-  /* Grid dots fade into the deep background. */
-  --color-grid-dot: rgba(255, 255, 255, 0.04);
 }
 
 @layer base {

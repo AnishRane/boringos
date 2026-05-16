@@ -331,6 +331,58 @@ a broken or slow widget never blacks out the page. The widget
 fetches its own data via the standard plugin hooks
 (`useTool`, `useToolMutation`) or your existing framework hooks.
 
+### Theme support — the `--bos-*` contract
+
+The shell ships a Light/Dark theme picker (Settings → Appearance)
+that flips `data-theme="dark"` on `<html>`. To make your Module's
+UI follow the user's theme choice, import the shell's CSS-variable
+contract from `@boringos/ui/theme.css` and define your Tailwind
+tokens as references to it:
+
+```css
+/* packages/web/src/index.css */
+@import "@boringos/ui/theme.css";
+@import "tailwindcss";
+
+@theme {
+  --color-bg:             var(--bos-bg);
+  --color-surface:        var(--bos-surface);
+  --color-surface-raised: var(--bos-surface-raised);
+  --color-text:           var(--bos-text);
+  --color-muted:          var(--bos-muted);
+  --color-border:         var(--bos-border);
+  --color-accent:         var(--bos-accent);
+  --color-success:        var(--bos-success);
+  --color-warning:        var(--bos-warning);
+  --color-danger:         var(--bos-danger);
+  --color-info:           var(--bos-info);
+}
+```
+
+The shell rewrites `--bos-*` values on theme switch; your Module's
+CSS resolves through the cascade with no JS, no rebuild, no shell
+→ plugin event. The same mechanism applies whether your bundle is
+co-built into the shell or loaded at runtime as a `.hebbsmod`.
+
+**Available contract variables** (full list in
+`packages/@boringos/ui/theme.css`):
+
+| Group       | Variables                                                                                          |
+|---          |---                                                                                                 |
+| Surfaces    | `--bos-bg`, `--bos-bg-warm`, `--bos-surface`, `--bos-surface-raised`, `--bos-surface-tint`          |
+| Borders     | `--bos-border`, `--bos-border-subtle`                                                              |
+| Text        | `--bos-text`, `--bos-text-secondary`, `--bos-muted`, `--bos-muted-strong`                          |
+| Accent      | `--bos-accent`, `--bos-accent-light`, `--bos-accent-bright`, `--bos-accent-tint`                   |
+| State       | `--bos-success`, `--bos-warning`, `--bos-danger`, `--bos-info` (+ `*-tint` variants)               |
+| Misc        | `--bos-grid-dot`                                                                                   |
+
+**Module-specific colored chips** (purple stages, custom status
+badges, etc.) that have no `--bos-*` equivalent should declare
+their own light values in `@theme` and add a `[data-theme="dark"]`
+override block in your stylesheet — see
+`boringos-crm/packages/web/src/index.css` for the reference
+pattern.
+
 ---
 
 ## Routines

@@ -1,0 +1,90 @@
+/*
+ * @boringos/ui/theme.css — cross-bundle theme contract.
+ *
+ * The shell flips `data-theme="dark"` on <html> when the user picks Dark.
+ * Every BoringOS UI bundle (shell + runtime-loaded modules) imports this
+ * file so the *same* CSS custom properties are published on :root. Modules
+ * reference them via `var(--bos-*)` from their own Tailwind `@theme` block:
+ *
+ *   @import "@boringos/ui/theme.css";
+ *   @import "tailwindcss";
+ *
+ *   @theme {
+ *     --color-bg:     var(--bos-bg);
+ *     --color-text:   var(--bos-text);
+ *     --color-border: var(--bos-border);
+ *     --color-accent: var(--bos-accent);
+ *   }
+ *
+ * Theme switches then cascade into every bundle via standard CSS variable
+ * inheritance — no JS, no shell-to-plugin event, no plugin rebuild.
+ *
+ * If you add a token here, document it in MODULES.md § "Theme support" so
+ * module authors know what's available.
+ */
+
+:root {
+  /* Surfaces — paper anchors the canvas; surfaces lift via white, not warmth. */
+  --bos-bg:               #F8F6F1;
+  --bos-bg-warm:          #F1ECE3;
+  --bos-surface:          #FFFFFF;
+  --bos-surface-raised:   #FFFFFF;
+  --bos-surface-tint:     rgba(11, 18, 32, 0.03);
+  --bos-border:           #E6E1D6;
+  --bos-border-subtle:    #EFEAE0;
+
+  /* Text — ink-blue, deeper than slate; muted reads cool. */
+  --bos-text:             #0B1220;
+  --bos-text-secondary:   #2A3447;
+  --bos-muted:            #5C6478;
+  --bos-muted-strong:     #3D4456;
+
+  /* Accent — one accent. BrandProvider rewrites these at runtime
+   * when tenant_settings carries brand.* keys. */
+  --bos-accent:           #B45309;
+  --bos-accent-light:     #D97706;
+  --bos-accent-bright:    #F59E0B;
+  --bos-accent-tint:      rgba(180, 83, 9, 0.10);
+
+  /* State channels — each maps to a palette anchor. */
+  --bos-success:          #4F6B57;
+  --bos-warning:          #D97706;
+  --bos-danger:           #F43F5E;
+  --bos-info:             #06B6D4;
+  --bos-success-tint:     rgba(79, 107, 87, 0.12);
+  --bos-warning-tint:     rgba(217, 119, 6, 0.12);
+  --bos-danger-tint:      rgba(244, 63, 94, 0.12);
+  --bos-info-tint:        rgba(6, 182, 212, 0.12);
+
+  /* Subtle dot-grid background tint — flips in dark. */
+  --bos-grid-dot:         rgba(11, 18, 32, 0.045);
+}
+
+[data-theme="dark"] {
+  --bos-bg:               #0B0E14;
+  --bos-bg-warm:          #111827;
+  --bos-surface:          #111827;
+  --bos-surface-raised:   #172038;
+  --bos-surface-tint:     rgba(255, 255, 255, 0.04);
+  --bos-border:           #1F2937;
+  --bos-border-subtle:    #1A2235;
+
+  --bos-text:             #E5E7EB;
+  --bos-text-secondary:   #CBD5E1;
+  --bos-muted:            #9CA3AF;
+  --bos-muted-strong:     #D1D5DB;
+
+  /* Accent tint alpha bumped so it shows up on the deep canvas. */
+  --bos-accent-tint:      color-mix(in srgb, var(--bos-accent) 18%, transparent);
+
+  --bos-success:          #86EFAC;
+  --bos-warning:          #FCD34D;
+  --bos-danger:           #FCA5A5;
+  --bos-info:             #67E8F9;
+  --bos-success-tint:     rgba(134, 239, 172, 0.12);
+  --bos-warning-tint:     rgba(252, 211, 77, 0.14);
+  --bos-danger-tint:      rgba(252, 165, 165, 0.14);
+  --bos-info-tint:        rgba(103, 232, 249, 0.12);
+
+  --bos-grid-dot:         rgba(255, 255, 255, 0.04);
+}

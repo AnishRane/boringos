@@ -5,14 +5,14 @@
  * Boots BoringOS with the framework + memory modules only, then drives
  * the new HTTP surface end-to-end:
  *
- *   POST /api/admin/modules/upload      (multipart file=crm-0.2.0.hebbsmod)
+ *   POST /api/admin/modules/upload      (multipart file=crm-0.3.0.hebbsmod)
  *   GET  /api/admin/modules/packages
  *   GET  /api/admin/modules
  *   POST /api/admin/modules/crm/install (per-tenant install)
  *   POST /api/tools/crm.contacts.create (dispatch)
- *   DELETE /api/admin/modules/crm?version=0.2.0           → 409
+ *   DELETE /api/admin/modules/crm?version=0.3.0           → 409
  *   POST /api/admin/modules/crm/uninstall
- *   DELETE /api/admin/modules/crm?version=0.2.0           → 200
+ *   DELETE /api/admin/modules/crm?version=0.3.0           → 200
  *   re-upload → 201
  *
  * Plus failure paths: non-multipart body 400, bad manifest 400,
@@ -97,7 +97,7 @@ describe("task_22 — POST/DELETE/GET /api/admin/modules/* package routes", () =
           runtimeId,
         });
 
-        const fixturePath = join(__dirname, "fixtures", "crm-0.2.0.hebbsmod");
+        const fixturePath = join(__dirname, "fixtures", "crm-0.3.0.hebbsmod");
         const bytes = await readFile(fixturePath);
 
         // ── 1. Non-multipart body → 400 ─────────────────────────
@@ -118,7 +118,7 @@ describe("task_22 — POST/DELETE/GET /api/admin/modules/* package routes", () =
         form.append(
           "file",
           new Blob([bytes], { type: "application/zip" }),
-          "crm-0.2.0.hebbsmod",
+          "crm-0.3.0.hebbsmod",
         );
         const uploadRes = await fetch(
           `${server.url}/api/admin/modules/upload`,
@@ -141,9 +141,9 @@ describe("task_22 — POST/DELETE/GET /api/admin/modules/* package routes", () =
         };
         expect(uploadBody.ok).toBe(true);
         expect(uploadBody.id).toBe("crm");
-        expect(uploadBody.version).toBe("0.2.0");
+        expect(uploadBody.version).toBe("0.3.0");
         expect(uploadBody.toolsAdded).toBeGreaterThan(0);
-        expect(uploadBody.storePath).toContain("crm@0.2.0");
+        expect(uploadBody.storePath).toContain("crm@0.3.0");
 
         // ── 3. module_packages row persisted ────────────────────
         const pkgRows = await db
@@ -152,7 +152,7 @@ describe("task_22 — POST/DELETE/GET /api/admin/modules/* package routes", () =
           .where(
             and(
               eq(modulePackages.id, "crm"),
-              eq(modulePackages.version, "0.2.0"),
+              eq(modulePackages.version, "0.3.0"),
             ),
           );
         expect(pkgRows.length).toBe(1);
@@ -167,7 +167,7 @@ describe("task_22 — POST/DELETE/GET /api/admin/modules/* package routes", () =
         const listBody = (await listRes.json()) as {
           packages: Array<{ id: string; version: string }>;
         };
-        expect(listBody.packages.some((p) => p.id === "crm" && p.version === "0.2.0")).toBe(
+        expect(listBody.packages.some((p) => p.id === "crm" && p.version === "0.3.0")).toBe(
           true,
         );
 
@@ -216,7 +216,7 @@ describe("task_22 — POST/DELETE/GET /api/admin/modules/* package routes", () =
 
         // ── 7. DELETE while installed → 409 ─────────────────────
         const delInstalledRes = await fetch(
-          `${server.url}/api/admin/modules/crm?version=0.2.0`,
+          `${server.url}/api/admin/modules/crm?version=0.3.0`,
           { method: "DELETE", headers: { "X-Tenant-Id": tenantId } },
         );
         expect(delInstalledRes.status).toBe(409);
@@ -241,7 +241,7 @@ describe("task_22 — POST/DELETE/GET /api/admin/modules/* package routes", () =
         expect(uninstallRes.status).toBe(200);
 
         const delRes = await fetch(
-          `${server.url}/api/admin/modules/crm?version=0.2.0`,
+          `${server.url}/api/admin/modules/crm?version=0.3.0`,
           { method: "DELETE", headers: { "X-Tenant-Id": tenantId } },
         );
         expect(delRes.status).toBe(200);
@@ -308,7 +308,7 @@ describe("task_22 — POST/DELETE/GET /api/admin/modules/* package routes", () =
         form2.append(
           "file",
           new Blob([bytes], { type: "application/zip" }),
-          "crm-0.2.0.hebbsmod",
+          "crm-0.3.0.hebbsmod",
         );
         const reUploadRes = await fetch(
           `${server.url}/api/admin/modules/upload`,

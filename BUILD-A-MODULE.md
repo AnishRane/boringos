@@ -346,6 +346,36 @@ section below). The shell-side externals are
 bundle these into your `index.mjs` or you'll fork the React tree
 and break every hook.
 
+### Theme support
+
+The shell ships a Light/Dark picker and flips `data-theme="dark"`
+on `<html>`. To make your UI follow the user's theme choice,
+**always start your stylesheet with the `@boringos/ui/theme.css`
+import and reference `var(--bos-*)` from your Tailwind `@theme`
+block**:
+
+```css
+/* packages/web/src/index.css */
+@import "@boringos/ui/theme.css";
+@import "tailwindcss";
+
+@theme {
+  --color-bg:     var(--bos-bg);
+  --color-text:   var(--bos-text);
+  --color-muted:  var(--bos-muted);
+  --color-border: var(--bos-border);
+  --color-accent: var(--bos-accent);
+}
+```
+
+The shell rewrites the `--bos-*` values on theme switch and your
+Module follows automatically — no rebuild, no event subscription.
+Full contract variable list lives in
+[`MODULES.md` § Theme support](MODULES.md#theme-support---the---bos--contract).
+
+Modules that skip this step ship a frozen light palette and look
+broken when the user picks Dark.
+
 ---
 
 ## Next steps after this guide

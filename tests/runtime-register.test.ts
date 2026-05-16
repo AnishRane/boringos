@@ -50,9 +50,9 @@ describe("task_22 — runtime registerModule()", () => {
       await mkdir(storeDir, { recursive: true });
       // U6: CRM no longer imports @hebbs/sdk; the bundle has no proto
       // loader, so no MODULES_STORE_DIR pre-staging is required.
-      const extractDir = join(storeDir, "crm@0.2.0");
+      const extractDir = join(storeDir, "crm@0.3.0");
       await mkdir(extractDir, { recursive: true });
-      const fixturePath = join(__dirname, "fixtures", "crm-0.2.0.hebbsmod");
+      const fixturePath = join(__dirname, "fixtures", "crm-0.3.0.hebbsmod");
       const unzip = spawnSync("unzip", ["-q", fixturePath, "-d", extractDir]);
       if (unzip.status !== 0) {
         throw new Error(
