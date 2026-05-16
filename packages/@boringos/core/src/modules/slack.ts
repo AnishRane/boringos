@@ -58,6 +58,20 @@ async function loadSlackCreds(db: Db, tenantId: string): Promise<{ accessToken: 
   return { accessToken };
 }
 
+/**
+ * Returns the tenant's Slack access token, or null when not connected.
+ *
+ * Registered with the connector-token dispatcher under kind "slack".
+ * Slack bot tokens don't expire the way OAuth access tokens do, so
+ * there's no refresh path — just load + return.
+ */
+export async function getSlackToken(
+  db: Db,
+  tenantId: string,
+): Promise<{ accessToken: string } | null> {
+  return loadSlackCreds(db, tenantId);
+}
+
 export const createSlackModule: ModuleFactory = (deps) => {
   const db = deps.db as Db;
 

@@ -159,6 +159,46 @@ function wrapClientResult(result: { success: boolean; data?: unknown; error?: st
   return { ok: true, result: (result.data ?? {}) as Record<string, unknown> };
 }
 
+/**
+ * Returns a fresh access token for the tenant's Google connection,
+ * refreshing it proactively when it is within 60 s of expiry.
+ *
+ * Registered with the connector-token dispatcher in
+ * `connector-tokens.ts` under kind "google". The dispatcher is what
+ * gets injected into ModuleFactoryDeps as `getConnectorToken`.
+ */
+export async function getGoogleToken(
+  db: Db,
+  tenantId: string,
+): Promise<{ accessToken: string } | null> {
+  const creds = await loadGoogleCreds(db, tenantId);
+  if (!creds) return null;
+
+  const expiresAt = creds.rawCredentials.expiresAt as string | undefined;
+  const expiresSoon = expiresAt
+    ? Date.now() > new Date(expiresAt).getTime() - 60_000
+    : false;
+
+  if (expiresSoon && creds.refreshToken) {
+    const refreshed = await refreshOAuthToken("google", creds.refreshToken);
+    if (refreshed) {
+      const next: Record<string, unknown> = {
+        ...creds.rawCredentials,
+        accessToken: refreshed.accessToken,
+      };
+      if (refreshed.expiresAt) next.expiresAt = refreshed.expiresAt;
+      await db
+        .update(connectors)
+        .set({ credentials: next, updatedAt: new Date() })
+        .where(eq(connectors.id, creds.rowId))
+        .catch(() => {});
+      return { accessToken: refreshed.accessToken };
+    }
+  }
+
+  return { accessToken: creds.accessToken };
+}
+
 export const createGoogleModule: ModuleFactory = (deps) => {
   const db = deps.db as Db;
 
