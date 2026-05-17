@@ -16,14 +16,11 @@
 
   ## CLA Requirement
 
-  All contributors must sign our [Contributor License Agreement](CLA.md) before their first PR can be merged. This is a one-time process handled automatically:
+  All contributors must agree to our [Contributor License Agreement](CLA.md) before any PR is merged. The CLA gives BoringOS-dev the right to use your contribution and (where necessary) relicense it as the project evolves, while you retain copyright in your work.
 
-  1. Open a pull request
-  2. The CLA bot will comment if you haven't signed yet
-  3. Reply with: **I have read the CLA Document and I hereby sign the CLA**
-  4. All future contributions are covered — no need to sign again
+  **By opening a pull request to this repository, you affirm that you have read [`CLA.md`](CLA.md) and agree to its terms for your contribution and any future contribution you make to this project.** The pull request template includes an explicit checkbox to confirm this — please tick it before requesting review.
 
-  The CLA ensures we can maintain and evolve BoringOS (including potential relicensing) while protecting both the project and contributors.
+  Once installed, a CLA bot will additionally record your acceptance against your GitHub account so you only need to confirm once across all BoringOS-dev repositories. Until the bot is in place, the checkbox on each PR serves as your record of acceptance.
 
   ## Getting Started
 

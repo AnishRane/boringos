@@ -15,6 +15,10 @@
 - [ ] `pnpm test:run` passes
 - [ ] Updated relevant docs (`CLAUDE.md`, `BUILD-A-MODULE.md`, `MODULES.md`, `TOOLS.md`, `SKILLS.md`, `docs/`) if behavior or APIs changed
 
+### Contributor License Agreement
+
+- [ ] I have read [`CLA.md`](../CLA.md) and I agree to its terms for this contribution and any future contribution I make to this project.
+
 ### Other information (screenshots, logs)
 
 <!-- Anything else that helps reviewers: screenshots, run IDs, schema diffs, breaking-change notes, etc. -->
