@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // Standard button primitive — variants for primary/secondary/ghost/destructive
 // + sizes. All chrome buttons should adopt this; ad-hoc <button> tags are

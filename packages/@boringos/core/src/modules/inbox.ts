@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // `inbox` Module — wraps inbox CRUD as tools beyond what the
 // `framework` module ships. Framework already has `inbox.read`

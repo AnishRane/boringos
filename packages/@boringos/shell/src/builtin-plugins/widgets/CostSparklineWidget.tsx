@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // 8-week cost-flow sparkline. Bucket cost events into weekly USD
 // totals so spend is felt, not surprising.

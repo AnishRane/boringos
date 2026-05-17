@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // Right-pane inspector. Three sections — Inputs (form), Last run
 // (resolved I/O), and per-block actions: pin output, replay from here.

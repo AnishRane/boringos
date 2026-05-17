@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // Tasks detail pane — header + markdown description + conversation
 // thread + inline reply box + subtasks + activity log. The action

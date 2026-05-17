@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // Detail-pane action toolbar. Buttons are intentionally text-first
 // (no icon-only) so the affordance is unambiguous; icons can be

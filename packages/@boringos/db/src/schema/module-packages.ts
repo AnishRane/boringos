@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // `module_packages` — host-global (LAYER-1) record of every uploaded
 // `.hebbsmod` package. One row per (module_id, version) uploaded to

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // Small shared building blocks used by every screen.
 // Kept deliberately minimal — A9 BrandProvider styles them later.

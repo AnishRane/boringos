@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // Tiny shim that runs a saved workflow through the dispatcher.s
 // `workflow.run` tool. Replaces every call site that used to invoke

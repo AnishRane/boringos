@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // `copilot` Module — wraps the per-tenant copilot agent as a
 // Module. The copilot's bootstrap (auto-create the agent, route

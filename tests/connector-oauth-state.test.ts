@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // N2 — OAuth state token sign/verify and returnTo allowlist. The new
 // authorize/callback round-trip relies on these helpers staying tight;

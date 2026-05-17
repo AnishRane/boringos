@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // Agents — "the cabinet". Cards-grid by default with a toggle to an
 // org-chart view. Clicking any agent (in either view) opens the

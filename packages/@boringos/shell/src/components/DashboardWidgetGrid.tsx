@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // DashboardWidgetGrid — renders the registry-driven Home dashboard.
 // Each widget is wrapped in a per-widget error boundary + Suspense so

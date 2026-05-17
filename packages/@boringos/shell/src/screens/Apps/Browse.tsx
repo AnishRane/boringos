@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // Browse tab — placeholder. The real marketplace lands when the
 // module catalog backend is wired (post-task_21). For now, the

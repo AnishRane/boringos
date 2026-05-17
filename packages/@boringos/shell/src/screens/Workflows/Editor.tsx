@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // Workflow editor — canvas + inspector + palette + run drawer.
 // Live runs stream in via SSE; pinning, run-from-here, and time-

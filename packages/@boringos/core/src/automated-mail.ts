@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // Deterministic automated-mail classifier. Runs at ingest time
 // (no LLM) so the triage path can short-circuit on clear newsletter

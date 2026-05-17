@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // Routines — top-level admin screen for cron routines. Promoted out
 // of Settings → Routines tab in task_16 phase 5: routines are an

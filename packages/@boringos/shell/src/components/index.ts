@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // Shared UI primitives. The shadcn-style ui/* components and Markdown
 // renderer are imported directly by the screens; this barrel exists

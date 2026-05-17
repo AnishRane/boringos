@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // Tool registry — in-memory store of registered Tools (registration,
 // lookup, listing). Dispatch (Zod validation, audit, HTTP mounting)

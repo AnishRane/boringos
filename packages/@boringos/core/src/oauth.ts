@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // OAuth machinery — moved here from `@boringos/connector` when the
 // OAuth callbacks live on the framework HTTP surface (not a "connector")

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // Coverage for the deterministic automated-mail prefilter. The
 // classifier is a pure function; if these signals stop matching,

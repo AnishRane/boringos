@@ -10,7 +10,7 @@ An **open-source framework for building agentic platforms** — agents receive t
 
 ## Tech stack
 
-Hono on Node ≥ 22, TypeScript ESM (`"type": "module"`, `.js` imports for local files), pnpm 9, Drizzle ORM on Postgres (embedded by default, external via `DATABASE_URL`), Vitest, GPL-3.0-or-later.
+Hono on Node ≥ 22, TypeScript ESM (`"type": "module"`, `.js` imports for local files), pnpm 9, Drizzle ORM on Postgres (embedded by default, external via `DATABASE_URL`), Vitest. Licensing: AGPL-3.0-or-later for the framework, LGPL-3.0-or-later for `@boringos/module-sdk`, Apache-2.0 for `@boringos/shared` — see [`LICENSE.md`](LICENSE.md).
 
 ## Commands
 

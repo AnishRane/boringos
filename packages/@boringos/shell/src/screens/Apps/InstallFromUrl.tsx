@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // Install from URL — placeholder. The real flow lands when the
 // module install endpoint accepts a remote bundle reference. For

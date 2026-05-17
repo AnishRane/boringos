@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // `drive` Module — wraps the configured StorageBackend, exposing
 // the file ops as tools. Supports binary writes, path-prefix ACL,

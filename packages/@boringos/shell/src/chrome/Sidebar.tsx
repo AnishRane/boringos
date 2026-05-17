@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // Shell sidebar — fixed nav + plugin-contributed nav from pluginHost
 // (gated on useInstalledModules so only installed plugins show).

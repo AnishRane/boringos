@@ -14,7 +14,7 @@
     "build": "tsc",
     "typecheck": "tsc --noEmit"
   },
-  "license": "GPL-3.0-or-later",
+  "license": "Apache-2.0",
   "devDependencies": {
     "@types/node": "^22.0.0",
     "typescript": "^5.7.3"

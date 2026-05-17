@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: LGPL-3.0-or-later
 //
 // pack-hebbsmod — bundles a Module package into a single `.hebbsmod`
 // archive, the upload artifact for the `/api/admin/modules/upload`

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // Typed wrappers around /api/connectors/* for the shell. Mirrors the
 // pattern in Workflows.tsx — read auth headers from the configured

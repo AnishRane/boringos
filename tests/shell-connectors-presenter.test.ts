@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // N1 — Connectors page view-model. The React component renders against
 // these helpers; the helpers are pure so we cover the matrix of states

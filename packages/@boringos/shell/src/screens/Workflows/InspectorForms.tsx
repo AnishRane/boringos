@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // Per-kind block config forms. Hand-coded for control flow + tool;
 // future versions will be Zod-driven.

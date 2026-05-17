@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // Calendar screen — week + agenda views over the connected Google
 // calendar. Reads live from Google on every open (no DB cache for

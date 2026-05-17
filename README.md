@@ -415,12 +415,18 @@ pnpm test:run
 
 ## License
 
-BoringOS is licensed under the **GNU General Public License,
-version 3 or later** (`GPL-3.0-or-later`). The full text lives
-in [`LICENSE`](LICENSE) at the repo root and applies to every
-package in this monorepo, including the shell.
+BoringOS uses a three-tier license layout:
 
-See [`LICENSE.md`](LICENSE.md) for the short index and
+- **Framework** (everything under `packages/@boringos/` except the two
+  below) — **AGPL-3.0-or-later**. Strong network copyleft: anyone
+  running a modified version as a service must publish their changes.
+- **`@boringos/module-sdk`** — **LGPL-3.0-or-later**. Linking
+  exception means modules can import the SDK under any license.
+- **`@boringos/shared`** — **Apache-2.0**. Pure types/utilities,
+  permissive so anything can depend on them.
+
+Root [`LICENSE`](LICENSE) holds the AGPL text. See
+[`LICENSE.md`](LICENSE.md) for the short index and
 [`docs/licensing.md`](docs/licensing.md) for the longer rationale.
 
 Contributions welcome — see [`CONTRIBUTING.md`](CONTRIBUTING.md).

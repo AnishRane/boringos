@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // Pure-helper coverage for Agents/presenter.ts. These render on every
 // card and on every fleet refetch — keep behaviour locked down.

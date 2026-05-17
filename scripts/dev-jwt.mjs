@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // Dev helper: sign a callback JWT for the first tenant + agent
 // in the DB so you can curl /api/tools/* by hand.

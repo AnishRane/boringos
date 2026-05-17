@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // Safe HTML email render — DOMPurify sanitization in a sandboxed
 // iframe. Defends the shell against:

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 export { pluginHost } from "./registry.js";
 export type { PluginHost } from "./registry.js";
 export { DynamicPluginRoutes } from "./DynamicPluginRoutes.js";

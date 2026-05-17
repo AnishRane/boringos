@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // Login screen — the website→product handoff. Dark hero on the left
 // (orbs + gradient text + Space Grotesk wordmark, mirroring the

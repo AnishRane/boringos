@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // Hook returning the install-gated list of dashboard widgets every
 // registered module contributes. Subscribes to pluginHost so widgets

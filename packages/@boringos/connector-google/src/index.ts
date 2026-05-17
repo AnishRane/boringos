@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // Google Workspace HTTP clients.
 // wrapper + `default-workflows.ts` were deleted with the

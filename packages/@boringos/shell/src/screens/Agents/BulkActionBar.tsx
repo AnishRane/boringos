@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // Floating bottom bar that appears when 1+ agents are selected on the
 // grid. Wake / Pause / Resume / Clear. Backend has no bulk endpoint;

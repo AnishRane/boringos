@@ -32,4 +32,4 @@ Boots Vite on port 5174. Proxies `/api/*` to `localhost:3000` (where the BoringO
 
 ## License
 
-[GPL-3.0-or-later](./LICENSE) — GNU General Public License, version 3 or later. See the repo's [LICENSE.md](../../../LICENSE.md) for the short index and [docs/licensing.md](../../../docs/licensing.md) for the longer rationale.
+[AGPL-3.0-or-later](../../../LICENSE) — GNU Affero General Public License, version 3 or later. See the repo's [LICENSE.md](../../../LICENSE.md) for the three-tier license layout and [docs/licensing.md](../../../docs/licensing.md) for the longer rationale.

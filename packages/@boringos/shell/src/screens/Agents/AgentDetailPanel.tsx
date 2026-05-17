@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // Right-rail slide-in panel. Tabs let the operator inspect (Overview,
 // Runs) and customise (Instructions, Skills, Hierarchy) a single agent.

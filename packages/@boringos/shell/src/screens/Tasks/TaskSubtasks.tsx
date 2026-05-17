@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // Subtasks rolled up under a parent. The framework already supports
 // `parent_id` on tasks and exposes a `parentId` filter via the admin

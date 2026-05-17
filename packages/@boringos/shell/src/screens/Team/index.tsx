@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // Team screen — manage tenant members + pending invitations.
 // Backend lives at /api/auth/{team,invitations,invite}; the

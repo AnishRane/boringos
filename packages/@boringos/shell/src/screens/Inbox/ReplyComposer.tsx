@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // Reply composer modal. Gmail-parity layout:
 //   - Empty rich editor at the top, cursor inside

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // Classification filter chips — sit under the status tabs. Multi-select
 // (toggle each chip). Counts reflect items in the current status tab

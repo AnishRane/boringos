@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // workflow schema as the shell understands it. Mirrors the
 // shape persisted in `workflows.{blocks,edges}` and consumed by

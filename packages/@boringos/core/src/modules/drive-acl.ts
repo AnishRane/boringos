@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // Drive ACL + path validation. Shared between the file-serve HTTP
 // route (for browser fetches) and the drive tools (for agent

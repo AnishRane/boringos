@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // Plugin host registry — task_19. In-memory store of every
 // `PluginUI` contribution registered at shell boot from

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // Settings — General + Branding + per-module panels contributed via
 // pluginHost.settingsPanels (gated on useInstalledModules).

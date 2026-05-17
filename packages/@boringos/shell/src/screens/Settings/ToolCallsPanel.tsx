@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // Settings → Tool calls audit log. Latest 100 dispatches for
 // the active tenant.

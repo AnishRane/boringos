@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // Conversation thread on a task. Comments rendered as markdown so AI
 // output preserves headings, lists, code blocks, links — same as

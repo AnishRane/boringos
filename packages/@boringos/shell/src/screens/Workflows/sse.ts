@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // Tiny SSE helper for /api/admin/workflow-runs/:id/events. The backend
 // can't read custom Authorization headers from EventSource, so we

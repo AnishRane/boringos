@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 export { Home } from "./Home.js";
 export { Copilot } from "./Copilot.js";

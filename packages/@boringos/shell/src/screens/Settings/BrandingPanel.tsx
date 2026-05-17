@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // Settings → Branding panel.
 // Admin-only edit of every Brand field plus a reset-to-defaults button.

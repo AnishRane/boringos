@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // Per-connector card for the Connectors screen. Presentational only —
 // no fetches, no client awareness. Parent owns the API + actions.

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // Setting registry — in-memory aggregate of every SettingDefinition
 // declared by installed apps + modules + the framework itself. The

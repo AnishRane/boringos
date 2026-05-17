@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // Compact bar that appears above the list pane when multiple threads
 // are selected. Sticky to the top of the list so the user can act on

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // Per-tab empty state for Tasks. The default empty list is a teaching
 // moment — celebrate when there's nothing waiting, point users to the

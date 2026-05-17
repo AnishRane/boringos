@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // Inbox search box. Debounces keystrokes locally before lifting state
 // up so the parent only re-filters at most every 200ms.

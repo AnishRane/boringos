@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // Tiny extension → Content-Type lookup for the drive file-serve
 // route. Kept narrow on purpose — only the formats agents actually

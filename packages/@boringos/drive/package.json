@@ -14,7 +14,7 @@
     "build": "tsc",
     "typecheck": "tsc --noEmit"
   },
-  "license": "GPL-3.0-or-later",
+  "license": "AGPL-3.0-or-later",
   "dependencies": {
     "@boringos/shared": "workspace:*",
     "@boringos/db": "workspace:*"

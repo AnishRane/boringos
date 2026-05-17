@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // Dialog primitive — Radix under the hood, semantic-token styled.
 // Use for: NewAgentModal, InviteModal, ScheduleMeetingModal.
