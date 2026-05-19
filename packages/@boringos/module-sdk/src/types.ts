@@ -414,6 +414,24 @@ export interface ModuleFactoryDeps {
    * bus.
    */
   eventBus?: unknown;
+  /**
+   * Returns a valid access token for a connected OAuth provider,
+   * refreshing proactively if the token is within 60 s of expiry.
+   * Returns null when the tenant has not connected the provider OR
+   * when no provider is registered for that kind.
+   *
+   * Modules use this to call provider APIs directly instead of
+   * routing through the tool registry string API.
+   *
+   * `callerModuleId` is your Module's own id — written to the
+   * `connector_token_issuance` audit table for diagnostics. Self-
+   * reported; pass your own manifest id (e.g. `"executive-assistant"`).
+   */
+  getConnectorToken?: (
+    kind: string,
+    tenantId: string,
+    callerModuleId: string,
+  ) => Promise<{ accessToken: string } | null>;
 }
 
 export type ModuleFactory = (deps: ModuleFactoryDeps) => Module;

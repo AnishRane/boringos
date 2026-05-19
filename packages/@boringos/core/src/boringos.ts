@@ -71,6 +71,7 @@ import { createPluginRegistry } from "./plugin-system.js";
 import type { PluginDefinition } from "./plugin-system.js";
 import { createPluginWebhookRoutes, createPluginAdminRoutes } from "./plugin-routes.js";
 import { githubPlugin } from "./plugins/github.js";
+import { getConnectorTokenForTenant } from "./connector-tokens.js";
 
 export class BoringOS {
   private config: BoringOSConfig;
@@ -492,6 +493,8 @@ export class BoringOS {
       toolRegistry: toolRegistry,
       realtimeBus: undefined as unknown,
       eventBus: undefined as unknown,
+      getConnectorToken: (kind, tenantId, callerModuleId) =>
+        getConnectorTokenForTenant(dbConn.db, kind, tenantId, callerModuleId),
     };
     const boundModules: Module[] = [];
 

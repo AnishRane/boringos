@@ -28,3 +28,4 @@ export { toolCalls } from "./tool-calls.js";
 export { moduleInstalls } from "./module-installs.js";
 export { moduleMigrations } from "./module-migrations.js";
 export { modulePackages } from "./module-packages.js";
+export { connectorTokenIssuance } from "./connector-token-issuance.js";

@@ -770,5 +770,24 @@ async function ensureSchema(db: Db): Promise<void> {
     );
     CREATE INDEX IF NOT EXISTS module_packages_content_hash_idx
       ON module_packages(content_hash);
+
+    -- Audit log for every OAuth token brokered through getConnectorToken.
+    -- Fire-and-forget write by the connector-token dispatcher. Never
+    -- stores the token itself — only who asked, for which provider, when,
+    -- and what the outcome was. Lets operators answer "which module is
+    -- hitting Google hardest" / "did this incident come from EA's
+    -- calendar sync" without log-trawling.
+    CREATE TABLE IF NOT EXISTS connector_token_issuance (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+      kind TEXT NOT NULL,
+      caller_module_id TEXT NOT NULL,
+      outcome TEXT NOT NULL,
+      issued_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS token_issuance_tenant_kind_idx
+      ON connector_token_issuance(tenant_id, kind, issued_at);
+    CREATE INDEX IF NOT EXISTS token_issuance_caller_idx
+      ON connector_token_issuance(tenant_id, caller_module_id, issued_at);
   `);
 }
