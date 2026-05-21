@@ -128,6 +128,97 @@ interface TriageDeps {
   db: Db;
 }
 
+export interface TriageWorkflowBlock {
+  id: string;
+  name: string;
+  kind: string;
+  type: string;
+  tool?: string;
+  inputs?: Record<string, unknown>;
+  config?: Record<string, unknown>;
+}
+
+export interface TriageWorkflowEdge {
+  id: string;
+  sourceBlockId: string;
+  targetBlockId: string;
+  sourceHandle: string | null;
+  sortOrder: number;
+}
+
+/**
+ * Builds the inbox-triage workflow DAG.
+ *
+ * Trigger: `inbox.item_created`. A condition block immediately
+ * after the trigger skips items the forward-sync prefilter
+ * classified as automated (newsletter / no-reply / vacation
+ * autoreply). The task-creation block runs only on the
+ * not-automated path. This is the Layer 2 (RC8) fix that
+ * replaces the redundant `onIngest` direct fan-out in
+ * boringos.ts — workflows are now the sole triage-creation path.
+ *
+ * Exported for testability — also called from `buildLifecycle`.
+ */
+export function buildTriageWorkflowBlocks(agentId: string): {
+  blocks: TriageWorkflowBlock[];
+  edges: TriageWorkflowEdge[];
+} {
+  const blocks: TriageWorkflowBlock[] = [
+    {
+      id: "trigger",
+      name: "trigger",
+      kind: "trigger",
+      type: "trigger",
+      config: { eventType: "inbox.item_created" },
+    },
+    {
+      id: "check-not-automated",
+      name: "skip if prefilter said automated",
+      kind: "condition",
+      type: "condition",
+      config: {
+        field: "{{trigger.automated.automated}}",
+        operator: "falsy",
+      },
+    },
+    {
+      id: "task",
+      name: "task",
+      kind: "tool",
+      type: "tool",
+      tool: "framework.tasks.create",
+      inputs: {
+        title: "Triage inbox item: {{trigger.subject}}",
+        description:
+          "inbox-item-id: {{trigger.itemId}}\nsource: {{trigger.source}}\nfrom: {{trigger.from}}\nsubject: {{trigger.subject}}\n---\n{{trigger.body}}",
+        originKind: "inbox.item_created",
+        originId: "{{trigger.itemId}}",
+        assigneeAgentId: agentId,
+      },
+      config: {},
+    },
+  ];
+
+  const edges: TriageWorkflowEdge[] = [
+    {
+      id: "e1",
+      sourceBlockId: "trigger",
+      targetBlockId: "check-not-automated",
+      sourceHandle: null,
+      sortOrder: 0,
+    },
+    {
+      id: "e2",
+      sourceBlockId: "check-not-automated",
+      targetBlockId: "task",
+      sourceHandle: "true",
+      sortOrder: 0,
+    },
+  ];
+
+  return { blocks, edges };
+}
+
 function buildLifecycle(deps: TriageDeps): ModuleLifecycle {
   // Same handler runs for explicit install AND new-tenant creation
   // — the agent + workflow + skill all need to land either way.
@@ -161,27 +252,7 @@ function buildLifecycle(deps: TriageDeps): ModuleLifecycle {
     `);
 
     const workflowId = randomUUID();
-    const blocks = [
-      { id: "trigger", name: "trigger", kind: "trigger", type: "trigger", config: { eventType: "inbox.item_created" } },
-      {
-        id: "task",
-        name: "task",
-        kind: "tool",
-        type: "tool",
-        tool: "framework.tasks.create",
-        inputs: {
-          title: "Triage inbox item: {{trigger.subject}}",
-          description:
-            "inbox-item-id: {{trigger.itemId}}\nsource: {{trigger.source}}\nfrom: {{trigger.from}}\nsubject: {{trigger.subject}}\n---\n{{trigger.body}}",
-          originKind: "inbox.item_created",
-          assigneeAgentId: agentId,
-        },
-        config: {},
-      },
-    ];
-    const edges = [
-      { id: "e1", sourceBlockId: "trigger", targetBlockId: "task", sourceHandle: null, sortOrder: 0 },
-    ];
+    const { blocks, edges } = buildTriageWorkflowBlocks(agentId);
     await deps.db.execute(sql`
       INSERT INTO workflows (id, tenant_id, name, type, status, blocks, edges, created_at, updated_at)
       VALUES (${workflowId}, ${ctx.tenantId}, ${TRIAGE_WORKFLOW_NAME}, 'system', 'active',

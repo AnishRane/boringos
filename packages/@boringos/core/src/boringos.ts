@@ -1421,32 +1421,15 @@ export class BoringOS {
       }
     }
 
+    // RC8 (Layer 2 fix). Forward-sync used to have an `onIngest`
+    // direct-fanout callback that created a triage task in parallel
+    // with the inbox-triage workflow firing on `inbox.item_created`
+    // — every email got triaged twice. The workflow is now the sole
+    // path; the automated-mail skip optimization lives in the
+    // workflow's `check-not-automated` condition block (see
+    // `buildTriageWorkflowBlocks` in modules/inbox-triage.ts).
     const forwardSyncTicker = createInboxGmailForwardSyncTicker(dbConn.db, {
       eventBus,
-      async onIngest(item) {
-        // Hard skip for items the deterministic prefilter classified.
-        // metadata.triage is already populated; nothing for the triage
-        // agent to do, and no draft is appropriate. The item still
-        // exists in the inbox so the user can see / unsubscribe / read.
-        if (item.automated.automated) {
-          return;
-        }
-
-        const triageAgent = await findAgentByName(item.tenantId, TRIAGE_AGENT_NAME);
-        if (!triageAgent) {
-          console.warn(
-            `[inbox-fanout] no '${TRIAGE_AGENT_NAME}' agent for tenant=${item.tenantId}; item ${item.itemId} will not be triaged`,
-          );
-          return;
-        }
-        const taskId = await createTriageTask(
-          item,
-          triageAgent.id,
-          "Triage inbox item",
-        );
-        if (!taskId) return;
-        await wakeAgentSafe(triageAgent.id, item.tenantId, taskId, "triage");
-      },
     });
     forwardSyncTicker.start();
 

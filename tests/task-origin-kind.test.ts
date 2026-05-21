@@ -189,6 +189,40 @@ describe("RC1 — replier workflow + skill targeting", () => {
   });
 });
 
+describe("RC8 — inbox-triage workflow shape (Layer 2)", () => {
+  it("inbox-triage workflow has an automated-mail skip condition before the task block", async () => {
+    // Layer 2 fix: the onIngest direct-fanout in boringos.ts is gone.
+    // The inbox-triage workflow is now the only triage-creation
+    // path. It must preserve the previous automated-mail skip
+    // optimization via a condition block.
+    const { buildTriageWorkflowBlocks } = await import(
+      "../packages/@boringos/core/src/modules/inbox-triage.js"
+    );
+
+    const { blocks, edges } = buildTriageWorkflowBlocks("agent-id");
+
+    const trigger = blocks.find((b) => b.type === "trigger");
+    expect(trigger?.config?.eventType).toBe("inbox.item_created");
+
+    // There must be at least one condition block that checks the
+    // trigger's automated flag.
+    const conditions = blocks.filter((b) => b.type === "condition");
+    expect(conditions.length).toBeGreaterThanOrEqual(1);
+    const automatedCond = conditions.find((c) => {
+      const cfg = (c.config ?? {}) as { field?: string };
+      return /automated/i.test(String(cfg.field ?? ""));
+    });
+    expect(automatedCond).toBeDefined();
+
+    // Task block must be reached only via a "true" handle (not-
+    // automated path).
+    const taskBlock = blocks.find((b) => b.type === "tool");
+    expect(taskBlock?.tool).toBe("framework.tasks.create");
+    const edgeIntoTask = edges.find((e) => e.targetBlockId === taskBlock?.id);
+    expect(edgeIntoTask?.sourceHandle).toBe("true");
+  });
+});
+
 describe("RC2 — triage agent skill targeting", () => {
   it("inbox-triage skill appliesTo matches taskOriginKind, not agentRole", async () => {
     // The bug: both inbox modules use agentRole="operations" so
