@@ -286,3 +286,57 @@ describe("RC3 — triage module TRIAGE_SKILL targeting", () => {
     expect(onManual.find((s) => s.skill.id === "triage")).toBeUndefined();
   });
 });
+
+describe("RC5 — memory SKILL excludes inbox automation", () => {
+  it("MEMORY_SKILL does NOT inject for inbox triage or replier tasks", async () => {
+    // The bug: memory.ts registers MEMORY_SKILL (~235 lines of
+    // cross-run memory instructions) with no `appliesTo`. It loads
+    // for every agent run including the short-lived inbox automation
+    // agents that never use memory.
+    const { createMemoryModule } = await import("@boringos/core");
+    const { createToolRegistry, createSkillRegistry, createModuleRegistry } =
+      await import("@boringos/agent");
+
+    const tools = createToolRegistry();
+    const skills = createSkillRegistry();
+    const modules = createModuleRegistry({ tools, skills });
+
+    modules.register(createMemoryModule({ db: null as never, memory: null }));
+
+    // Inbox triage task — memory skill MUST NOT apply
+    const onTriage = skills.listApplicable({
+      tenantId: "t",
+      agentId: "a",
+      agentRole: "operations",
+      taskOriginKind: "inbox.item_created",
+    });
+    expect(onTriage.find((s) => s.skill.id === "memory")).toBeUndefined();
+
+    // Inbox replier task — memory skill MUST NOT apply
+    const onReplier = skills.listApplicable({
+      tenantId: "t",
+      agentId: "a",
+      agentRole: "operations",
+      taskOriginKind: "inbox.draft_reply",
+    });
+    expect(onReplier.find((s) => s.skill.id === "memory")).toBeUndefined();
+
+    // Manual task — memory skill MUST apply
+    const onManual = skills.listApplicable({
+      tenantId: "t",
+      agentId: "a",
+      agentRole: "operations",
+      taskOriginKind: "manual",
+    });
+    expect(onManual.find((s) => s.skill.id === "memory")).toBeDefined();
+
+    // Undefined originKind — memory skill MUST apply (legacy paths)
+    const onUndef = skills.listApplicable({
+      tenantId: "t",
+      agentId: "a",
+      agentRole: "operations",
+      taskOriginKind: undefined,
+    });
+    expect(onUndef.find((s) => s.skill.id === "memory")).toBeDefined();
+  });
+});
