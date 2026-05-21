@@ -249,7 +249,7 @@ export const createInboxTriageModule: ModuleFactory = (factoryDeps: ModuleFactor
         source: "module",
         body: TRIAGE_SKILL,
         priority: 50,
-        appliesTo: (event) => event.agentRole === TRIAGE_AGENT_ROLE,
+        appliesTo: (event) => event.taskOriginKind === "inbox.item_created",
       },
     ],
     lifecycle: buildLifecycle(deps),

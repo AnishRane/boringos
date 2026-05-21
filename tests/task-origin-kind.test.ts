@@ -188,3 +188,55 @@ describe("RC1 — replier workflow + skill targeting", () => {
     ).toBe(false);
   });
 });
+
+describe("RC2 — triage agent skill targeting", () => {
+  it("inbox-triage skill appliesTo matches taskOriginKind, not agentRole", async () => {
+    // The bug: both inbox modules use agentRole="operations" so
+    // `agentRole === TRIAGE_AGENT_ROLE` matches both agents,
+    // causing skill cross-injection. Fix: filter by taskOriginKind.
+    const { createInboxTriageModule } = await import("@boringos/core");
+    const mod = createInboxTriageModule({ db: null as never });
+    const skill = mod.skills?.[0];
+    if (!skill?.appliesTo) {
+      throw new Error("inbox-triage module missing skill.appliesTo");
+    }
+
+    // Matches only triage tasks
+    expect(
+      skill.appliesTo({
+        tenantId: "t",
+        agentId: "a",
+        agentRole: "operations",
+        taskOriginKind: "inbox.item_created",
+      }),
+    ).toBe(true);
+
+    // Does NOT match replier tasks (even though both agents share role)
+    expect(
+      skill.appliesTo({
+        tenantId: "t",
+        agentId: "a",
+        agentRole: "operations",
+        taskOriginKind: "inbox.draft_reply",
+      }),
+    ).toBe(false);
+
+    // Does NOT match manual or undefined tasks
+    expect(
+      skill.appliesTo({
+        tenantId: "t",
+        agentId: "a",
+        agentRole: "operations",
+        taskOriginKind: "manual",
+      }),
+    ).toBe(false);
+    expect(
+      skill.appliesTo({
+        tenantId: "t",
+        agentId: "a",
+        agentRole: "operations",
+        taskOriginKind: undefined,
+      }),
+    ).toBe(false);
+  });
+});
