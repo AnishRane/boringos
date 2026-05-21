@@ -1450,83 +1450,25 @@ export class BoringOS {
     });
     forwardSyncTicker.start();
 
-    // @deprecated since RC1 (issue #33). The replier is now woken by
-    // the `inbox-replier` Module's workflow, which triggers on
+    // @deprecated since RC1 (issue #33). The replier is now woken
+    // by the `inbox-replier` Module's workflow, which triggers on
     // `triage.classified` and filters noise/fyi via condition
     // blocks before creating the task with the correct
-    // `originKind: "inbox.draft_reply"`. This hand-coded listener
-    // duplicated that wake path AND created replier tasks with the
-    // wrong `originKind: "inbox.item_created"` (inherited from the
-    // generic `createTriageTask` helper), which broke the post-RC2
-    // skill-targeting predicates.
+    // `originKind: "inbox.draft_reply"`.
     //
-    // Kept here behind an early return for backward-compatibility +
-    // documentation of the historical wake path. Safe to delete in a
-    // follow-up PR once we're confident no external tooling depends
-    // on this listener being registered.
-    eventBus.on("triage.classified", async (event) => {
-      return; // disabled — workflow path is canonical (Option A)
-      // eslint-disable-next-line no-unreachable
-      const data = event.data ?? {};
-      const itemId = data.itemId as string | undefined;
-      if (!itemId) return;
-
-      const replier = await findAgentByName(event.tenantId, REPLIER_AGENT_NAME);
-      if (!replier) return;
-
-      // Re-fetch the item so the replier task description is built
-      // from the fresh inbox row (including the headers metadata
-      // ingest wrote). Going through the row keeps the description
-      // identical regardless of whether the event payload included
-      // every field.
-      const { inboxItems } = await import("@boringos/db");
-      const rows = await dbConn.db
-        .select()
-        .from(inboxItems)
-        .where(
-          and(
-            eqOp(inboxItems.id, itemId),
-            eqOp(inboxItems.tenantId, event.tenantId),
-          ),
-        )
-        .limit(1);
-      const row = rows[0];
-      if (!row) return;
-      const meta = (row.metadata ?? {}) as Record<string, unknown>;
-      const emailMeta = (meta.email ?? {}) as { headers?: import("@boringos/connector-google").EmailHeaders; automated?: import("./automated-mail.js").AutomatedClassification };
-      const headers = emailMeta.headers ?? {
-        listUnsubscribe: null,
-        listUnsubscribePost: null,
-        listId: null,
-        autoSubmitted: null,
-        precedence: null,
-        returnPath: null,
-        replyTo: null,
-        messageId: null,
-        inReplyTo: null,
-        references: null,
-      };
-      const automated =
-        emailMeta.automated ??
-        ({ automated: false, kind: null, reasons: [] } as import("./automated-mail.js").AutomatedClassification);
-      const fakeIngested: import("./inbox-gmail-forward-sync.js").IngestedInboxItem = {
-        itemId,
-        tenantId: event.tenantId,
-        source: row.source,
-        sourceId: row.sourceId ?? "",
-        subject: row.subject,
-        body: row.body,
-        from: row.from,
-        headers,
-        automated,
-      };
-      const taskId = await createTriageTask(
-        fakeIngested,
-        replier.id,
-        "Append reply draft to inbox item",
-      );
-      if (!taskId) return;
-      await wakeAgentSafe(replier.id, event.tenantId, taskId, "replier");
+    // This hand-coded listener used to create replier tasks via the
+    // generic `createTriageTask` helper, which hardcoded
+    // `originKind: "inbox.item_created"` — that's the wrong kind for
+    // replier tasks, and after RC2's `appliesTo` switch it would
+    // also load the WRONG skill for the agent at run time.
+    //
+    // The stub below is registered but does nothing — left here as
+    // a structural breadcrumb so anyone reading boringos.ts and
+    // expecting a `triage.classified` handler sees the historical
+    // wake path documented + a pointer to the workflow that
+    // replaced it. Safe to delete in a follow-up PR.
+    eventBus.on("triage.classified", async () => {
+      /* no-op — workflow path is canonical (Option A) */
     });
 
     // Reverse sync — pull state changes from Gmail back into Hebbs
