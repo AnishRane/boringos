@@ -21,6 +21,8 @@ export interface ConnectorStatusRow {
   connected: boolean;
   status: string;
   lastSyncAt?: string | Date | null;
+  /** Whether the Gmail forward-sync poll is running. Absent = enabled. */
+  forwardSyncEnabled?: boolean;
 }
 
 export interface ConnectorViewModel {
@@ -37,6 +39,12 @@ export interface ConnectorViewModel {
   canAdd: boolean;
   /** True when the user can click Disconnect / Reconnect. */
   canManage: boolean;
+  /** Gmail forward-sync poll state — drives the pause toggle. Defaults
+   *  on when the status row omits it. */
+  forwardSyncEnabled: boolean;
+  /** True when this connector has per-connector settings to manage (so
+   *  the card shows a "Manage" button). Today only Gmail's sync toggle. */
+  hasSettings: boolean;
 }
 
 /**
@@ -110,6 +118,9 @@ export function toViewModel(
       status === "connected" ? formatLastSync(row.lastSyncAt, now) : null,
     canAdd: status === "not_connected" && row.hasOAuth,
     canManage: status !== "not_connected",
+    forwardSyncEnabled: row.forwardSyncEnabled !== false,
+    // Gmail is the only connector with a forward-sync poll to pause.
+    hasSettings: row.kind === "google",
   };
 }
 

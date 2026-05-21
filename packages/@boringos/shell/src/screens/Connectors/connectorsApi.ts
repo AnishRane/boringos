@@ -70,3 +70,23 @@ export async function disconnectConnector(
     throw new Error(`HTTP ${res.status} ${res.statusText}`);
   }
 }
+
+/**
+ * Pause / resume the connector's forward-sync poll without tearing down
+ * the connection. `enabled: false` pauses ingestion; `true` resumes it.
+ */
+export async function setConnectorSync(
+  kind: string,
+  enabled: boolean,
+  cfg: ConnectorClientConfig | undefined,
+): Promise<void> {
+  const base = cfg?.url ?? "";
+  const res = await fetch(`${base}/api/connectors/${kind}/sync`, {
+    method: "POST",
+    headers: { ...buildHeaders(cfg), "Content-Type": "application/json" },
+    body: JSON.stringify({ enabled }),
+  });
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status} ${res.statusText}`);
+  }
+}

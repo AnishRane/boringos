@@ -276,11 +276,15 @@ export function createInboxGmailForwardSyncTicker(
   let interval: ReturnType<typeof setInterval> | null = null;
 
   async function tickOnce(): Promise<{ tenantsScanned: number; itemsCreated: number }> {
+    // `forwardSyncEnabled` defaults on — only an explicit false (set via
+    // the connector's "pause email sync" toggle) drops a tenant from the
+    // poll without disconnecting the connection.
     const rowsResult = await db.execute(sql`
       SELECT id, tenant_id, credentials, config
         FROM connectors
        WHERE kind = ${KIND_GMAIL}
          AND status = ${"active"}
+         AND COALESCE(config->'gmail'->>'forwardSyncEnabled', 'true') <> 'false'
     `);
     const rows = rowsResult as unknown as ConnectorRow[];
 
