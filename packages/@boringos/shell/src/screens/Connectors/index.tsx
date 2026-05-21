@@ -21,6 +21,7 @@ import {
 } from "../_shared.js";
 import { AddConnectorModal } from "./AddConnectorModal.js";
 import { ConnectorCard } from "./ConnectorCard.js";
+import { ConnectorSettingsModal } from "./ConnectorSettingsModal.js";
 import { DisconnectModal } from "./DisconnectModal.js";
 import {
   buildPageViewModel,
@@ -31,6 +32,7 @@ import {
   buildAuthorizeUrl,
   disconnectConnector,
   fetchConnectorStatus,
+  setConnectorSync,
   type ConnectorClientConfig,
 } from "./connectorsApi.js";
 
@@ -51,6 +53,7 @@ export function Connectors() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [pendingAdd, setPendingAdd] = useState<ConnectorViewModel | null>(null);
   const [pendingDisconnect, setPendingDisconnect] = useState<ConnectorViewModel | null>(null);
+  const [pendingSettings, setPendingSettings] = useState<ConnectorViewModel | null>(null);
 
   const cfg = getConfig(client);
 
@@ -147,6 +150,33 @@ export function Connectors() {
     }
   };
 
+  const handleManage = (kind: string) => {
+    const card = vm.cards.find((c) => c.kind === kind);
+    if (!card) return;
+    setPendingSettings(card);
+  };
+
+  const handleToggleSync = async (kind: string, enabled: boolean) => {
+    setActionError(null);
+    try {
+      await setConnectorSync(kind, enabled, cfg);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : String(err));
+    }
+    // Refetch either way so the open modal reflects the server's truth —
+    // on success it confirms the flag, on failure it resets the toggle.
+    try {
+      const fresh = await fetchConnectorStatus(cfg);
+      setRows(fresh);
+      const freshCard = buildPageViewModel(fresh).cards.find(
+        (c) => c.kind === kind,
+      );
+      setPendingSettings((prev) => (prev ? freshCard ?? prev : prev));
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : String(err));
+    }
+  };
+
   return (
     <>
       <ScreenHeader
@@ -209,6 +239,7 @@ export function Connectors() {
                 onAdd={handleAdd}
                 onDisconnect={handleDisconnect}
                 onReconnect={handleReconnect}
+                onManage={handleManage}
               />
             ))}
           </ul>
@@ -228,6 +259,14 @@ export function Connectors() {
           vm={pendingDisconnect}
           onConfirm={handleConfirmDisconnect}
           onCancel={() => setPendingDisconnect(null)}
+        />
+      )}
+
+      {pendingSettings && (
+        <ConnectorSettingsModal
+          vm={pendingSettings}
+          onToggleSync={handleToggleSync}
+          onClose={() => setPendingSettings(null)}
         />
       )}
     </>

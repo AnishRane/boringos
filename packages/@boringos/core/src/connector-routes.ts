@@ -67,6 +67,13 @@ function readEnvClient(kind: string): { clientId?: string; clientSecret?: string
   };
 }
 
+// Forward-sync defaults ON: a connected connector with no explicit flag
+// keeps ingesting. Only an explicit `false` pauses it.
+function readForwardSyncEnabled(config: unknown): boolean {
+  const gmail = (config as { gmail?: { forwardSyncEnabled?: unknown } } | null)?.gmail;
+  return gmail?.forwardSyncEnabled !== false;
+}
+
 function publicOrigin(c: Context, baseUrl: string): string {
   const host = c.req.header("X-Forwarded-Host") ?? c.req.header("Host");
   const proto = c.req.header("X-Forwarded-Proto") ?? "http";
@@ -244,6 +251,7 @@ export function createConnectorRoutes(
         connected: !!match,
         status: match?.status ?? "not_connected",
         lastSyncAt: match?.lastSyncAt,
+        forwardSyncEnabled: readForwardSyncEnabled(match?.config),
       };
     });
 
@@ -274,6 +282,54 @@ export function createConnectorRoutes(
       .where(and(eq(connectors.tenantId, rows[0].tenant_id), eq(connectors.kind, kind)));
 
     return c.json({ ok: true });
+  });
+
+  // ── Forward-sync toggle ───────────────────────────────────
+  //
+  // Pause/resume the Gmail forward-sync ticker for this tenant
+  // WITHOUT tearing down the connection. Flips
+  // `config.gmail.forwardSyncEnabled`; the ticker
+  // (inbox-gmail-forward-sync.ts) skips connectors where it is false.
+  // Reversible and non-destructive, so — unlike disconnect — it is
+  // not admin-gated; any tenant member can pause their own sync.
+
+  app.post("/:kind/sync", async (c) => {
+    const kind = c.req.param("kind");
+    const bearer = c.req.header("Authorization")?.replace("Bearer ", "");
+    if (!bearer) return c.json({ error: "Authentication required" }, 401);
+
+    const result = await db.execute(sql`
+      SELECT ut.tenant_id FROM auth_sessions s
+      JOIN user_tenants ut ON ut.user_id = s.user_id
+      WHERE s.token = ${bearer} AND s.expires_at > NOW() LIMIT 1
+    `);
+    const rows = result as unknown as Array<{ tenant_id: string }>;
+    if (!rows[0]) return c.json({ error: "Invalid session" }, 401);
+    const tenantId = rows[0].tenant_id;
+
+    const body = (await c.req.json().catch(() => ({}))) as { enabled?: unknown };
+    if (typeof body.enabled !== "boolean") {
+      return c.json({ error: "Body must include boolean `enabled`" }, 400);
+    }
+    const enabled = body.enabled;
+
+    const existing = await db
+      .select()
+      .from(connectors)
+      .where(and(eq(connectors.tenantId, tenantId), eq(connectors.kind, kind)))
+      .limit(1);
+    if (!existing[0]) return c.json({ error: "Connector not connected" }, 404);
+
+    const cfg = (existing[0].config as Record<string, unknown> | null) ?? {};
+    const gmail = (cfg.gmail as Record<string, unknown> | undefined) ?? {};
+    const nextConfig = { ...cfg, gmail: { ...gmail, forwardSyncEnabled: enabled } };
+
+    await db
+      .update(connectors)
+      .set({ config: nextConfig, updatedAt: new Date() })
+      .where(eq(connectors.id, existing[0].id));
+
+    return c.json({ ok: true, kind, forwardSyncEnabled: enabled });
   });
 
   return app;

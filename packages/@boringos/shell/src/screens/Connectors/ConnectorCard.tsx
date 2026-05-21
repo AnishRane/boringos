@@ -17,6 +17,7 @@ export interface ConnectorCardProps {
   onAdd: (kind: string) => void;
   onDisconnect: (kind: string) => void;
   onReconnect: (kind: string) => void;
+  onManage: (kind: string) => void;
 }
 
 export function ConnectorCard({
@@ -24,6 +25,7 @@ export function ConnectorCard({
   onAdd,
   onDisconnect,
   onReconnect,
+  onManage,
 }: ConnectorCardProps) {
   return (
     <li
@@ -82,6 +84,15 @@ export function ConnectorCard({
             className="text-xs font-medium px-3 py-1.5 rounded-md bg-amber-600 text-white hover:bg-amber-700"
           >
             Reconnect
+          </button>
+        )}
+        {vm.status === "connected" && vm.hasSettings && (
+          <button
+            type="button"
+            onClick={() => onManage(vm.kind)}
+            className="text-xs font-medium px-3 py-1.5 rounded-md text-muted-strong hover:bg-bg-warm"
+          >
+            Manage
           </button>
         )}
         {(vm.status === "connected" ||
