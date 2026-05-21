@@ -233,6 +233,7 @@ export const createTriageModule: ModuleFactory = (deps) => {
         source: "module",
         body: TRIAGE_SKILL,
         priority: 88,
+        appliesTo: (e) => e.taskOriginKind === "inbox.item_created",
       },
     ],
     tools: [makeNextPending(triageDeps), makeClassify(triageDeps)],

@@ -240,3 +240,49 @@ describe("RC2 — triage agent skill targeting", () => {
     ).toBe(false);
   });
 });
+
+describe("RC3 — triage module TRIAGE_SKILL targeting", () => {
+  it("triage module's TRIAGE_SKILL is gated to triage tasks only", async () => {
+    // The bug: triage.ts (separate from inbox-triage.ts) registers
+    // TRIAGE_SKILL with no `appliesTo`. ~45 lines of batch-mode
+    // triage instructions inject into every agent in every tenant.
+    // Fix: filter by taskOriginKind="inbox.item_created".
+    const { createTriageModule, createInboxModule } = await import("@boringos/core");
+    const { createToolRegistry, createSkillRegistry, createModuleRegistry } =
+      await import("@boringos/agent");
+
+    const tools = createToolRegistry();
+    const skills = createSkillRegistry();
+    const modules = createModuleRegistry({ tools, skills });
+
+    modules.register(createInboxModule({ db: null as never }));
+    modules.register(createTriageModule({ db: null as never }));
+
+    // Triage task — skill MUST apply
+    const onTriage = skills.listApplicable({
+      tenantId: "t",
+      agentId: "a",
+      agentRole: "operations",
+      taskOriginKind: "inbox.item_created",
+    });
+    expect(onTriage.find((s) => s.skill.id === "triage")).toBeDefined();
+
+    // Replier task — skill MUST NOT apply
+    const onReplier = skills.listApplicable({
+      tenantId: "t",
+      agentId: "a",
+      agentRole: "operations",
+      taskOriginKind: "inbox.draft_reply",
+    });
+    expect(onReplier.find((s) => s.skill.id === "triage")).toBeUndefined();
+
+    // Manual task — skill MUST NOT apply
+    const onManual = skills.listApplicable({
+      tenantId: "t",
+      agentId: "a",
+      agentRole: "operations",
+      taskOriginKind: "manual",
+    });
+    expect(onManual.find((s) => s.skill.id === "triage")).toBeUndefined();
+  });
+});
