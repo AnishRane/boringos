@@ -158,6 +158,10 @@ export const createMemoryModule: ModuleFactory = (deps) => {
         source: "module",
         body: MEMORY_SKILL,
         priority: 60,
+        appliesTo: (e) =>
+          !["inbox.item_created", "inbox.draft_reply"].includes(
+            e.taskOriginKind ?? "",
+          ),
       },
     ],
     tools: [rememberTool, recallTool, forgetTool],

@@ -1421,102 +1421,37 @@ export class BoringOS {
       }
     }
 
+    // RC8 (Layer 2 fix). Forward-sync used to have an `onIngest`
+    // direct-fanout callback that created a triage task in parallel
+    // with the inbox-triage workflow firing on `inbox.item_created`
+    // — every email got triaged twice. The workflow is now the sole
+    // path; the automated-mail skip optimization lives in the
+    // workflow's `check-not-automated` condition block (see
+    // `buildTriageWorkflowBlocks` in modules/inbox-triage.ts).
     const forwardSyncTicker = createInboxGmailForwardSyncTicker(dbConn.db, {
       eventBus,
-      async onIngest(item) {
-        // Hard skip for items the deterministic prefilter classified.
-        // metadata.triage is already populated; nothing for the triage
-        // agent to do, and no draft is appropriate. The item still
-        // exists in the inbox so the user can see / unsubscribe / read.
-        if (item.automated.automated) {
-          return;
-        }
-
-        const triageAgent = await findAgentByName(item.tenantId, TRIAGE_AGENT_NAME);
-        if (!triageAgent) {
-          console.warn(
-            `[inbox-fanout] no '${TRIAGE_AGENT_NAME}' agent for tenant=${item.tenantId}; item ${item.itemId} will not be triaged`,
-          );
-          return;
-        }
-        const taskId = await createTriageTask(
-          item,
-          triageAgent.id,
-          "Triage inbox item",
-        );
-        if (!taskId) return;
-        await wakeAgentSafe(triageAgent.id, item.tenantId, taskId, "triage");
-      },
     });
     forwardSyncTicker.start();
 
-    // Wake the replier on every `triage.classified` event. The
-    // replier reads `metadata.triage.label` + headers + body and
-    // decides for itself whether to draft (per its skill rules:
-    // skip noise/fyi, skip newsletters, skip mail the user sent).
-    // No taxonomy/score gate here — the legacy gate broke every time
-    // the triage module's enum drifted.
-    eventBus.on("triage.classified", async (event) => {
-      const data = event.data ?? {};
-      const itemId = data.itemId as string | undefined;
-      if (!itemId) return;
-
-      const replier = await findAgentByName(event.tenantId, REPLIER_AGENT_NAME);
-      if (!replier) return;
-
-      // Re-fetch the item so the replier task description is built
-      // from the fresh inbox row (including the headers metadata
-      // ingest wrote). Going through the row keeps the description
-      // identical regardless of whether the event payload included
-      // every field.
-      const { inboxItems } = await import("@boringos/db");
-      const rows = await dbConn.db
-        .select()
-        .from(inboxItems)
-        .where(
-          and(
-            eqOp(inboxItems.id, itemId),
-            eqOp(inboxItems.tenantId, event.tenantId),
-          ),
-        )
-        .limit(1);
-      const row = rows[0];
-      if (!row) return;
-      const meta = (row.metadata ?? {}) as Record<string, unknown>;
-      const emailMeta = (meta.email ?? {}) as { headers?: import("@boringos/connector-google").EmailHeaders; automated?: import("./automated-mail.js").AutomatedClassification };
-      const headers = emailMeta.headers ?? {
-        listUnsubscribe: null,
-        listUnsubscribePost: null,
-        listId: null,
-        autoSubmitted: null,
-        precedence: null,
-        returnPath: null,
-        replyTo: null,
-        messageId: null,
-        inReplyTo: null,
-        references: null,
-      };
-      const automated =
-        emailMeta.automated ??
-        ({ automated: false, kind: null, reasons: [] } as import("./automated-mail.js").AutomatedClassification);
-      const fakeIngested: import("./inbox-gmail-forward-sync.js").IngestedInboxItem = {
-        itemId,
-        tenantId: event.tenantId,
-        source: row.source,
-        sourceId: row.sourceId ?? "",
-        subject: row.subject,
-        body: row.body,
-        from: row.from,
-        headers,
-        automated,
-      };
-      const taskId = await createTriageTask(
-        fakeIngested,
-        replier.id,
-        "Append reply draft to inbox item",
-      );
-      if (!taskId) return;
-      await wakeAgentSafe(replier.id, event.tenantId, taskId, "replier");
+    // @deprecated since RC1 (issue #33). The replier is now woken
+    // by the `inbox-replier` Module's workflow, which triggers on
+    // `triage.classified` and filters noise/fyi via condition
+    // blocks before creating the task with the correct
+    // `originKind: "inbox.draft_reply"`.
+    //
+    // This hand-coded listener used to create replier tasks via the
+    // generic `createTriageTask` helper, which hardcoded
+    // `originKind: "inbox.item_created"` — that's the wrong kind for
+    // replier tasks, and after RC2's `appliesTo` switch it would
+    // also load the WRONG skill for the agent at run time.
+    //
+    // The stub below is registered but does nothing — left here as
+    // a structural breadcrumb so anyone reading boringos.ts and
+    // expecting a `triage.classified` handler sees the historical
+    // wake path documented + a pointer to the workflow that
+    // replaced it. Safe to delete in a follow-up PR.
+    eventBus.on("triage.classified", async () => {
+      /* no-op — workflow path is canonical (Option A) */
     });
 
     // Reverse sync — pull state changes from Gmail back into Hebbs

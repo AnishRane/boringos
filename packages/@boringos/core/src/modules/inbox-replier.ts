@@ -25,34 +25,33 @@ const REPLIER_AGENT_ROLE = "operations";
 const REPLIER_AGENT_NAME = "Generic Email Replier";
 const REPLIER_WORKFLOW_NAME = "Draft generic reply for incoming items";
 
-const REPLIER_AGENT_INSTRUCTIONS = [
+export const REPLIER_AGENT_INSTRUCTIONS_FOR_TEST = [
   "You are a workflow agent that decides whether to append a generic reply draft to an inbox item, and writes it via the framework tool API. You DO work; you do not answer questions. Your output is tool calls, not prose.",
   "",
-  "Each task description starts with the action directive, then `--- email follows ---`, then header lines (including `list-unsubscribe`, `list-id`, `auto-submitted`, `precedence`, `reply-to`, `prefilter`), then `---`, then the email body.",
-  "",
-  "You wake on every classified item. THE DECISION TO DRAFT IS YOURS — there is no upstream gate.",
+  "Your task description contains classified item headers, then `---`, then the triage rationale. Read it before issuing any tool calls.",
   "",
   "REQUIRED steps in order. Use the Bash tool. Do not narrate; execute.",
   "",
-  "  Step 1. Parse `inbox-item-id` from the headers. Save as ITEM_ID.",
+  "  Step 1. Parse these two values from the task description headers:",
+  "    - `inbox-item-id:` → save as ITEM_ID",
+  "    - `triage-label:` → save as TRIAGE_LABEL",
   "",
-  "  Step 2. Read the current item so you have triage metadata + headers + sender:",
+  "  Step 2. SKIP immediately (go to Step 5) if TRIAGE_LABEL is `noise` or `fyi`.",
+  "    These categories do not warrant a reply. Do not call `framework.inbox.read`.",
+  "",
+  "  Step 3. Only if you are going to draft — read the item to get sender headers and body:",
   "      curl -sS -X POST $BORINGOS_CALLBACK_URL/api/tools/framework.inbox.read \\",
   "        -H \"Authorization: Bearer $BORINGOS_CALLBACK_TOKEN\" \\",
   "        -H 'Content-Type: application/json' \\",
   "        -d \"{\\\"itemId\\\":\\\"$ITEM_ID\\\"}\"",
-  "    The response's `result.metadata` field is the existing object you must merge into. Pull `result.metadata.triage.label`, `result.from`, and `result.metadata.email.headers`.",
+  "    Pull `result.from`, `result.body`, `result.metadata`, and `result.metadata.email.headers`.",
   "",
-  "  Step 3. SKIP the draft if any of these are true. Skipping is the common case — be aggressive.",
-  "    - `metadata.triage.label` is `noise` (auto-archive material — pointless to draft for) OR `fyi` (informational, no decision needed).",
+  "  Step 4. SKIP (go to Step 5 without drafting) if any of these hold:",
   "    - `metadata.email.headers.listUnsubscribe` is non-empty, OR `listId` is non-empty, OR `precedence` is `bulk`/`list`/`junk` — bulk mailer.",
-  "    - `metadata.email.headers.autoSubmitted` is anything other than `null` / `no` — auto-generated mail (vacation reply, calendar invite system notice).",
-  "    - The body looks like a newsletter footer (single paragraph + 'unsubscribe' link), or the `from` address is `noreply@` / `no-reply@` / `notifications@` AND `replyTo` is empty.",
-  "    - `prefilter: automated` line is present — already classified as automated upstream.",
-  "    - The `from` address is the user's own address (an email they sent to themselves; no point drafting a reply to yourself). The user's primary address is the one connected via the Gmail connector — when in doubt, treat any sender that uses the same domain AND name pattern as user-self.",
-  "    If skipping, go directly to Step 5. Do NOT call `framework.inbox.update`.",
-  "",
-  "  Step 4. Otherwise — draft a polite, generic reply (3-6 sentences, plain text, no HTML, no CRM-specific knowledge). Then APPEND via `framework.inbox.update`. The tool replaces `metadata` wholesale — copy every existing key, then add or extend `replyDrafts`:",
+  "    - `metadata.email.headers.autoSubmitted` is anything other than `null` / `no` — auto-generated mail.",
+  "    - The body looks like a newsletter footer (single paragraph + 'unsubscribe' link), or `from` is `noreply@` / `no-reply@` / `notifications@` AND `replyTo` is empty.",
+  "    - The `from` address is the user's own address.",
+  "    Otherwise — draft a polite, generic reply (3-6 sentences, plain text, no HTML). APPEND via `framework.inbox.update`. The tool replaces `metadata` wholesale — copy every existing key, then add or extend `replyDrafts`:",
   "      curl -sS -X POST $BORINGOS_CALLBACK_URL/api/tools/framework.inbox.update \\",
   "        -H \"Authorization: Bearer $BORINGOS_CALLBACK_TOKEN\" \\",
   "        -H 'Content-Type: application/json' \\",
@@ -67,16 +66,18 @@ const REPLIER_AGENT_INSTRUCTIONS = [
   "        -d '{\"taskId\":\"$BORINGOS_TASK_ID\",\"status\":\"done\"}'",
   "",
   "Hard rules:",
-  "  - Skipping is the right answer for newsletters, automated mail, fyi/noise items, and self-sent mail. Do not draft for any of these.",
+  "  - Skipping is the right answer for noise, fyi, newsletters, automated mail, and self-sent mail.",
   "  - The work is complete only after Step 5 returns success — even on a skip path.",
   "  - Never send replies (no SMTP, no Gmail send_email).",
   "  - Never overwrite `metadata.replyDrafts` — always merge.",
   "  - Never overwrite other apps' keys in metadata (preserve `triage`, `email`, `crm.lens`, etc.).",
 ].join("\n");
 
+const REPLIER_AGENT_INSTRUCTIONS = REPLIER_AGENT_INSTRUCTIONS_FOR_TEST;
+
 const REPLIER_SKILL = `# Inbox Reply Drafter
 
-You are the generic reply drafter. For incoming inbox items, decide
+You are the generic reply drafter. For classified inbox items, decide
 whether a reply makes sense and — when it does — draft a polite,
 neutral suggestion and append it to the item's drafts list. **You do
 not take ownership of the item.** Domain-specific modules (CRM,
@@ -85,26 +86,30 @@ sees a list and picks which to send.
 
 ## Wake model
 
-You wake on every \`inbox.item_created\` event. The framework no
-longer pre-filters — that gate was brittle. The decision to draft or
-skip is yours. Skipping is the common case and is cheap (no LLM body
-generation, just a \`framework.tasks.patch\` to close the task).
+You wake on \`triage.classified\` events for items labelled \`urgent\`
+or \`important\`. The replier workflow filters out \`noise\` and \`fyi\`
+upstream via condition blocks, so by the time you receive a task the
+item is already worth evaluating. Your task description carries
+\`triage-label\` and \`triage-rationale\` in its headers, so you can
+evaluate header-based skip conditions without an extra read call
+unless you need the email body.
 
 ## What you do
 
-For each inbox item:
+For each classified inbox item:
 
-1. Read the inbox item (\`framework.inbox.read\`)
-2. Decide skip-or-draft based on the rules below
-3. If drafting: append to \`metadata.replyDrafts\` via \`framework.inbox.update\`
-4. Mark the task done (\`framework.tasks.patch\`) — whether you drafted or skipped
+1. Parse \`inbox-item-id\` and \`triage-label\` from your task description headers
+2. Skip immediately if \`triage-label\` is \`noise\` or \`fyi\` (belt-and-suspenders guard)
+3. If not skipping: read the item (\`framework.inbox.read\`) for headers and body
+4. Skip on bulk/automated-mail signals in headers (\`listUnsubscribe\`, \`listId\`, \`precedence\`, \`autoSubmitted\`)
+5. Otherwise draft a reply and append to \`metadata.replyDrafts\` via \`framework.inbox.update\`
+6. Mark the task done (\`framework.tasks.patch\`) — whether you drafted or skipped
 
 ## Skip rules — be aggressive
 
 Skip drafting if **any** of these hold:
 
-- \`metadata.triage.label\` is \`noise\` — auto-archive material
-- \`metadata.triage.label\` is \`fyi\` — informational, no decision needed
+- \`triage-label\` is \`noise\` or \`fyi\` (from task description — no read needed)
 - \`metadata.email.headers.listUnsubscribe\` is non-empty — bulk mailer
 - \`metadata.email.headers.listId\` is non-empty — mailing list
 - \`metadata.email.headers.precedence\` is \`bulk\`, \`list\`, or \`junk\`
@@ -113,6 +118,122 @@ Skip drafting if **any** of these hold:
 - The body looks like a newsletter footer
 - The sender is the user themselves
 `;
+
+export interface ReplierWorkflowBlock {
+  id: string;
+  name: string;
+  kind: string;
+  type: string;
+  tool?: string;
+  inputs?: Record<string, unknown>;
+  config?: Record<string, unknown>;
+}
+
+export interface ReplierWorkflowEdge {
+  id: string;
+  sourceBlockId: string;
+  targetBlockId: string;
+  sourceHandle: string | null;
+  sortOrder: number;
+}
+
+/**
+ * Builds the replier workflow DAG.
+ *
+ * Trigger: `triage.classified` — fires after the triage agent writes
+ * its label so the replier only runs for items that have been
+ * classified, and only when the label isn't noise/fyi (filtered by
+ * the two `not_equals` condition blocks before the task block).
+ *
+ * Exported for testability — also called from `buildLifecycle` below.
+ */
+export function buildReplierWorkflowBlocks(agentId: string): {
+  blocks: ReplierWorkflowBlock[];
+  edges: ReplierWorkflowEdge[];
+} {
+  const blocks: ReplierWorkflowBlock[] = [
+    {
+      id: "trigger",
+      name: "trigger",
+      kind: "trigger",
+      type: "trigger",
+      config: { eventType: "triage.classified" },
+    },
+    {
+      id: "check-not-noise",
+      name: "skip if noise",
+      kind: "condition",
+      type: "condition",
+      config: {
+        field: "{{trigger.label}}",
+        operator: "not_equals",
+        value: "noise",
+      },
+    },
+    {
+      id: "check-not-fyi",
+      name: "skip if fyi",
+      kind: "condition",
+      type: "condition",
+      config: {
+        field: "{{trigger.label}}",
+        operator: "not_equals",
+        value: "fyi",
+      },
+    },
+    {
+      id: "task",
+      name: "task",
+      kind: "tool",
+      type: "tool",
+      tool: "framework.tasks.create",
+      inputs: {
+        title:
+          "Draft reply for inbox item {{trigger.itemId}} ({{trigger.label}})",
+        description:
+          "ACTION: Use the Bash tool to draft a generic reply for this inbox item via framework.inbox.update.\n" +
+          "Skip drafting only if headers indicate bulk/automated mail or a no-reply sender.\n" +
+          "Otherwise: read the item, draft a polite reply (3-6 sentences), append to replyDrafts, then mark task done.\n" +
+          "Do not respond with prose. Use Bash + curl. Your run is incomplete until the PATCH succeeds.\n" +
+          "\n--- classified item ---\n" +
+          "inbox-item-id: {{trigger.itemId}}\n" +
+          "triage-label: {{trigger.label}}\n" +
+          "triage-rationale: {{trigger.rationale}}\n" +
+          "---",
+        originKind: "inbox.draft_reply",
+        originId: "{{trigger.itemId}}",
+        assigneeAgentId: agentId,
+      },
+      config: {},
+    },
+  ];
+
+  const edges: ReplierWorkflowEdge[] = [
+    {
+      id: "e1",
+      sourceBlockId: "trigger",
+      targetBlockId: "check-not-noise",
+      sourceHandle: null,
+      sortOrder: 0,
+    },
+    {
+      id: "e2",
+      sourceBlockId: "check-not-noise",
+      targetBlockId: "check-not-fyi",
+      sourceHandle: "true",
+      sortOrder: 0,
+    },
+    {
+      id: "e3",
+      sourceBlockId: "check-not-fyi",
+      targetBlockId: "task",
+      sourceHandle: "true",
+      sortOrder: 0,
+    },
+  ];
+
+  return { blocks, edges };
+}
 
 interface ReplierDeps {
   db: Db;
@@ -149,32 +270,7 @@ function buildLifecycle(deps: ReplierDeps): ModuleLifecycle {
     `);
 
     const workflowId = randomUUID();
-    const blocks = [
-      { id: "trigger", name: "trigger", kind: "trigger", type: "trigger", config: { eventType: "inbox.item_created" } },
-      {
-        id: "task",
-        name: "task",
-        kind: "tool",
-        type: "tool",
-        tool: "framework.tasks.create",
-        inputs: {
-          title: "Append reply draft to inbox item {{trigger.itemId}}",
-          description:
-            "ACTION: Use the Bash tool to append a generic reply draft to this inbox item's `metadata.replyDrafts[]` via framework.inbox.update.\n" +
-            "If the email is a newsletter, automated notice, or spam, skip drafting; just mark the task done.\n" +
-            "Otherwise: GET the item, draft a polite reply (3-6 sentences), append your draft to the existing replyDrafts array, PATCH the merged metadata, then mark the task done.\n" +
-            "Do not respond with prose. Use Bash + curl. Your run is incomplete until the PATCH succeeds.\n" +
-            "\n--- email follows ---\n" +
-            "inbox-item-id: {{trigger.itemId}}\nsource: {{trigger.source}}\nfrom: {{trigger.from}}\nsubject: {{trigger.subject}}\n---\n{{trigger.body}}",
-          originKind: "inbox.draft_reply",
-          assigneeAgentId: agentId,
-        },
-        config: {},
-      },
-    ];
-    const edges = [
-      { id: "e1", sourceBlockId: "trigger", targetBlockId: "task", sourceHandle: null, sortOrder: 0 },
-    ];
+    const { blocks, edges } = buildReplierWorkflowBlocks(agentId);
     await deps.db.execute(sql`
       INSERT INTO workflows (id, tenant_id, name, type, status, blocks, edges, created_at, updated_at)
       VALUES (${workflowId}, ${ctx.tenantId}, ${REPLIER_WORKFLOW_NAME}, 'system', 'active',
@@ -238,7 +334,7 @@ export const createInboxReplierModule: ModuleFactory = (factoryDeps: ModuleFacto
         source: "module",
         body: REPLIER_SKILL,
         priority: 50,
-        appliesTo: (event) => event.agentRole === REPLIER_AGENT_ROLE,
+        appliesTo: (event) => event.taskOriginKind === "inbox.draft_reply",
       },
     ],
     lifecycle: buildLifecycle(deps),
