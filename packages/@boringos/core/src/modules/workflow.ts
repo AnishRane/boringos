@@ -347,6 +347,9 @@ async function runWorkflowDag(
           case "lte":
             truth = typeof lhs === "number" && typeof rhs === "number" && lhs <= rhs;
             break;
+          case "in":
+            truth = Array.isArray(rhs) && rhs.includes(lhs);
+            break;
           default:
             throw new Error(`Block ${id}: unknown condition operator ${op}`);
         }
