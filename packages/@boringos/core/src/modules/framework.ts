@@ -648,7 +648,11 @@ function makeUpdateInbox(deps: FrameworkDeps): Tool {
 
       const previousMeta = (item.metadata ?? {}) as Record<string, unknown>;
       const updates: Record<string, unknown> = { updatedAt: new Date() };
-      if (input.metadata) updates.metadata = input.metadata;
+      // Shallow-merge so a caller writing one key (e.g. {crmLens} from the
+      // CRM lens, {replyDrafts} from the replier) doesn't clobber sibling
+      // keys like `triage` and `email.gmailLabels`. Mirrors the task-patch
+      // merge. Within a key the caller still owns the value.
+      if (input.metadata) updates.metadata = { ...previousMeta, ...input.metadata };
       if (input.status) updates.status = input.status;
       await db.update(inboxItems).set(updates).where(eq(inboxItems.id, input.itemId));
 
