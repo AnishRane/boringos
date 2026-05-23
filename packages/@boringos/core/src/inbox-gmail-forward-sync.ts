@@ -178,7 +178,7 @@ export function buildIngestMetadata(msg: GmailMessage, opts: { now?: Date } = {}
 } {
   const headers = msg.headers ?? emptyHeaders();
   const gmailLabels = msg.labelIds ?? [];
-  const automated = classifyAutomatedMail({ headers, from: msg.from ?? null });
+  const automated = classifyAutomatedMail({ headers, from: msg.from ?? null, gmailLabels });
   const metadata: Record<string, unknown> = {
     email: { headers, automated, gmailLabels },
   };

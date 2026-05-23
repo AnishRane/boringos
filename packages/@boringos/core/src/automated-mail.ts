@@ -80,6 +80,12 @@ function norm(value: string | null): string | null {
 export function classifyAutomatedMail(input: {
   headers: EmailHeaders;
   from: string | null;
+  /** Gmail system label ids on the message. Gmail's own categorisation
+   *  is a strong, free signal: CATEGORY_PROMOTIONS/SOCIAL/FORUMS are
+   *  bulk/newsletter; CATEGORY_UPDATES is transactional (receipts,
+   *  payment notices, confirmations); SPAM is spam. CATEGORY_PERSONAL
+   *  (primary inbox) is deliberately NOT treated as automated. */
+  gmailLabels?: string[];
 }): AutomatedClassification {
   const { headers, from } = input;
   const reasons: string[] = [];
@@ -123,6 +129,23 @@ export function classifyAutomatedMail(input: {
   if (replyToAddress && isNoReplyLocalPart(replyToAddress)) {
     setKind("automated");
     reasons.push(`no-reply Reply-To: ${replyToAddress}`);
+  }
+
+  // Gmail's own categorisation. Promotions/Social/Forums → newsletter;
+  // Updates (transactional) and Spam → automated. Primary inbox
+  // (CATEGORY_PERSONAL / no category) is left for full triage.
+  const gmailLabels = input.gmailLabels ?? [];
+  const NEWSLETTER_LABELS = ["CATEGORY_PROMOTIONS", "CATEGORY_SOCIAL", "CATEGORY_FORUMS"];
+  const AUTOMATED_LABELS = ["CATEGORY_UPDATES", "SPAM"];
+  const nlHit = gmailLabels.find((l) => NEWSLETTER_LABELS.includes(l));
+  if (nlHit) {
+    setKind("newsletter");
+    reasons.push(`gmail-label: ${nlHit}`);
+  }
+  const autoHit = gmailLabels.find((l) => AUTOMATED_LABELS.includes(l));
+  if (autoHit) {
+    setKind("automated");
+    reasons.push(`gmail-label: ${autoHit}`);
   }
 
   return {
