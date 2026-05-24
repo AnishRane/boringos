@@ -538,6 +538,57 @@ export function createBoringOSClient(config: BoringOSClientConfig): BoringOSClie
     if (!res.ok) throw new Error(`DELETE ${path} failed: ${res.status}`);
   }
 
+  // ── Realtime SSE: one shared EventSource, fanned out to all listeners ──
+  //
+  // An EventSource is a real HTTP connection, and browsers cap HTTP/1.1 at
+  // ~6 connections per origin. Opening one stream per subscriber (the shell
+  // mounts several — one per event type, plus the copilot thinking stream)
+  // blows that budget: held-open SSE streams starve every other fetch, which
+  // then hangs "pending" forever. The server's /events stream already
+  // broadcasts *all* of a tenant's events on a single connection, so we keep
+  // exactly one EventSource alive and dispatch each event to every local
+  // listener. Ref-counted: opened on the first subscriber, closed when the
+  // last one leaves.
+  type EventListener = (event: { type: string; data: Record<string, unknown> }) => void;
+  const sseListeners = new Set<EventListener>();
+  let sseSource: EventSource | null = null;
+
+  function openSharedStream(): void {
+    // Already live (OPEN or auto-reconnecting CONNECTING) — reuse it. Only a
+    // CLOSED stream (fatal error / explicit close) needs a fresh connection.
+    if (sseSource && sseSource.readyState !== EventSource.CLOSED) return;
+
+    const params = new URLSearchParams();
+    if (config.apiKey) params.set("apiKey", config.apiKey);
+    if (config.tenantId) params.set("tenantId", config.tenantId);
+    // EventSource can't set headers — session-authed shells pass the
+    // token as a query param (the SSE route validates it like the admin API).
+    if (config.token) params.set("token", config.token);
+
+    const source = new EventSource(`${baseUrl}/api/events?${params}`);
+    source.onmessage = (e) => {
+      let event: { type: string; data: Record<string, unknown> };
+      try {
+        event = JSON.parse(e.data);
+      } catch {
+        return;
+      }
+      // Snapshot first: a listener may unsubscribe mid-dispatch, which would
+      // otherwise mutate the Set we're iterating.
+      for (const listener of [...sseListeners]) {
+        try {
+          listener(event);
+        } catch {}
+      }
+    };
+    sseSource = source;
+  }
+
+  function closeSharedStream(): void {
+    sseSource?.close();
+    sseSource = null;
+  }
+
   return {
     config,
     health: () => get<HealthStatus>("/health"),
@@ -890,25 +941,16 @@ export function createBoringOSClient(config: BoringOSClientConfig): BoringOSClie
     createTaskFromInboxItem: (itemId, data) =>
       post<{ taskId: string }>(`${api}/inbox/${itemId}/create-task`, data ?? {}),
 
-    // Realtime SSE subscription
+    // Realtime SSE subscription. All subscribers share one EventSource
+    // (see openSharedStream above); the stream is opened on the first
+    // subscriber and torn down when the last one unsubscribes.
     subscribe: (onEvent) => {
-      const params = new URLSearchParams();
-      if (config.apiKey) params.set("apiKey", config.apiKey);
-      if (config.tenantId) params.set("tenantId", config.tenantId);
-      // EventSource can't set headers — session-authed shells pass the
-      // token as a query param (the SSE route validates it like the admin API).
-      if (config.token) params.set("token", config.token);
-
-      const eventSource = new EventSource(`${baseUrl}/api/events?${params}`);
-
-      eventSource.onmessage = (e) => {
-        try {
-          const event = JSON.parse(e.data);
-          onEvent(event);
-        } catch {}
+      sseListeners.add(onEvent);
+      openSharedStream();
+      return () => {
+        sseListeners.delete(onEvent);
+        if (sseListeners.size === 0) closeSharedStream();
       };
-
-      return () => eventSource.close();
     },
   };
 }
