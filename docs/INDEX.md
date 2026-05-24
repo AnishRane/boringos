@@ -52,6 +52,8 @@ want them.
 
 ## Plans + status
 
+- [`docs/pi-runtime-integration.md`](pi-runtime-integration.md) — plan
+  to add the `pi` agent runtime + a transient live "thinking" window.
 - [`docs/blockers/`](blockers/) — active blocker docs (work plans).
 - [`docs/blockers/done/`](blockers/done/) — completed blockers.
 - [`docs/archive/`](archive/) — historical phase plans, test

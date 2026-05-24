@@ -24,3 +24,10 @@ export { geminiRuntime } from "./runtimes/gemini.js";
 export { ollamaRuntime } from "./runtimes/ollama.js";
 export { commandRuntime } from "./runtimes/command.js";
 export { webhookRuntime } from "./runtimes/webhook.js";
+export {
+  piRuntime,
+  PI_DEFAULT_MODEL,
+  createPiStreamParser,
+  parsePiModelList,
+} from "./runtimes/pi.js";
+export type { PiStreamState } from "./runtimes/pi.js";

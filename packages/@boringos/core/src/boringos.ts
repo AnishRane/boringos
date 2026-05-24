@@ -11,6 +11,7 @@ import {
   ollamaRuntime,
   commandRuntime,
   webhookRuntime,
+  piRuntime,
 } from "@boringos/runtime";
 import type { RuntimeModule, RuntimeRegistry } from "@boringos/runtime";
 import { createLocalStorage, scaffoldDrive } from "@boringos/drive";
@@ -444,7 +445,7 @@ export class BoringOS {
 
     // 4. Build runtime registry
     const runtimes = createRuntimeRegistry();
-    for (const rt of [claudeRuntime, chatgptRuntime, geminiRuntime, ollamaRuntime, commandRuntime, webhookRuntime]) {
+    for (const rt of [claudeRuntime, chatgptRuntime, geminiRuntime, ollamaRuntime, commandRuntime, webhookRuntime, piRuntime]) {
       runtimes.register(rt);
     }
     for (const rt of this.extraRuntimes) {

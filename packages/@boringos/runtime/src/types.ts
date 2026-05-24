@@ -9,6 +9,7 @@ export const RUNTIME_TYPES = [
   "ollama",
   "command",
   "webhook",
+  "pi",
 ] as const;
 
 export type RuntimeType = (typeof RUNTIME_TYPES)[number];
