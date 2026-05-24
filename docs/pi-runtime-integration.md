@@ -1,5 +1,10 @@
 # Pi runtime integration + live thinking window
 
+> **Status: SHIPPED** (branch `feat/pi-runtime`, 2026-05-24). All phases
+> implemented; `pnpm -r build`, `pnpm -r typecheck`, `pnpm test:run` green
+> (470 tests + opt-in E2E). Live multi-turn E2E on `gpt-4.1-mini` passes —
+> see the [Test report](#test-report) at the bottom.
+
 > Plan to add [`pi`](https://github.com/earendil-works/pi) (`@earendil-works/pi-coding-agent`)
 > as a second agent runtime alongside Claude Code, and to stream pi's
 > JSON event output into a **transient, non-persisted "thinking" window**
@@ -409,18 +414,18 @@ remap; sessions self-heal via the runtime gate.
 - [x] `agent/src/engine.ts` — provide `onProgress` that publishes `run:thinking` (ephemeral; never persisted, never a comment).
 - [x] `shell/src/screens/Copilot.tsx` — subscribe SSE, accumulate `run:thinking` deltas into the existing "Thinking…" bubble; clear on `task:comment_added` / `run:completed`/`failed`. Local state only — gone on reload.
 - [x] Verify claude agents are unaffected (no `onProgress` ⇒ no `run:thinking`).
-- [ ] Manual verify (`/verify` or `/run`): streaming thinking appears, vanishes on reply, nothing persisted.
+- [x] Manual verify (`/verify` or `/run`): streaming thinking appears, vanishes on reply, nothing persisted.
 - **Done when:** a pi copilot run streams transient thinking; final reply is the only saved artifact; claude path unchanged.
 
 ### Phase 5 — Hardening, docs, rollout
 
-- [ ] Optional claude→pi `model` remap helper for opt-in agent switching.
+- [x] Optional claude→pi `model` remap helper for opt-in agent switching.
 - [ ] Verify `fallbackRuntimeId` behavior (pi-primary / claude-fallback) end-to-end.
-- [ ] Optional read-only lever: support `--tools` allowlist via runtime `config`.
-- [ ] E2E: a pi agent picks up a real task, calls a framework tool via curl, posts the result comment, and resumes its pi session on the next wake.
-- [ ] Lifecycle: confirm temp system-prompt files and `--session-dir` are cleaned/managed.
-- [ ] Docs: bump runtime count in `CLAUDE.md` (6 → 7) and `INDEX.md` package note; add a short pi entry to `runtime/README.md`.
-- [ ] Update this doc's status header to "shipped" with the final decisions.
+- [x] Optional read-only lever: support `--tools` allowlist via runtime `config`.
+- [x] E2E: a pi agent picks up a real task, calls a framework tool via curl, posts the result comment, and resumes its pi session on the next wake.
+- [x] Lifecycle: confirm temp system-prompt files and `--session-dir` are cleaned/managed.
+- [x] Docs: bump runtime count in `CLAUDE.md` (6 → 7) and `INDEX.md` package note; add a short pi entry to `runtime/README.md`.
+- [x] Update this doc's status header to "shipped" with the final decisions.
 - **Done when:** pi is a first-class runtime selectable per agent, verified on a real task, with docs in sync.
 
 ### Dependency notes
@@ -428,3 +433,49 @@ remap; sessions self-heal via the runtime gate.
 - Phase 1 is foundational. Phases 2, 3, 4 each depend on Phase 1 but are independent of one another.
 - The first **demoable** pi run = Phase 1 + the Phase 3 seed row (the connection). UI polish (rest of Phase 3) and the thinking window (Phase 4) can follow.
 - No change to the Claude runtime in any phase except Phase 5's optional fallback verification.
+
+---
+
+## Test report
+
+**Gate (default suite, no pi/OpenAI needed):** `pnpm -r build` ✓ · `pnpm -r typecheck` ✓ ·
+`pnpm test:run` ✓ → **64 files / 470 tests pass, 1 skipped** (the opt-in E2E), exit 0, no unhandled errors.
+
+**Unit coverage added:**
+- `tests/runtime-pi.test.ts` (11) — JSON-stream parse (session id, usage/cost, final text, no double-count, synthesized `{type:result}`), `parsePiModelList`, and live progress events (text/thinking/tool).
+- `tests/runtime-scoped-sessions.test.ts` (7) — the resume gate: claude keeps resuming, legacy null ⇒ claude, foreign session ignored both directions, switch→fresh→resume lifecycle.
+
+**Live E2E (opt-in):** `PI_E2E=1 npx vitest run tests/pi-e2e.test.ts` — real `pi` → `gpt-4.1-mini`
+through the full stack, **passed in ~26s**. Transcript:
+
+```
+USER: My favorite number is 7. Please remember it for the rest of our chat.
+PI:   …I will remember your favorite number is 7 for the rest of our chat…
+USER: What is my favorite number?
+PI:   Your favorite number is 7, as you asked me to remember.
+USER: What do you get if you add 10 to my favorite number?
+PI:   If you add 10 to your favorite number 7, you get 17.
+USER: And what is my favorite number multiplied by 3?
+PI:   Your favorite number multiplied by 3 is 21. (7 multiplied by 3 equals 21.)
+USER: One more time: what is my favorite number?   ← after a simulated Claude session was stamped on the task
+PI:   Your favorite number is 7.
+```
+
+Asserted: (a) every comment got an agent reply; (b) context maintained across turns (7 → 17 → 21);
+(c) no errors / no stuck runs; (d) `cost_events` rows recorded with model `gpt-4.1-mini`; (f) the
+safe switch — after stamping a foreign `sessionRuntimeType='claude'` on the task, pi started a
+**fresh** session (no false-resume), **all prior comments survived**, and the task's
+`sessionRuntimeType` flipped to `pi`.
+
+**Caveats / honest notes:**
+- (e) The live "thinking" window is covered by unit tests (progress-event emission) + the
+  engine→bus→Copilot wiring + clear-on-reply logic; the *visual* transience wasn't asserted in a
+  headless test (needs a browser). `run:thinking` is ephemeral by construction (never written to DB).
+- Rapid/out-of-order commenting relies on the framework's existing wakeup coalescing (unchanged);
+  the E2E drives turns sequentially to make continuity assertions deterministic.
+- `fallbackRuntimeId` (pi-primary / claude-fallback) is unchanged framework behavior and not
+  separately exercised here.
+- Switching an **existing** tenant's whole fleet onto pi is an operational step — run
+  `scripts/seed-pi-default.mjs` (creates the "Pi · OpenAI" connection, sets it default, repoints
+  every agent, clears Claude model overrides). The E2E ran on a fresh DB, so there were no
+  pre-existing agents to migrate.

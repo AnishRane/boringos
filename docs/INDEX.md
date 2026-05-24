@@ -74,8 +74,8 @@ role, exports, and minimal usage:
 - `memory/` — `MemoryProvider` + Hebbs adapter
 - `module-sdk/` — Module / Tool / Skill type SDK
 - `pipeline/` — `QueueAdapter` (in-process default, BullMQ opt-in)
-- `runtime/` — 6 CLI runtimes (claude, chatgpt, gemini, ollama,
-  command, webhook)
+- `runtime/` — 7 CLI runtimes (claude, chatgpt, gemini, ollama,
+  command, webhook, pi)
 - `shared/` — base types, constants, utilities
 - `shell/` — browser shell
 - `ui/` — typed API client + React hooks

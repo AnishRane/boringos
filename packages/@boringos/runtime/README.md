@@ -60,6 +60,7 @@ const result = await runtime.execute(
 | `ollamaRuntime` | `ollama` | Local models via Ollama |
 | `commandRuntime` | (any) | Arbitrary shell commands |
 | `webhookRuntime` | (HTTP) | HTTP webhook-based execution |
+| `piRuntime` | `pi` | [pi](https://pi.dev) coding agent (multi-provider; default `openai/gpt-4.1-mini`). Streams live progress + a dynamic model catalog via `listModels()`. |
 
 ### Utilities
 
