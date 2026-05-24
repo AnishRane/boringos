@@ -18,12 +18,20 @@ const execFileAsync = promisify(execFile);
 // Always-on default model for the pi runtime (provider-qualified so
 // pi's `google` default is never used). Resolution order in execute():
 // per-agent agents.model → runtime-row model → this default.
-export const PI_DEFAULT_MODEL = "openai/gpt-4.1-mini";
+// gpt-5.1 is a reasoning model, so it streams `thinking_delta` events
+// that drive the live "Thinking…" window (gpt-4.1* emit none).
+export const PI_DEFAULT_MODEL = "openai/gpt-5.1";
+
+// Default reasoning effort, applied unless an agent/runtime row sets
+// `config.thinking` (use "off" to disable). pi ignores it on
+// non-reasoning models, so it's safe as a blanket default.
+export const PI_DEFAULT_THINKING = "medium";
 
 const FALLBACK_MODELS: RuntimeModel[] = [
+  { id: "openai/gpt-5.1", label: "GPT-5.1 (OpenAI)" },
+  { id: "openai/gpt-5-nano", label: "GPT-5 nano (OpenAI)" },
   { id: "openai/gpt-4.1-mini", label: "GPT-4.1 mini (OpenAI)" },
   { id: "openai/gpt-4.1", label: "GPT-4.1 (OpenAI)" },
-  { id: "openai/gpt-4o", label: "GPT-4o (OpenAI)" },
 ];
 
 // ── pi `--mode json` event shapes (only the fields we read) ──────────────────
@@ -204,8 +212,10 @@ export const piRuntime: RuntimeModule = {
     ];
     if (ctx.previousSessionId) args.push("--session", ctx.previousSessionId);
 
-    const thinking = config.thinking as string | undefined;
-    if (thinking) args.push("--thinking", thinking);
+    // Reasoning on by default so the live "thinking" window streams;
+    // an explicit "off" disables it. Harmless on non-reasoning models.
+    const thinking = (config.thinking as string | undefined) ?? PI_DEFAULT_THINKING;
+    if (thinking && thinking !== "off") args.push("--thinking", thinking);
 
     const extraArgs = config.extraArgs as string[] | undefined;
     if (Array.isArray(extraArgs)) args.push(...extraArgs);
