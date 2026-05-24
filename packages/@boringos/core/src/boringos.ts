@@ -985,6 +985,25 @@ export class BoringOS {
         timestamp: new Date().toISOString(),
       });
     });
+
+    // Transient live "thinking" progress (pi-scoped today). Relayed to the
+    // realtime bus only — never persisted. The shell renders it in a
+    // temporary bubble and clears it when the reply comment arrives.
+    agentEngine.onProgress.use((event) => {
+      realtimeBus.publish({
+        type: "run:thinking",
+        tenantId: event.tenantId,
+        data: {
+          runId: event.runId,
+          agentId: event.agentId,
+          taskId: event.taskId,
+          kind: event.kind,
+          delta: event.delta,
+          toolName: event.toolName,
+        },
+        timestamp: new Date().toISOString(),
+      });
+    });
     agentEngine.afterRun.use(async (event) => {
       const status = event.result.exitCode === 0 ? "run:completed" : "run:failed";
       realtimeBus.publish({

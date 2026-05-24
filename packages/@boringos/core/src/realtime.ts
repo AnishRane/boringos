@@ -15,6 +15,10 @@ export const EVENT_TYPES = [
   "run:failed",
   "run:log_line",
   "run:stderr_line",
+  // Transient, non-persisted live progress (reasoning/text/tool activity)
+  // for the "thinking" UI. Emitted by runtimes that stream structured
+  // events (pi); cleared client-side when the reply comment lands.
+  "run:thinking",
   "task:created",
   "task:updated",
   "task:comment_added",

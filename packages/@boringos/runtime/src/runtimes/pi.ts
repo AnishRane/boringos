@@ -9,6 +9,7 @@ import type {
   RuntimeExecutionResult,
   AgentRunCallbacks,
   RuntimeModel,
+  RuntimeProgressEvent,
 } from "../types.js";
 import { spawnAgent, buildAgentEnv, detectCli } from "../spawn.js";
 
@@ -44,10 +45,16 @@ interface PiMessage {
   model?: string;
   provider?: string;
 }
+interface PiAssistantMessageEvent {
+  type?: string;
+  delta?: string;
+}
 interface PiEvent {
   type?: string;
   id?: string;
   message?: PiMessage;
+  assistantMessageEvent?: PiAssistantMessageEvent;
+  toolName?: string;
 }
 
 export interface PiStreamState {
@@ -86,18 +93,32 @@ export function createPiStreamParser() {
     sawUsage: false,
   };
 
-  function push(line: string): void {
+  // Parse a line; update accumulated state and return a normalized
+  // progress event when the line carries streaming reasoning/text/tool
+  // activity (for the transient "thinking" UI), else undefined.
+  function push(line: string): RuntimeProgressEvent | undefined {
     let event: PiEvent;
     try {
       event = JSON.parse(line) as PiEvent;
     } catch {
-      return; // not JSON — raw text, ignore
+      return undefined; // not JSON — raw text, ignore
     }
-    if (!event || typeof event !== "object") return;
+    if (!event || typeof event !== "object") return undefined;
 
     if (event.type === "session" && typeof event.id === "string") {
       state.sessionId = event.id;
-      return;
+      return undefined;
+    }
+
+    if (event.type === "message_update" && event.assistantMessageEvent) {
+      const ev = event.assistantMessageEvent;
+      if (ev.type === "thinking_delta" && ev.delta) return { kind: "thinking", delta: ev.delta };
+      if (ev.type === "text_delta" && ev.delta) return { kind: "text", delta: ev.delta };
+      return undefined;
+    }
+
+    if (event.type === "tool_execution_start" && typeof event.toolName === "string") {
+      return { kind: "tool", toolName: event.toolName };
     }
 
     if (event.type === "message_end" && event.message?.role === "assistant") {
@@ -216,7 +237,8 @@ export const piRuntime: RuntimeModule = {
         env,
         stdin: ctx.contextMarkdown,
         onOutputLine: async (line) => {
-          parser.push(line);
+          const progress = parser.push(line);
+          if (progress) callbacks.onProgress?.(progress);
           await callbacks.onOutputLine(line);
         },
         onStderrLine: callbacks.onStderrLine,

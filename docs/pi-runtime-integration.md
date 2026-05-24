@@ -403,12 +403,12 @@ remap; sessions self-heal via the runtime gate.
 
 ### Phase 4 — Live thinking window (pi-scoped, transient)
 
-- [ ] `runtime/src/types.ts` — add `AgentRunCallbacks.onProgress?` + `RuntimeProgressEvent { kind: "thinking"|"text"|"tool"; delta?; toolName? }`.
-- [ ] `runtimes/pi.ts` — emit normalized progress from `message_update` (`thinking_delta`/`text_delta`) and `tool_execution_start/end`.
-- [ ] `core/src/realtime.ts` — add `"run:thinking"` event type.
-- [ ] `agent/src/engine.ts` — provide `onProgress` that publishes `run:thinking` (ephemeral; never persisted, never a comment).
-- [ ] `shell/src/screens/Copilot.tsx` — subscribe SSE, accumulate `run:thinking` deltas into the existing "Thinking…" bubble; clear on `task:comment_added` / `run:completed`/`failed`. Local state only — gone on reload.
-- [ ] Verify claude agents are unaffected (no `onProgress` ⇒ no `run:thinking`).
+- [x] `runtime/src/types.ts` — add `AgentRunCallbacks.onProgress?` + `RuntimeProgressEvent { kind: "thinking"|"text"|"tool"; delta?; toolName? }`.
+- [x] `runtimes/pi.ts` — emit normalized progress from `message_update` (`thinking_delta`/`text_delta`) and `tool_execution_start/end`.
+- [x] `core/src/realtime.ts` — add `"run:thinking"` event type.
+- [x] `agent/src/engine.ts` — provide `onProgress` that publishes `run:thinking` (ephemeral; never persisted, never a comment).
+- [x] `shell/src/screens/Copilot.tsx` — subscribe SSE, accumulate `run:thinking` deltas into the existing "Thinking…" bubble; clear on `task:comment_added` / `run:completed`/`failed`. Local state only — gone on reload.
+- [x] Verify claude agents are unaffected (no `onProgress` ⇒ no `run:thinking`).
 - [ ] Manual verify (`/verify` or `/run`): streaming thinking appears, vanishes on reply, nothing persisted.
 - **Done when:** a pi copilot run streams transient thinking; final reply is the only saved artifact; claude path unchanged.
 

@@ -30,6 +30,7 @@ import type {
   ContextBuildEvent,
   AfterRunEvent,
   RunErrorEvent,
+  RunProgressEvent,
   AgentRunJob,
   RecoverPendingResult,
 } from "./types.js";
@@ -103,6 +104,7 @@ export function createAgentEngine(config: AgentEngineConfig): AgentEngine {
   const afterRun: Hook<AfterRunEvent> = createHook();
   const onCost: Hook<CostEvent> = createHook();
   const onError: Hook<RunErrorEvent> = createHook();
+  const onProgress: Hook<RunProgressEvent> = createHook();
 
   // Queue adapter — defaults to in-process if none provided
   const queue = config.queue ?? createInProcessQueue<AgentRunJob>();
@@ -353,6 +355,19 @@ export function createAgentEngine(config: AgentEngineConfig): AgentEngine {
           costUsd: event.costUsd?.toString(),
         }).catch(() => {});
       },
+      onProgress(event) {
+        // Transient live progress → realtime bus (via the onProgress hook).
+        // Never persisted; relayed for the "thinking" UI only.
+        onProgress.run({
+          runId,
+          agentId: job.agentId,
+          tenantId: job.tenantId,
+          taskId: job.taskId,
+          kind: event.kind,
+          delta: event.delta,
+          toolName: event.toolName,
+        });
+      },
       onComplete(result) {
         // Best-effort, fire-and-forget: the sibling writes below already
         // guard with .catch — this one must too, or a run that finalizes
@@ -581,5 +596,6 @@ export function createAgentEngine(config: AgentEngineConfig): AgentEngine {
     afterRun,
     onCost,
     onError,
+    onProgress,
   };
 }

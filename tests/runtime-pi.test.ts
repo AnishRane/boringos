@@ -63,6 +63,50 @@ describe("pi runtime — JSON stream parser", () => {
   });
 });
 
+describe("pi runtime — live progress events", () => {
+  it("emits text progress from a text_delta", () => {
+    const p = createPiStreamParser();
+    const ev = p.push(
+      JSON.stringify({ type: "message_update", assistantMessageEvent: { type: "text_delta", delta: "hi" } }),
+    );
+    expect(ev).toEqual({ kind: "text", delta: "hi" });
+  });
+
+  it("emits thinking progress from a thinking_delta", () => {
+    const p = createPiStreamParser();
+    const ev = p.push(
+      JSON.stringify({ type: "message_update", assistantMessageEvent: { type: "thinking_delta", delta: "hmm" } }),
+    );
+    expect(ev).toEqual({ kind: "thinking", delta: "hmm" });
+  });
+
+  it("emits tool progress from tool_execution_start", () => {
+    const p = createPiStreamParser();
+    const ev = p.push(JSON.stringify({ type: "tool_execution_start", toolName: "bash", toolCallId: "x" }));
+    expect(ev).toEqual({ kind: "tool", toolName: "bash" });
+  });
+
+  it("returns undefined for non-progress lines (session header, message_end)", () => {
+    const p = createPiStreamParser();
+    expect(p.push(JSON.stringify({ type: "session", id: "abc" }))).toBeUndefined();
+    expect(
+      p.push(JSON.stringify({ type: "message_end", message: { role: "assistant", content: [], usage: { input: 1, output: 1, cost: { total: 0 } } } })),
+    ).toBeUndefined();
+  });
+
+  it("the captured fixture yields text progress and never thinking (gpt-4.1-mini is non-reasoning)", () => {
+    const p = createPiStreamParser();
+    const kinds = fixture
+      .split("\n")
+      .filter((l) => l.trim())
+      .map((l) => p.push(l))
+      .filter(Boolean)
+      .map((e) => e!.kind);
+    expect(kinds).toContain("text");
+    expect(kinds).not.toContain("thinking");
+  });
+});
+
 describe("pi runtime — parsePiModelList", () => {
   const table = [
     "provider  model         context  max-out  thinking  images",

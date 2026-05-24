@@ -3,6 +3,7 @@ export type {
   RuntimeExecutionContext,
   RuntimeExecutionResult,
   AgentRunCallbacks,
+  RuntimeProgressEvent,
   CostEvent,
   CompletionResult,
   RuntimeTestCheck,

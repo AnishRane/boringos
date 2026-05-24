@@ -21,7 +21,7 @@ import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { useAuth } from "../auth/AuthProvider.js";
-import { useTasks, useTask, useAgents } from "@boringos/ui";
+import { useTasks, useTask, useAgents, useClient } from "@boringos/ui";
 import { ScreenBody, ScreenHeader, EmptyState, LoadingState } from "./_shared.js";
 import { Markdown } from "../components/Markdown.js";
 
@@ -211,6 +211,26 @@ function ActiveThread(props: {
   const { task, comments, postComment, isLoading } = useTask(props.taskId);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const queryClient = useQueryClient();
+  const client = useClient();
+
+  // Live, transient "thinking" stream (pi runtimes emit run:thinking).
+  // Accumulated in local state only — never persisted; cleared when the
+  // reply comment lands or the thread changes. If SSE doesn't deliver
+  // (e.g. auth), the static "Thinking…" indicator below still shows.
+  const [thinking, setThinking] = useState("");
+  useEffect(() => {
+    setThinking("");
+    const unsubscribe = client.subscribe((event) => {
+      const data = (event as { data?: Record<string, unknown> }).data ?? {};
+      if (event.type === "run:thinking" && data.taskId === props.taskId) {
+        const kind = data.kind as string | undefined;
+        const delta = typeof data.delta === "string" ? data.delta : "";
+        const toolName = data.toolName as string | undefined;
+        setThinking((t) => (kind === "tool" && toolName ? `${t}\n↳ ${toolName}\n` : t + delta));
+      }
+    });
+    return () => unsubscribe();
+  }, [client, props.taskId]);
 
   // Poll while the task is open — invalidate the task query so
   // useQuery refetches. 3s is responsive enough for an in-flight
@@ -241,6 +261,12 @@ function ActiveThread(props: {
     props.busy ||
     (!!lastComment &&
       lastComment.authorAgentId !== props.copilotAgentId);
+
+  // Once the reply lands (no longer awaiting), drop the transient thinking
+  // stream — it was never persisted; the reply comment is the kept artifact.
+  useEffect(() => {
+    if (!awaitingReply) setThinking("");
+  }, [awaitingReply]);
 
   // Auto-scroll to the latest comment (or the thinking bubble).
   useEffect(() => {
@@ -335,6 +361,11 @@ function ActiveThread(props: {
                 />
                 <span className="ml-1 italic">Thinking…</span>
               </span>
+              {thinking.trim() && (
+                <pre className="mt-2 max-h-40 overflow-y-auto whitespace-pre-wrap break-words text-xs text-muted/80 font-mono">
+                  {thinking.slice(-2000)}
+                </pre>
+              )}
             </div>
           </div>
         )}
