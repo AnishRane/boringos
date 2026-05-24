@@ -943,7 +943,7 @@ export class BoringOS {
     const adminApp = createAdminRoutes(dbConn.db, agentEngine, adminKeyValue, realtimeBus, toolRegistry, runtimes, eventBus, drive, settingRegistry);
     app.route("/api/admin", adminApp);
 
-    const sseApp = createSSERoutes(realtimeBus, adminKeyValue);
+    const sseApp = createSSERoutes(realtimeBus, adminKeyValue, dbConn.db);
     app.route("/api", sseApp);
 
     // Bridge inbox.* connector events through to the realtime bus so

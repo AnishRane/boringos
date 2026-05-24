@@ -895,6 +895,9 @@ export function createBoringOSClient(config: BoringOSClientConfig): BoringOSClie
       const params = new URLSearchParams();
       if (config.apiKey) params.set("apiKey", config.apiKey);
       if (config.tenantId) params.set("tenantId", config.tenantId);
+      // EventSource can't set headers — session-authed shells pass the
+      // token as a query param (the SSE route validates it like the admin API).
+      if (config.token) params.set("token", config.token);
 
       const eventSource = new EventSource(`${baseUrl}/api/events?${params}`);
 
