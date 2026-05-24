@@ -108,6 +108,25 @@ The framework treats \`todo\` as actionable and re-wakes you on the same
 task — that loops forever and burns budget. The same-task auto-rewake
 guard catches this once, but the procedure above is the right answer.`;
 
+const EXECUTION_ENV_SKILL = `You run **headless, in the background** — there is no
+display, no interactive terminal, and no human watching a screen. Never open a GUI
+or interactive window, and never run anything that blocks waiting for one.
+
+- Do NOT call matplotlib \`plt.show()\`, open a file in Preview/an image viewer,
+  launch a browser, or run any command that pops a window or waits for input.
+  These either do nothing or hang your run forever (the tool call never returns,
+  so you never get to reply).
+- For charts/plots use a non-interactive backend and SAVE to a file — e.g.
+  \`import matplotlib; matplotlib.use("Agg")\` then \`savefig(...)\`. The
+  \`MPLBACKEND=Agg\` environment variable is already set for you.
+- Produce every artifact (image, chart, PDF, CSV) as a FILE under the drive's
+  \`tasks/<taskId>/\` folder (\`drive.write\` / \`drive.write_binary\`), then
+  deliver it to the user as the drive URL in your reply. One file = one URL —
+  never paste base64 into a comment.
+
+Your final answer is always a **markdown** comment on the task: do the work, save
+the outputs, post the markdown reply (with any artifact URLs), then end your run.`;
+
 interface FrameworkDeps {
   db: Db;
   /** Holder reference — read at dispatch time, populated by the
@@ -915,6 +934,12 @@ export const createFrameworkModule: ModuleFactory = (deps) => {
       "Built-in framework tools and skills — task management, comments, work products, cost reporting, agent management, inbox, tenant business profile.",
     provides: ["task-management", "audit"],
     skills: [
+      {
+        id: "execution-environment",
+        source: "framework",
+        body: EXECUTION_ENV_SKILL,
+        priority: 49,
+      },
       {
         id: "tool-protocol",
         source: "framework",
