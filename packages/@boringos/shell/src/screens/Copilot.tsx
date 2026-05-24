@@ -362,9 +362,9 @@ function ActiveThread(props: {
                 <span className="ml-1 italic">Thinking…</span>
               </span>
               {thinking.trim() && (
-                <pre className="mt-2 max-h-40 overflow-y-auto whitespace-pre-wrap break-words text-xs text-muted/80 font-mono">
-                  {thinking.slice(-2000)}
-                </pre>
+                <div className="mt-2 max-h-40 overflow-y-auto break-words text-muted/80">
+                  <Markdown source={thinking.slice(-2000)} compact className="text-xs!" />
+                </div>
               )}
             </div>
           </div>
