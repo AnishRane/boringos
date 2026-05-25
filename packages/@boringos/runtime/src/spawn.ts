@@ -30,6 +30,9 @@ export function buildAgentEnv(ctx: RuntimeExecutionContext): Record<string, stri
     BORINGOS_RUN_ID: ctx.runId,
     BORINGOS_AGENT_ID: ctx.agentId,
     BORINGOS_TENANT_ID: ctx.tenantId,
+    // Agents run headless — force matplotlib's non-interactive backend so a
+    // generated plot can never pop a GUI window (which would block the run).
+    MPLBACKEND: "Agg",
   };
 
   if (ctx.taskId) env["BORINGOS_TASK_ID"] = ctx.taskId;

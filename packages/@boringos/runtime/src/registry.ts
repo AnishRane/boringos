@@ -7,6 +7,8 @@ const ALIASES: Record<string, string> = {
   "codex-local": "chatgpt",
   process: "command",
   http: "webhook",
+  pi_local: "pi",
+  "pi-local": "pi",
 };
 
 export function createRuntimeRegistry(): RuntimeRegistry {

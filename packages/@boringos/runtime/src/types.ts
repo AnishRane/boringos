@@ -9,6 +9,7 @@ export const RUNTIME_TYPES = [
   "ollama",
   "command",
   "webhook",
+  "pi",
 ] as const;
 
 export type RuntimeType = (typeof RUNTIME_TYPES)[number];
@@ -77,6 +78,22 @@ export interface AgentRunCallbacks {
   onCostEvent(event: CostEvent): void;
   onComplete(result: CompletionResult): void;
   onError(error: Error): void;
+  /**
+   * Optional live-progress stream for a transient "thinking" UI. Emitted
+   * as the agent reasons / streams text / runs tools. Ephemeral — the
+   * engine relays it on the realtime bus and never persists it. Runtimes
+   * that don't stream structured events simply leave this unused (the
+   * Claude path does, so it's unaffected).
+   */
+  onProgress?(event: RuntimeProgressEvent): void;
+}
+
+export interface RuntimeProgressEvent {
+  kind: "thinking" | "text" | "tool";
+  /** Incremental thinking/text chunk (for kind "thinking" | "text"). */
+  delta?: string;
+  /** Tool name (for kind "tool"). */
+  toolName?: string;
 }
 
 export interface CostEvent {
