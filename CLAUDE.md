@@ -153,6 +153,7 @@ For "how do I add a custom X" recipes, see `examples/quickstart/` and `BUILD-A-M
 |---|---|---|
 | `NODE_ENV` | `development` | |
 | `PORT` | `3000` | |
-| `DATABASE_URL` | — | external Postgres; if unset, embedded PG is used |
+| `DATABASE_URL` | — | external Postgres URL; used when `PG_EMBEDDED` is not set and no explicit config is passed |
+| `PG_EMBEDDED` | — | `true` = always use embedded Postgres; `false` = always use external (requires `DATABASE_URL`); unset = auto (DATABASE_URL wins if present, else embedded) |
 | `HEBBS_ENDPOINT` / `HEBBS_API_KEY` / `HEBBS_WORKSPACE` | — | optional Hebbs memory |
 | `RESEND_API_KEY` | — | enables email notifications |
