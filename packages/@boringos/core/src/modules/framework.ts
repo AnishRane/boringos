@@ -108,6 +108,33 @@ The framework treats \`todo\` as actionable and re-wakes you on the same
 task — that loops forever and burns budget. The same-task auto-rewake
 guard catches this once, but the procedure above is the right answer.`;
 
+const EXECUTION_ENV_SKILL = `You run **headless, in the background** — there is no
+display, no interactive terminal, and no human watching a screen. Never open a GUI
+or interactive window, and never run anything that blocks waiting for one.
+
+- Do NOT call matplotlib \`plt.show()\`, open a file in Preview/an image viewer,
+  launch a browser, or run any command that pops a window or waits for input.
+  These either do nothing or hang your run forever (the tool call never returns,
+  so you never get to reply).
+- For charts/plots use a non-interactive backend and SAVE to a file — e.g.
+  \`import matplotlib; matplotlib.use("Agg")\` then \`savefig(...)\`. The
+  \`MPLBACKEND=Agg\` environment variable is already set for you.
+- Produce every artifact (image, chart, PDF, CSV) as a FILE under the drive's
+  \`tasks/<taskId>/\` folder (\`drive.write\` / \`drive.write_binary\`), then
+  deliver it to the user as the drive URL in your reply. One file = one URL —
+  never paste base64 into a comment.
+- **Deliver the artifact, not the recipe.** When the user asks for a chart,
+  graph, image, file, or any produced output, you MUST run the code yourself in
+  this run and attach the resulting file. Never reply with a script, a code
+  block, or "here's how to make it" instructions in place of the thing they
+  asked for. A reply that hands back code the user would have to run themselves
+  is a FAILED run — execute it, save the output, embed the URL
+  (\`![alt](<drive-url>)\` for images). Only fall back to describing an approach
+  if execution is genuinely impossible, and say explicitly why.
+
+Your final answer is always a **markdown** comment on the task: do the work, save
+the outputs, post the markdown reply (with any artifact URLs), then end your run.`;
+
 interface FrameworkDeps {
   db: Db;
   /** Holder reference — read at dispatch time, populated by the
@@ -648,7 +675,11 @@ function makeUpdateInbox(deps: FrameworkDeps): Tool {
 
       const previousMeta = (item.metadata ?? {}) as Record<string, unknown>;
       const updates: Record<string, unknown> = { updatedAt: new Date() };
-      if (input.metadata) updates.metadata = input.metadata;
+      // Shallow-merge so a caller writing one key (e.g. {crmLens} from the
+      // CRM lens, {replyDrafts} from the replier) doesn't clobber sibling
+      // keys like `triage` and `email.gmailLabels`. Mirrors the task-patch
+      // merge. Within a key the caller still owns the value.
+      if (input.metadata) updates.metadata = { ...previousMeta, ...input.metadata };
       if (input.status) updates.status = input.status;
       await db.update(inboxItems).set(updates).where(eq(inboxItems.id, input.itemId));
 
@@ -911,6 +942,12 @@ export const createFrameworkModule: ModuleFactory = (deps) => {
       "Built-in framework tools and skills — task management, comments, work products, cost reporting, agent management, inbox, tenant business profile.",
     provides: ["task-management", "audit"],
     skills: [
+      {
+        id: "execution-environment",
+        source: "framework",
+        body: EXECUTION_ENV_SKILL,
+        priority: 49,
+      },
       {
         id: "tool-protocol",
         source: "framework",

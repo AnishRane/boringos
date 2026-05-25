@@ -40,6 +40,13 @@ what to act on. Every unread inbox item gets exactly one of four labels:
   duplicates of a previous thread, system notifications already
   surfaced elsewhere.
 
+Signal to weigh: \`metadata.email.gmailLabels\` carries Gmail's own
+categorisation. \`IMPORTANT\` / \`STARRED\` lean urgent/important;
+\`CATEGORY_PROMOTIONS\` / \`CATEGORY_SOCIAL\` / \`CATEGORY_FORUMS\` /
+\`CATEGORY_UPDATES\` / \`SPAM\` lean fyi/noise (most of these are already
+pre-filtered to noise before you see them). Trust the content over a
+label when they genuinely conflict.
+
 Procedure for each item:
 
 1. \`triage.next_pending()\` returns the next unread item. If null, you're
@@ -227,6 +234,12 @@ export const createTriageModule: ModuleFactory = (deps) => {
       "Classify inbound messages into urgent / important / fyi / noise — wraps inbox operations under a stable tool namespace",
     provides: ["triage"],
     dependsOn: [{ capability: "inbox" }],
+    events: [
+      {
+        type: "triage.classified",
+        description: "An inbox item is triaged",
+      },
+    ],
     skills: [
       {
         id: "triage",

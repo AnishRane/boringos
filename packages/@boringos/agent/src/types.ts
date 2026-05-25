@@ -20,6 +20,22 @@ export interface AgentEngine {
   afterRun: Hook<AfterRunEvent>;
   onCost: Hook<CostEvent>;
   onError: Hook<RunErrorEvent>;
+  /**
+   * Live, transient run progress (reasoning/text/tool activity) for a
+   * "thinking" UI. Relayed to the realtime bus; never persisted. Only
+   * runtimes that stream structured events emit it (pi today).
+   */
+  onProgress: Hook<RunProgressEvent>;
+}
+
+export interface RunProgressEvent {
+  runId: string;
+  agentId: string;
+  tenantId: string;
+  taskId?: string;
+  kind: "thinking" | "text" | "tool";
+  delta?: string;
+  toolName?: string;
 }
 
 // ── Wakeup ───────────────────────────────────────────────────────────────────

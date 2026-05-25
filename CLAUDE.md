@@ -28,7 +28,7 @@ pnpm test            # watch
 packages/@boringos/
   shared/         base types, constants, Hook<T>, utilities
   memory/         MemoryProvider iface + Hebbs + nullMemory
-  runtime/        6 CLI runtimes (claude, chatgpt, gemini, ollama, command, webhook)
+  runtime/        7 CLI runtimes (claude, chatgpt, gemini, ollama, command, webhook, pi)
   drive/          StorageBackend iface + local FS + DriveManager
   db/             Drizzle schema + embedded Postgres + migrations
   agent/          execution engine, context pipeline, wakeups, personas, registries

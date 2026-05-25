@@ -52,6 +52,8 @@ want them.
 
 ## Plans + status
 
+- [`docs/pi-runtime-integration.md`](pi-runtime-integration.md) — plan
+  to add the `pi` agent runtime + a transient live "thinking" window.
 - [`docs/blockers/`](blockers/) — active blocker docs (work plans).
 - [`docs/blockers/done/`](blockers/done/) — completed blockers.
 - [`docs/archive/`](archive/) — historical phase plans, test
@@ -72,8 +74,8 @@ role, exports, and minimal usage:
 - `memory/` — `MemoryProvider` + Hebbs adapter
 - `module-sdk/` — Module / Tool / Skill type SDK
 - `pipeline/` — `QueueAdapter` (in-process default, BullMQ opt-in)
-- `runtime/` — 6 CLI runtimes (claude, chatgpt, gemini, ollama,
-  command, webhook)
+- `runtime/` — 7 CLI runtimes (claude, chatgpt, gemini, ollama,
+  command, webhook, pi)
 - `shared/` — base types, constants, utilities
 - `shell/` — browser shell
 - `ui/` — typed API client + React hooks

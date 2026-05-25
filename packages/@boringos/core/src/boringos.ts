@@ -11,6 +11,7 @@ import {
   ollamaRuntime,
   commandRuntime,
   webhookRuntime,
+  piRuntime,
 } from "@boringos/runtime";
 import type { RuntimeModule, RuntimeRegistry } from "@boringos/runtime";
 import { createLocalStorage, scaffoldDrive } from "@boringos/drive";
@@ -455,7 +456,7 @@ export class BoringOS {
 
     // 4. Build runtime registry
     const runtimes = createRuntimeRegistry();
-    for (const rt of [claudeRuntime, chatgptRuntime, geminiRuntime, ollamaRuntime, commandRuntime, webhookRuntime]) {
+    for (const rt of [claudeRuntime, chatgptRuntime, geminiRuntime, ollamaRuntime, commandRuntime, webhookRuntime, piRuntime]) {
       runtimes.register(rt);
     }
     for (const rt of this.extraRuntimes) {
@@ -953,7 +954,7 @@ export class BoringOS {
     const adminApp = createAdminRoutes(dbConn.db, agentEngine, adminKeyValue, realtimeBus, toolRegistry, runtimes, eventBus, drive, settingRegistry);
     app.route("/api/admin", adminApp);
 
-    const sseApp = createSSERoutes(realtimeBus, adminKeyValue);
+    const sseApp = createSSERoutes(realtimeBus, adminKeyValue, dbConn.db);
     app.route("/api", sseApp);
 
     // Bridge inbox.* connector events through to the realtime bus so
@@ -992,6 +993,25 @@ export class BoringOS {
         type: "run:started",
         tenantId: event.tenantId,
         data: { runId: event.runId, agentId: event.agentId, taskId: event.taskId },
+        timestamp: new Date().toISOString(),
+      });
+    });
+
+    // Transient live "thinking" progress (pi-scoped today). Relayed to the
+    // realtime bus only — never persisted. The shell renders it in a
+    // temporary bubble and clears it when the reply comment arrives.
+    agentEngine.onProgress.use((event) => {
+      realtimeBus.publish({
+        type: "run:thinking",
+        tenantId: event.tenantId,
+        data: {
+          runId: event.runId,
+          agentId: event.agentId,
+          taskId: event.taskId,
+          kind: event.kind,
+          delta: event.delta,
+          toolName: event.toolName,
+        },
         timestamp: new Date().toISOString(),
       });
     });
@@ -1495,6 +1515,10 @@ export class BoringOS {
       async close() {
         scheduler.stop();
         server.close();
+        // Drain in-flight agent runs (bounded) before tearing down the DB
+        // pool, so a run that finalizes during shutdown doesn't query a
+        // closed connection (CONNECTION_ENDED unhandled rejection).
+        await resolvedQueue.close().catch(() => {});
         await dbConn.close();
       },
     };
