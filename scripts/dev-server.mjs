@@ -74,6 +74,30 @@ debugApp.post("/runtime-loader", async (c) => {
 });
 app.route("/api/debug", debugApp);
 
+// Auto-seed Pi runtime for every new tenant so all agents default to Pi.
+const PI_MODEL = process.env.PI_MODEL ?? "openai/gpt-4.1-mini";
+app.onTenantCreated(async (db, tenantId) => {
+  const { runtimes } = await import("@boringos/db");
+  const { eq } = await import("drizzle-orm");
+  const { generateId } = await import("@boringos/shared");
+
+  const existing = await db.select().from(runtimes)
+    .where(eq(runtimes.tenantId, tenantId));
+  if (existing.some((r) => r.type === "pi")) return; // already seeded
+
+  const id = generateId();
+  await db.insert(runtimes).values({
+    id,
+    tenantId,
+    name: "Pi · OpenAI",
+    type: "pi",
+    model: PI_MODEL,
+    config: { provider: "openai" },
+    isDefault: true,
+  });
+  console.log(`[dev-server] seeded pi runtime for tenant ${tenantId} (${PI_MODEL})`);
+});
+
 const server = await app.listen(port);
 
 console.log(`[dev-server] BoringOS listening at ${server.url}`);
