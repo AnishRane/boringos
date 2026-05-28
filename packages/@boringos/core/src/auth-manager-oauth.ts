@@ -18,7 +18,7 @@ export interface RefreshedToken {
 /**
  * Exchange a stored refresh token for a fresh access token.
  *
- * Throws on any HTTP error or missing access_token in the response — the
+ * Throws on any HTTP error or missing access_token in the response. The
  * caller is responsible for catching and auditing the failure.
  *
  * The `fetchImpl` parameter exists solely for unit-test injection.
