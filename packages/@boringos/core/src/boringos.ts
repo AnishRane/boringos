@@ -72,7 +72,6 @@ import { createPluginRegistry } from "./plugin-system.js";
 import type { PluginDefinition } from "./plugin-system.js";
 import { createPluginWebhookRoutes, createPluginAdminRoutes } from "./plugin-routes.js";
 import { githubPlugin } from "./plugins/github.js";
-import { getConnectorTokenForTenant } from "./connector-tokens.js";
 import { AuthManager } from "./auth-manager.js";
 import { tenantContext, requireTenantId } from "./tenant-context.js";
 import { googleConnector } from "@boringos/connector-google";
