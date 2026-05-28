@@ -3,7 +3,7 @@
 // ConnectorDefinition for Google Workspace (OAuth2, multi-service).
 
 import type { ConnectorDefinition } from "@boringos/module-sdk";
-import { gmailService, calendarService, contactsService, driveService } from "./scopes.js";
+import { gmailService, calendarService, contactsService, driveService, profileService } from "./scopes.js";
 
 export const googleConnector: ConnectorDefinition = {
   provider: "google",
@@ -20,7 +20,9 @@ export const googleConnector: ConnectorDefinition = {
       prompt: "consent",
     },
   ],
-  services: [gmailService, calendarService, contactsService, driveService],
+  // profileService is always present so OAuth always receives openid/email/profile
+  // and the id_token has identity claims for resolveAccountId.
+  services: [profileService, gmailService, calendarService, contactsService, driveService],
   resolveAccountId: (tokenResponse) =>
     String(tokenResponse["email"] ?? tokenResponse["sub"]),
 };

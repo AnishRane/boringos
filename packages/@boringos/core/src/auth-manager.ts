@@ -401,7 +401,31 @@ export class AuthManager {
     }
     const tokenBody = (await tokenRes.json()) as Record<string, unknown>;
 
-    const accountId = def.resolveAccountId(tokenBody);
+    // Enrich the response with id_token claims so resolveAccountId can read
+    // identity fields like email/sub. Google's token endpoint puts these in
+    // the id_token JWT (when openid scope was requested), not in the top-level
+    // response. No signature verification: we trust the source since this
+    // came directly from the provider's token endpoint over TLS.
+    const profile: Record<string, unknown> = { ...tokenBody };
+    if (typeof tokenBody.id_token === "string") {
+      const parts = tokenBody.id_token.split(".");
+      if (parts.length === 3) {
+        try {
+          const claims = JSON.parse(
+            Buffer.from(parts[1], "base64url").toString("utf8"),
+          ) as Record<string, unknown>;
+          // Claims first, then token body so access_token et al win.
+          for (const [k, v] of Object.entries(claims)) {
+            if (!(k in profile)) profile[k] = v;
+          }
+        } catch {
+          // Malformed id_token. Fall through; resolveAccountId may still
+          // succeed via other fields or throw a clearer error.
+        }
+      }
+    }
+
+    const accountId = def.resolveAccountId(profile);
 
     const credentials = packCredentials({
       accessToken: tokenBody.access_token as string,

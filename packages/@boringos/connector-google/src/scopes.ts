@@ -50,3 +50,13 @@ export const driveService: ServiceDefinition = {
   displayName: "Google Drive",
   scopes: DRIVE_SCOPES,
 };
+
+// Identity scopes are always required for OAuth to know which account
+// authorized. The id_token JWT carries email/sub claims which are read
+// by resolveAccountId. Included as a hidden "profile" service so the
+// scope flattener picks them up alongside whatever services the module declares.
+export const profileService: ServiceDefinition = {
+  id: "profile",
+  displayName: "Google Account Identity",
+  scopes: PROFILE_SCOPES,
+};
