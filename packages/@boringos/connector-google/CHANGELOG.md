@@ -1,5 +1,16 @@
 # @boringos/connector-google
 
+## 0.2.0
+
+### Minor Changes
+
+- 3d6eb97: BREAKING (0.x): removed legacy `executeAction`-based `GmailClient` and `CalendarClient` classes. Use typed methods (`listMessages`, `sendEmail`, `listEvents`, `createEvent`, etc.) instead. The exports now point to what was previously `GmailClientV2`/`CalendarClientV2`. Following 0.x semver, this breaking change is a minor bump. Token-provider constructor and typed methods are documented in the package README and skill files.
+
+### Patch Changes
+
+- Updated dependencies [42ea1e7]
+  - @boringos/module-sdk@0.2.0
+
 ## 0.1.1
 
 ### Patch Changes

@@ -1,5 +1,16 @@
 # @boringos/connector-slack
 
+## 0.2.0
+
+### Minor Changes
+
+- a1d8af9: BREAKING (0.x): removed legacy `executeAction`-based `SlackClient` class. Use typed clients (`MessagingClient`, `ChannelsClient`, `ReactionsClient`) instead. Following 0.x semver, this breaking change is a minor bump.
+
+### Patch Changes
+
+- Updated dependencies [42ea1e7]
+  - @boringos/module-sdk@0.2.0
+
 ## 0.1.1
 
 ### Patch Changes

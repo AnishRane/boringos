@@ -1,6 +1,6 @@
 {
   "name": "@boringos/shell",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "private": false,
   "type": "module",
   "scripts": {
@@ -10,6 +10,10 @@
     "preview": "vite preview"
   },
   "license": "AGPL-3.0-or-later",
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "dependencies": {
     "@boringos/ui": "workspace:*",
     "@radix-ui/react-dialog": "^1.1.15",
