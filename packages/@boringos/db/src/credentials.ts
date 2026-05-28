@@ -21,6 +21,11 @@ function getKey(): Buffer {
   return cachedKey;
 }
 
+// Test-only: reset the cached key so tests can exercise the "no env var" path.
+export function _resetKeyCache(): void {
+  cachedKey = null;
+}
+
 /**
  * Encrypt a credentials object to the wire format stored in the DB.
  * Call this at every write path before passing to Drizzle.

@@ -6,7 +6,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { getConnectorTokenForTenant } from "../packages/@boringos/core/src/connector-tokens.js";
-import { unpackCredentials } from "../packages/@boringos/db/src/credentials.js";
+import { unpackCredentials, _resetKeyCache } from "../packages/@boringos/db/src/credentials.js";
 
 // Set BORINGOS_ENCRYPTION_KEY for all tests in this file so that
 // packCredentials / unpackCredentials work without hitting a real key store.
@@ -16,6 +16,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   delete process.env.BORINGOS_ENCRYPTION_KEY;
+  _resetKeyCache();
 });
 
 // ── Mock refreshOAuthToken ────────────────────────────────────────────────────
