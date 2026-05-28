@@ -40,3 +40,8 @@ export {
   SEMVER_RE,
   type Manifest,
 } from "./manifest.js";
+
+// Narrow runtime contracts for `ModuleFactoryDeps` fields whose
+// concrete implementations live in framework packages that depend
+// on module-sdk (cycle-free extraction). MDK T3.1b.
+export type { RealtimeBus, RealtimeEvent } from "./realtime.js";

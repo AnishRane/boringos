@@ -19,6 +19,10 @@
 // that don't touch memory/drive don't need to install them.
 import type { MemoryProvider } from "@boringos/memory";
 import type { StorageBackend } from "@boringos/drive";
+// MDK T3.1b — minimal `RealtimeBus` contract for cycle-free typing
+// of `ModuleFactoryDeps.realtimeBus`. Concrete bus lives in
+// `@boringos/core` and structurally implements this surface.
+import type { RealtimeBus } from "./realtime.js";
 
 /**
  * Anything carrying a tenantId. Modules are tenant-scoped via
@@ -414,14 +418,18 @@ export interface ModuleFactoryDeps {
    */
   toolRegistry?: unknown;
   /**
-   * The realtime SSE bus. Modules that emit live events (workflow
-   * block_started/completed for the canvas, run progress for the
-   * shell) cast this to `RealtimeBus` from `@boringos/core`.
+   * The realtime SSE bus. Modules that publish live events
+   * (workflow block_started/completed for the canvas, run progress
+   * for the shell, module install/uninstall reflection) call
+   * `realtimeBus.publish(event)`. The concrete bus lives in
+   * `@boringos/core` and structurally implements `RealtimeBus`
+   * — the narrow `publish`-only surface exposed here keeps the
+   * SDK cycle-free. MDK T3.1b.
    *
    * Populated lazily by the host — read at call time, not at
    * factory time.
    */
-  realtimeBus?: unknown;
+  realtimeBus?: RealtimeBus;
   /**
    * The connector / cross-app event bus. Modules cast this to
    * `EventBus` from `@boringos/core`. Read at call time so module

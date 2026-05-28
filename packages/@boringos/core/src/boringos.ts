@@ -562,7 +562,7 @@ export class BoringOS {
       engine: undefined as unknown,
       workflowEngine: undefined as unknown,
       toolRegistry: toolRegistry,
-      realtimeBus: undefined as unknown,
+      realtimeBus: undefined,
       eventBus: undefined as unknown,
       getConnectorToken: (provider, callerModuleId, opts) => {
         const tenantId = requireTenantId();
