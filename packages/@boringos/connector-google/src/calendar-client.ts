@@ -2,6 +2,10 @@ import type { ActionResult } from "./gmail-client.js";
 
 const CALENDAR_API = "https://www.googleapis.com/calendar/v3";
 
+/**
+ * @deprecated Use `CalendarClient` from "./services/calendar/index.js" with typed methods.
+ *             This class will be removed in Phase 2 (Task 2.9).
+ */
 export class CalendarClient {
   private token: string;
 
