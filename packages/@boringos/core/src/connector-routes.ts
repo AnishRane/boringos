@@ -6,12 +6,15 @@
 // connector definition listing. The legacy framework is gone; this
 // file now mounts ONLY:
 //
-//   - GET  /oauth/:kind/authorize — start the OAuth dance
-//   - GET  /oauth/:kind/callback  — provider callback (persists
-//                                   credentials in `connectors`)
-//   - GET  /connectors            — list providers + per-tenant
-//                                   connection state (for the shell)
-//   - POST /disconnect/:kind      — admin removes credentials
+//   - GET  /oauth/:provider/authorize — start the OAuth dance (delegates to AuthManager)
+//   - GET  /oauth/:provider/callback  — provider callback (delegates to AuthManager)
+//   - GET  /connectors                — list providers + per-tenant
+//                                       connection state (for the shell)
+//   - POST /disconnect/:kind          — admin removes credentials
+//
+// The authorize/callback handlers now delegate to AuthManager (Task 2.5).
+// The listing/disconnect/sync routes still read from the legacy `connectors`
+// table and are untouched until Task 2.11 drops that table.
 //
 // Action invocation and webhook receivers moved to:
 //   - /api/tools/<module>.<action> for actions
@@ -21,16 +24,12 @@
 import { Hono, type Context } from "hono";
 import { eq, and, sql } from "drizzle-orm";
 import type { Db } from "@boringos/db";
-import { connectors, packCredentials } from "@boringos/db";
-import { generateId } from "@boringos/shared";
+import { connectors } from "@boringos/db";
 import {
-  createOAuthManager,
-  createState,
-  verifyState,
-  isSafeReturnTo,
   OAUTH_PROVIDERS,
   type OAuthConfig,
 } from "./oauth.js";
+import type { AuthManager } from "./auth-manager.js";
 import type { EventBus } from "./event-bus.js";
 
 export interface ConnectorRoutesOptions {
@@ -59,14 +58,6 @@ function listProviders(): ProviderEntry[] {
   }));
 }
 
-function readEnvClient(kind: string): { clientId?: string; clientSecret?: string } {
-  const env = kind.toUpperCase();
-  return {
-    clientId: process.env[`${env}_CLIENT_ID`],
-    clientSecret: process.env[`${env}_CLIENT_SECRET`],
-  };
-}
-
 // Forward-sync defaults ON: a connected connector with no explicit flag
 // keeps ingesting. Only an explicit `false` pauses it.
 function readForwardSyncEnabled(config: unknown): boolean {
@@ -85,135 +76,97 @@ function publicOrigin(c: Context, baseUrl: string): string {
   }
 }
 
-function resolveReturnTo(raw: string | undefined, fallback: string): string {
-  if (!raw) return fallback;
-  return raw;
-}
-
 export function createConnectorRoutes(
   db: Db,
   // eventBus is reserved for future webhook routing; kept on the
   // signature so callers don't have to change.
   _eventBus: EventBus,
-  jwtSecret: string,
+  // jwtSecret is kept on the signature for backward compatibility;
+  // the OAuth dance now delegates to AuthManager which carries its
+  // own state secret. Will be removed alongside oauth.ts in Task 2.10.
+  _jwtSecret: string,
   baseUrl: string,
   opts: ConnectorRoutesOptions = {},
+  authManager?: AuthManager,
 ): Hono {
   const app = new Hono();
   const shellOrigin = opts.shellOrigin ?? process.env.BORINGOS_SHELL_URL ?? "";
 
-  function buildAllowedOrigins(callerOrigin: string): string[] {
-    const list = new Set<string>([callerOrigin]);
-    if (shellOrigin) list.add(shellOrigin);
-    return Array.from(list);
+  /** Default scopes for a provider, derived from its ConnectorDefinition. */
+  function defaultScopesForProvider(provider: string): string[] {
+    if (!authManager) return [];
+    const def = authManager.getConnector(provider);
+    return def?.services.flatMap((s) => s.scopes.map((sc) => sc.scope)) ?? [];
   }
 
-  // ── OAuth ──────────────────────────────────────────────────
+  // ── OAuth (v2 path: delegates to AuthManager) ───────────────
+  //
+  // When authManager is present (always at boot from Task 2.4),
+  // the authorize/callback handlers go through AuthManager which
+  // uses auth-manager-state.ts for state signing and stores tokens
+  // in the new connector_accounts table.
+  //
+  // Fallback to the legacy path is NOT provided here because
+  // authManager is always injected by boringos.ts since Task 2.4.
 
-  app.get("/oauth/:kind/authorize", async (c) => {
-    const kind = c.req.param("kind");
-    const provider = OAUTH_PROVIDERS[kind];
-    if (!provider) return c.json({ error: `Unknown provider: ${kind}` }, 404);
+  app.get("/oauth/:provider/authorize", async (c) => {
+    const provider = c.req.param("provider");
 
     const tenantId = c.req.query("tenantId") ?? c.req.header("X-Tenant-Id") ?? "";
     if (!tenantId) return c.json({ error: "tenantId required" }, 400);
 
-    const { clientId, clientSecret } = readEnvClient(kind);
-    if (!clientId || !clientSecret) {
-      return c.json(
-        {
-          error: `Missing ${kind.toUpperCase()}_CLIENT_ID / ${kind.toUpperCase()}_CLIENT_SECRET in environment.`,
-        },
-        500,
-      );
+    if (!authManager) {
+      return c.json({ error: "AuthManager not configured" }, 500);
     }
 
-    const callerOrigin = publicOrigin(c, baseUrl);
-    const allowed = buildAllowedOrigins(callerOrigin);
-    const rawReturn = c.req.query("returnTo");
-    const returnTo = isSafeReturnTo(rawReturn ?? "", allowed)
-      ? rawReturn!
-      : resolveReturnTo(undefined, `${shellOrigin || callerOrigin}/connectors`);
+    const connector = authManager.getConnector(provider);
+    if (!connector) return c.json({ error: `Unknown provider: ${provider}` }, 404);
 
-    const oauth = createOAuthManager(provider, clientId, clientSecret);
-    const redirectUri = `${callerOrigin}/api/connectors/oauth/${kind}/callback`;
-    const state = createState({ tenantId, returnTo }, jwtSecret);
-    return c.redirect(oauth.getAuthorizationUrl(redirectUri, state));
+    const rawScopes = c.req.query("scopes");
+    const scopes = rawScopes ? rawScopes.split(",").map((s) => s.trim()).filter(Boolean) : defaultScopesForProvider(provider);
+
+    try {
+      const { authUrl } = await authManager.startOAuthFlow(provider, tenantId, scopes);
+      return c.redirect(authUrl);
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err);
+      return c.json({ error: reason }, 500);
+    }
   });
 
-  app.get("/oauth/:kind/callback", async (c) => {
-    const kind = c.req.param("kind");
-    const provider = OAUTH_PROVIDERS[kind];
-    if (!provider) return c.text(`Unknown provider: ${kind}`, 400);
-
+  app.get("/oauth/:provider/callback", async (c) => {
+    const provider = c.req.param("provider");
     const code = c.req.query("code");
-    const stateRaw = c.req.query("state") ?? "";
+    const state = c.req.query("state") ?? "";
     const error = c.req.query("error");
-    const callerOrigin = publicOrigin(c, baseUrl);
-    const fallback = `${shellOrigin || callerOrigin}/connectors`;
+    const fallback = `${shellOrigin || publicOrigin(c, baseUrl)}/connectors`;
 
     if (error) {
       return c.redirect(
-        `${fallback}?connect=error&kind=${encodeURIComponent(kind)}&reason=${encodeURIComponent(error)}`,
+        `${fallback}?connect=error&provider=${encodeURIComponent(provider)}&reason=${encodeURIComponent(error)}`,
       );
     }
-    if (!code) {
+    if (!code || !state) {
       return c.redirect(
-        `${fallback}?connect=error&kind=${encodeURIComponent(kind)}&reason=missing_code`,
+        `${fallback}?connect=error&provider=${encodeURIComponent(provider)}&reason=missing_code_or_state`,
       );
     }
 
-    const verified = verifyState(stateRaw, jwtSecret);
-    if (!verified.ok || !verified.payload) {
+    if (!authManager) {
       return c.redirect(
-        `${fallback}?connect=error&kind=${encodeURIComponent(kind)}&reason=${encodeURIComponent(verified.reason ?? "bad_state")}`,
+        `${fallback}?connect=error&provider=${encodeURIComponent(provider)}&reason=auth_manager_not_configured`,
       );
     }
-    const { tenantId, returnTo } = verified.payload;
-
-    const { clientId, clientSecret } = readEnvClient(kind);
-    if (!clientId || !clientSecret) {
-      return c.redirect(
-        `${fallback}?connect=error&kind=${encodeURIComponent(kind)}&reason=missing_client`,
-      );
-    }
-
-    const oauth = createOAuthManager(provider, clientId, clientSecret);
-    const redirectUri = `${callerOrigin}/api/connectors/oauth/${kind}/callback`;
 
     try {
-      const tokens = await oauth.exchangeCode(code, redirectUri);
-      const credentialBag = {
-        accessToken: tokens.accessToken,
-        refreshToken: tokens.refreshToken,
-        expiresAt: tokens.expiresAt?.toISOString(),
-      };
-      const encryptedCreds = packCredentials(credentialBag) as unknown as Record<string, unknown>;
-      const existing = await db
-        .select()
-        .from(connectors)
-        .where(and(eq(connectors.tenantId, tenantId), eq(connectors.kind, kind)))
-        .limit(1);
-      if (existing[0]) {
-        await db
-          .update(connectors)
-          .set({ credentials: encryptedCreds, status: "active", updatedAt: new Date() })
-          .where(eq(connectors.id, existing[0].id));
-      } else {
-        await db.insert(connectors).values({
-          id: generateId(),
-          tenantId,
-          kind,
-          status: "active",
-          config: {},
-          credentials: encryptedCreds,
-        });
-      }
-      return c.redirect(`${returnTo}?connect=ok&kind=${encodeURIComponent(kind)}`);
-    } catch (err) {
-      const reason = err instanceof Error ? err.message : "exchange_failed";
+      await authManager.handleOAuthCallback(provider, code, state);
       return c.redirect(
-        `${fallback}?connect=error&kind=${encodeURIComponent(kind)}&reason=${encodeURIComponent(reason)}`,
+        `${shellOrigin || publicOrigin(c, baseUrl)}/settings/connectors?connect=ok&provider=${encodeURIComponent(provider)}`,
+      );
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : "callback_failed";
+      return c.redirect(
+        `${fallback}?connect=error&provider=${encodeURIComponent(provider)}&reason=${encodeURIComponent(reason)}`,
       );
     }
   });

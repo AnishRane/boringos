@@ -979,7 +979,7 @@ export class BoringOS {
     // is specifically the actions invocation paths.
     const connectorApp = createConnectorRoutes(dbConn.db, eventBus, jwtSecret, callbackUrl, {
       shellOrigin: this.config.shellOrigin,
-    });
+    }, authManager);
     app.route("/api/connectors", connectorApp);
 
     // Admin API (for human management of the platform)
