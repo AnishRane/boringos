@@ -17,6 +17,7 @@
   },
   "license": "AGPL-3.0-or-later",
   "dependencies": {
+    "@boringos/module-sdk": "workspace:*",
     "@boringos/shared": "workspace:*"
   },
   "devDependencies": {
@@ -24,7 +25,7 @@
     "typescript": "^5.7.3",
     "vitest": "^3.0.5"
   },
-  "description": "Google Workspace connector — Gmail + Calendar",
+  "description": "Google Workspace connector for Gmail and Calendar",
   "repository": {
     "type": "git",
     "url": "https://github.com/BoringOS-dev/boringos.git"
