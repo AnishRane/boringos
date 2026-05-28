@@ -32,17 +32,17 @@ async function main() {
 
   for (const row of rows) {
     if (typeof row.credentials === "string") {
-      // Already encrypted — skip.
+      // Already encrypted. Skip.
       skipped++;
       continue;
     }
     if (!row.credentials) {
-      // NULL — nothing to encrypt.
+      // NULL. Nothing to encrypt.
       skipped++;
       continue;
     }
     // Plain object: encrypt and write back.
-    // The `as never` cast is intentional — Drizzle types `credentials` as
+    // The `as never` cast is intentional. Drizzle types `credentials` as
     // JSONB (object). The encrypted string goes through the same column.
     // Task 2.1 will re-type this column properly; for now the cast is
     // documented and load-bearing.
