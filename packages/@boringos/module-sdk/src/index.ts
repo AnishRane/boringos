@@ -47,3 +47,26 @@ export {
 export type { RealtimeBus, RealtimeEvent } from "./realtime.js"; // MDK T3.1b
 export type { EventBus, ConnectorEvent } from "./event-bus.js"; // MDK T3.1c
 export type { ToolRegistry, RegisteredTool } from "./tool-registry.js"; // MDK T3.1d
+
+// MDK T3.2 — canonical UI contract is `PluginUI` from
+// `@boringos/ui`. Re-exporting here so module authors can `import
+// type { PluginUI, NavItem, ... } from "@boringos/module-sdk"`
+// without taking a second SDK import for client-side UI types. The
+// previous server-side `ModuleUI` (symbolic component names) is
+// kept for backward compatibility but is marked `@deprecated` in
+// `types.ts` — new modules should use `PluginUI`'s richer surface
+// (widgets, entity panels/actions, copilot tools, inbox filters).
+export type {
+  PluginUI,
+  PluginElement,
+  NavItem,
+  EntityPanel,
+  EntityAction,
+  EntityActionContext,
+  SettingsPanel,
+  CopilotTool,
+  InboxFilter,
+  DashboardWidget,
+  DashboardWidgetSize,
+  DashboardWidgetSlot,
+} from "@boringos/ui";

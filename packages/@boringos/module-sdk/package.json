@@ -29,7 +29,8 @@
   },
   "peerDependencies": {
     "@boringos/memory": "^0.1.9",
-    "@boringos/drive": "^0.1.9"
+    "@boringos/drive": "^0.1.9",
+    "@boringos/ui": "^0.1.9"
   },
   "peerDependenciesMeta": {
     "@boringos/memory": {
@@ -37,11 +38,15 @@
     },
     "@boringos/drive": {
       "optional": true
+    },
+    "@boringos/ui": {
+      "optional": true
     }
   },
   "devDependencies": {
     "@boringos/drive": "workspace:*",
     "@boringos/memory": "workspace:*",
+    "@boringos/ui": "workspace:*",
     "@types/archiver": "^6.0.2",
     "@types/node": "^22.0.0",
     "@types/yauzl": "^2.10.3",

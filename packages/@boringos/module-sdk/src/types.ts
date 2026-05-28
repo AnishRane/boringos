@@ -327,10 +327,21 @@ export interface ModuleDb {
 /**
  * UI surface a Module can register with the host shell.
  *
- * The shell imports a Module's React exports at host-app build
- * time and renders nav entries / panels for any tenant that has
- * the Module installed. Component references here are paths or
- * symbolic names; the actual React import happens in the shell.
+ * **@deprecated** — MDK T3.2. The canonical UI contract is now
+ * `PluginUI` from `@boringos/ui`, re-exported from this package.
+ * `PluginUI` is a strict superset of `ModuleUI` — it adds
+ * `dashboardWidgets`, `entityPanels`, `entityActions`, and
+ * `copilotTools` slots, and uses real React element references
+ * instead of symbolic component names. New modules should ship a
+ * separate web bundle exporting a `<id>UI: PluginUI` and have the
+ * shell load it via the runtime-loader. `ModuleUI` stays here for
+ * backward compatibility with modules built against the pre-T3.2
+ * SDK; it will be removed in a future major.
+ *
+ * Migration: replace `Module.ui: ModuleUI` with a separate web
+ * package exporting `<id>UI: PluginUI` and add the bundle path to
+ * `module.json`'s `ui.entry` / `ui.sourcePath` so `pack-hebbsmod`
+ * bundles it into the `.hebbsmod`. See `BUILD-A-MODULE.md`.
  */
 export interface ModuleUI {
   screens?: ScreenDef[];
