@@ -56,7 +56,9 @@ export const createGoogleModule: ModuleFactory = (deps) => ({
         try {
           const gmail = new GmailClient(conn.getToken);
           const messages = await gmail.listMessages({ query: input.query, maxResults: input.maxResults });
-          return { ok: true as const, result: messages };
+          // Convention: list-style tools return a named-key object so the
+          // Shell (and other callers) read result.data.<name> uniformly.
+          return { ok: true as const, result: { messages } };
         } catch (e) {
           return upstreamFail(e);
         }
@@ -124,7 +126,7 @@ export const createGoogleModule: ModuleFactory = (deps) => ({
         try {
           const gmail = new GmailClient(conn.getToken);
           const messages = await gmail.searchMessages(input.query, { maxResults: input.maxResults });
-          return { ok: true as const, result: messages };
+          return { ok: true as const, result: { messages } };
         } catch (e) {
           return upstreamFail(e);
         }
@@ -222,7 +224,7 @@ export const createGoogleModule: ModuleFactory = (deps) => ({
         try {
           const cal = new CalendarClient(conn.getToken);
           const slots = await cal.findFreeSlots(input);
-          return { ok: true as const, result: slots };
+          return { ok: true as const, result: { slots } };
         } catch (e) {
           return upstreamFail(e);
         }

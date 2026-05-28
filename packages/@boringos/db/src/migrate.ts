@@ -850,5 +850,9 @@ async function _applySchema(db: Db): Promise<void> {
     -- populate both columns.
     ALTER TABLE connector_token_issuance ADD COLUMN IF NOT EXISTS provider TEXT;
     ALTER TABLE connector_token_issuance ADD COLUMN IF NOT EXISTS account_id TEXT;
+    -- Backfill provider from the legacy kind column so audit queries
+    -- filtering by provider see historical rows. Idempotent: only fills
+    -- where provider is still NULL.
+    UPDATE connector_token_issuance SET provider = kind WHERE provider IS NULL AND kind IS NOT NULL;
   `);
 }

@@ -29,7 +29,7 @@ import {
 } from "@boringos/db";
 import { packCredentials, unpackCredentials } from "@boringos/db";
 import type { Db } from "@boringos/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, asc } from "drizzle-orm";
 import { exchangeRefreshToken } from "./auth-manager-oauth.js";
 import { createState, verifyState } from "./auth-manager-state.js";
 
@@ -193,10 +193,13 @@ export class AuthManager {
       if (bindings[0]) {
         accountId = bindings[0].accountId;
       } else {
-        // No explicit binding. Fall back to the first active account for
-        // this (tenant, provider). Makes single-account flows just work
-        // without requiring the user to configure bindings. Phase 3 UI
-        // will let users explicitly bind modules to specific accounts.
+        // No explicit binding. Fall back to the OLDEST active account for
+        // this (tenant, provider). Ordering by createdAt makes the choice
+        // deterministic across requests: a tenant with two Google accounts
+        // and no bindings always gets the one connected first. Otherwise
+        // PostgreSQL would return rows in arbitrary order and modules could
+        // silently flip between accounts. Phase 3 UI will let users bind
+        // modules to specific accounts explicitly.
         const fallback = await this.db
           .select()
           .from(connectorAccounts)
@@ -207,6 +210,7 @@ export class AuthManager {
               eq(connectorAccounts.status, "active"),
             ),
           )
+          .orderBy(asc(connectorAccounts.createdAt))
           .limit(1);
         if (!fallback[0]) {
           this.audit(provider, "", callerModuleId, "not_connected", tenantId);
