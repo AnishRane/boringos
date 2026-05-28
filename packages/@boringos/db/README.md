@@ -82,4 +82,25 @@ All tables include `tenantId` for multi-tenant scoping.
 
 `FRAMEWORK_TABLES` -- list of all table names
 
+## Encrypting existing OAuth credentials
+
+After deploying the encryption change (Task 0.2 in the Connector SDK v2 effort), run this script once per environment to encrypt any rows that still hold plaintext credentials from before the deployment.
+
+```bash
+BORINGOS_ENCRYPTION_KEY=<key> DATABASE_URL=<url> \
+  pnpm --filter @boringos/db tsx scripts/encrypt-existing-credentials.ts
+```
+
+The script is **idempotent**: rows already encrypted (string value in `credentials`) are skipped. Rows with NULL credentials are also skipped. Safe to re-run.
+
+**Generating an encryption key:**
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+Store the resulting 64-character hex string in your secret manager as `BORINGOS_ENCRYPTION_KEY`. Losing this key means losing access to all connector credentials. There is no recovery path.
+
+**Rollback:** restore the connectors table from backup. (The encryption is one-way for any individual row, but the row's stored value is fully replaced. No in-place mutation, so a backup restore is clean.)
+
 ## Part of [BoringOS](https://github.com/BoringOS-dev/boringos)
