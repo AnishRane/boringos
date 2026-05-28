@@ -26,6 +26,8 @@ export { createInboxModule } from "./modules/inbox.js";
 export { createSlackModule, getSlackToken } from "./modules/slack.js";
 export { createGoogleModule, getGoogleToken } from "./modules/google.js";
 export { getConnectorTokenForTenant } from "./connector-tokens.js";
+export { AuthManager } from "./auth-manager.js";
+export { tenantContext, requireTenantId } from "./tenant-context.js";
 export { createCopilotModule } from "./modules/copilot.js";
 export { createTriageModule } from "./modules/triage.js";
 export { createInboxTriageModule } from "./modules/inbox-triage.js";

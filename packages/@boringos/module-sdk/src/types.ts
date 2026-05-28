@@ -415,23 +415,23 @@ export interface ModuleFactoryDeps {
    */
   eventBus?: unknown;
   /**
-   * Returns a valid access token for a connected OAuth provider,
-   * refreshing proactively if the token is within 60 s of expiry.
-   * Returns null when the tenant has not connected the provider OR
-   * when no provider is registered for that kind.
+   * Get a token handle for the connector account bound to the calling module.
+   * Returns null if no account is connected or bound. The returned handle's
+   * getToken() refreshes transparently on expiry.
    *
-   * Modules use this to call provider APIs directly instead of
-   * routing through the tool registry string API.
+   * `provider` is the connector provider id (e.g. "google", "slack").
+   * `callerModuleId` is your module's own id — written to the audit table.
+   * Self-reported; pass your own manifest id (e.g. "executive-assistant").
    *
-   * `callerModuleId` is your Module's own id — written to the
-   * `connector_token_issuance` audit table for diagnostics. Self-
-   * reported; pass your own manifest id (e.g. `"executive-assistant"`).
+   * The tenant is resolved from the ambient tool-call context (AsyncLocalStorage)
+   * so it does not appear in this signature. Calling this outside a dispatched
+   * tool handler throws.
    */
   getConnectorToken?: (
-    kind: string,
-    tenantId: string,
+    provider: string,
     callerModuleId: string,
-  ) => Promise<{ accessToken: string } | null>;
+    opts?: { accountId?: string },
+  ) => Promise<ConnectorTokenHandle | null>;
   listConnectedAccounts?: (provider: string) => Promise<ConnectedAccount[]>;
   checkScopes?: (
     provider: string,

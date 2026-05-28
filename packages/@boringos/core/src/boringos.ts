@@ -73,6 +73,11 @@ import type { PluginDefinition } from "./plugin-system.js";
 import { createPluginWebhookRoutes, createPluginAdminRoutes } from "./plugin-routes.js";
 import { githubPlugin } from "./plugins/github.js";
 import { getConnectorTokenForTenant } from "./connector-tokens.js";
+import { AuthManager } from "./auth-manager.js";
+import { tenantContext, requireTenantId } from "./tenant-context.js";
+import { googleConnector } from "@boringos/connector-google";
+import { slackConnector } from "@boringos/connector-slack";
+import { randomBytes } from "node:crypto";
 
 export class BoringOS {
   private config: BoringOSConfig;
@@ -487,12 +492,36 @@ export class BoringOS {
       type: "boolean",
       default: false,
     });
+    // ── AuthManager (Connector SDK v2) ──────────────────────────────────
+    // One AuthManager per BoringOS instance. Built-in connectors are
+    // registered here at boot. Third-party connectors will register via
+    // the install pipeline in a future task.
+    //
+    // The public URL is used as the base for OAuth redirect URIs.
+    // Fall back to localhost:<port> when no explicit base is configured.
+    const authManagerSecret =
+      this.config.auth?.secret ?? randomBytes(32).toString("hex");
+    const publicBase = `http://localhost:${listenPort}`;
+    const authManager = new AuthManager(
+      dbConn.db,
+      authManagerSecret,
+      (provider: string) => `${publicBase}/oauth/${provider}/callback`,
+    );
+    authManager.registerConnector(googleConnector);
+    authManager.registerConnector(slackConnector);
+
     // ModuleFactory functions are resolved here, after the DB +
     // drive are available (memory provider, agent + workflow
     // engines are wired in by reference later — built-ins that
     // need them close over the deps object). The factory pattern
     // lets built-ins access framework services without leaking
     // those types into the SDK's Module shape.
+    //
+    // getConnectorToken / listConnectedAccounts / checkScopes thread
+    // the tenantId through AsyncLocalStorage (see tenant-context.ts).
+    // The tool dispatcher (tool-routes.ts) sets the store before every
+    // dispatch call; these closures read it. Calling outside a
+    // dispatched tool handler throws with a descriptive error.
     const factoryDeps: ModuleFactoryDeps = {
       db: dbConn.db,
       memory: this.memoryProvider,
@@ -505,8 +534,20 @@ export class BoringOS {
       toolRegistry: toolRegistry,
       realtimeBus: undefined as unknown,
       eventBus: undefined as unknown,
-      getConnectorToken: (kind, tenantId, callerModuleId) =>
-        getConnectorTokenForTenant(dbConn.db, kind, tenantId, callerModuleId),
+      getConnectorToken: (provider, callerModuleId, opts) => {
+        const tenantId = requireTenantId();
+        return authManager.getToken(provider, tenantId, callerModuleId, opts);
+      },
+      listConnectedAccounts: (provider) => {
+        const tenantId = requireTenantId();
+        return authManager.listAccounts(provider, tenantId);
+      },
+      checkScopes: (provider, scopes, opts) => {
+        const tenantId = requireTenantId();
+        // callerModuleId is not in the public signature; use "unknown" for audit.
+        // TODO: thread callerModuleId via opts in a follow-up.
+        return authManager.checkScopes(provider, tenantId, "unknown", scopes, opts);
+      },
     };
     const boundModules: Module[] = [];
 
