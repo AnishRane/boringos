@@ -1,13 +1,23 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //
-// task_22 / U2.2 — GO/NO-GO gate (kept around as an end-to-end
-// regression after U5 cut CRM over to upload-only).
+// task_22 / U2.2 + MDK T0.5 — GO/NO-GO gate (kept around as an
+// end-to-end regression after U5 cut CRM over to upload-only).
 //
 // Boots BoringOS with every built-in (CRM is no longer in the static
-// list — it's upload-only), extracts `tests/fixtures/crm-0.2.0.hebbsmod`,
+// list — it's upload-only), extracts `tests/fixtures/crm-0.3.0.hebbsmod`,
 // dynamically imports its `index.mjs`, hands the resulting factory to
 // `app.registerModule()`, signs up a tenant, installs CRM for that
-// tenant, dispatches `crm.contacts.create`, and asserts the DB row.
+// tenant, dispatches `crm.contacts.create`, asserts the DB row, and
+// (MDK T0.5) dispatches `crm.calendar.sync_prep` to prove CRM's new
+// connector-token path (T0.3) is wired end-to-end. With no Google
+// account connected, the tool must return a soft no-op
+// `{ok:true, result:{eventsFetched:0,...}}` rather than crash — that
+// soft-fail comes from CRM's `getCalendarClient` shim routing through
+// `deps.getConnectorToken("google","crm")`, which AuthManager
+// resolves to null in the absence of a `connector_accounts` row.
+//
+// Live-Google verification (real OAuth dance, real Calendar API
+// response) is a separate manual gate — see the T0.3 PR body.
 //
 // Exit code 0 means the runtime-register architecture is validated
 // (GO). Any failure short-circuits with a NO-GO summary.
@@ -44,7 +54,7 @@ const repoRoot = resolve(__dirname, "..");
 const HTTP_PORT = 0; // ephemeral
 const PG_PORT = 5500 + Math.floor(Math.random() * 200);
 
-const fixturePath = join(repoRoot, "tests", "fixtures", "crm-0.2.0.hebbsmod");
+const fixturePath = join(repoRoot, "tests", "fixtures", "crm-0.3.0.hebbsmod");
 if (!existsSync(fixturePath)) {
   console.error(`[try-runtime-install] FAIL — fixture not found: ${fixturePath}`);
   process.exit(1);
@@ -76,6 +86,16 @@ try {
   extractDir = join(harnessRoot, "extract");
   await mkdir(extractDir, { recursive: true });
   console.log(`[try-runtime-install] dataDir=${dataDir} extractDir=${extractDir} pgPort=${PG_PORT}`);
+
+  // The framework persists installed `.hebbsmod` bundles at
+  // <repoRoot>/.data/module-store and rehydrates them on boot, so a
+  // prior run of this script would otherwise leave CRM "statically"
+  // present and fail the precondition below. Wipe it for a clean GO.
+  const moduleStorePath = join(repoRoot, ".data", "module-store");
+  if (existsSync(moduleStorePath)) {
+    await rm(moduleStorePath, { recursive: true, force: true });
+    console.log(`[try-runtime-install] cleared persistent module-store at ${moduleStorePath}`);
+  }
 
   const app = new BoringOS({
     database: { embedded: true, port: PG_PORT, dataDir: join(dataDir, "pg") },
@@ -282,10 +302,57 @@ try {
   }
   step("db row exists", true, `crm__contacts.id=${rowList[0].id} email=${rowList[0].email}`);
 
+  // ── 10. MDK T0.5 — verify CRM's new connector-token path (T0.3) ─
+  //
+  // Dispatch crm.calendar.sync_prep on a tenant with NO connected
+  // Google account. The tool must return its documented soft no-op
+  // shape rather than crash. That proves end-to-end:
+  //
+  //   - CRM's google-client shim resolves through
+  //     `deps.getConnectorToken("google","crm")` instead of the
+  //     dropped `connectors` table.
+  //   - AuthManager returns null (no `connector_accounts` row).
+  //   - The CRM tool handler gracefully degrades to a no-op.
+  //
+  // Live-Google verification (real OAuth + real Calendar response)
+  // is the separate manual gate; covered by the T0.3 PR checklist.
+  const calRes = await fetch(`${server.url}/api/tools/crm.calendar.sync_prep`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${callbackToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({}),
+  });
+  const calStatus = calRes.status;
+  const calBody = await calRes.json();
+  if (calStatus !== 200) {
+    throw new Error(
+      `crm.calendar.sync_prep dispatch returned ${calStatus}: ${JSON.stringify(calBody)}`,
+    );
+  }
+  if (!calBody.ok) {
+    throw new Error(
+      `crm.calendar.sync_prep returned error envelope (expected soft no-op): ${JSON.stringify(calBody)}`,
+    );
+  }
+  const calResult = calBody.result ?? calBody.result?.data;
+  const eventsFetched = calResult?.eventsFetched;
+  if (eventsFetched !== 0) {
+    throw new Error(
+      `crm.calendar.sync_prep returned unexpected payload — expected eventsFetched=0 (no Google account connected). Got: ${JSON.stringify(calBody)}`,
+    );
+  }
+  step(
+    "calendar.sync_prep soft no-op (T0.5)",
+    true,
+    `eventsFetched=${eventsFetched} tasksCreated=${calResult.tasksCreated} tasksSkipped=${calResult.tasksSkipped}`,
+  );
+
   // Summary.
   console.log("");
   console.log("===============================================");
-  console.log(" GO — runtime register validated end-to-end.");
+  console.log(" GO — runtime register + T0.3 connector path validated end-to-end.");
   console.log("===============================================");
 } catch (err) {
   exitCode = 1;
