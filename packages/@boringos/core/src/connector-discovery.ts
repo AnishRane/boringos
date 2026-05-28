@@ -15,8 +15,9 @@
 // For custom connectors (not under @boringos/), use the explicit builder
 // hook: app.connector(myCustomConnector).
 
-import { readdir } from "node:fs/promises";
-import { join } from "node:path";
+import { readdir, readFile } from "node:fs/promises";
+import { join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import type { ConnectorDefinition } from "@boringos/module-sdk";
 
 export interface DiscoveredConnector {
@@ -62,9 +63,30 @@ export async function discoverConnectors(
 
       const provider = dir.slice("connector-".length);
       const exportName = `${provider}Connector`;
+      const pkgDir = join(root, dir);
 
       try {
-        const mod = (await import(packageName)) as Record<string, unknown>;
+        // Resolve the entry point from the package's own package.json
+        // rather than asking Node's resolver. The resolver looks at the
+        // CALLER's location (this file, inside @boringos/core), but the
+        // package we found could be in any node_modules path. file:// URLs
+        // let us import it regardless of where it lives.
+        const pkgJsonRaw = await readFile(join(pkgDir, "package.json"), "utf8");
+        const pkgJson = JSON.parse(pkgJsonRaw) as {
+          main?: string;
+          module?: string;
+          exports?: { ".": { import?: string; default?: string } | string };
+        };
+        let entryRelative: string | undefined;
+        if (typeof pkgJson.exports === "object" && pkgJson.exports?.["."]) {
+          const root = pkgJson.exports["."];
+          entryRelative = typeof root === "string"
+            ? root
+            : root.import ?? root.default;
+        }
+        entryRelative = entryRelative ?? pkgJson.module ?? pkgJson.main ?? "index.js";
+        const entryPath = resolve(pkgDir, entryRelative);
+        const mod = (await import(pathToFileURL(entryPath).href)) as Record<string, unknown>;
         const def = mod[exportName];
         if (
           def &&
