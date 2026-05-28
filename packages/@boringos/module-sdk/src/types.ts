@@ -432,6 +432,12 @@ export interface ModuleFactoryDeps {
     tenantId: string,
     callerModuleId: string,
   ) => Promise<{ accessToken: string } | null>;
+  listConnectedAccounts?: (provider: string) => Promise<ConnectedAccount[]>;
+  checkScopes?: (
+    provider: string,
+    scopes: string[],
+    opts?: { accountId?: string },
+  ) => Promise<ScopeCheckResult>;
 }
 
 export type ModuleFactory = (deps: ModuleFactoryDeps) => Module;
@@ -543,6 +549,14 @@ export interface Module {
    * module that ships SKILL.md files.
    */
   __moduleDir?: string;
+  /**
+   * Advisory declaration of which connectors and services this module uses.
+   * Used by the host for pre-install UI display (e.g., "this module uses Gmail and Calendar").
+   * Runtime checkScopes is authoritative — this field does NOT gate access.
+   */
+  connectors?: Record<string, {
+    services: ServiceDefinition[];
+  }>;
 }
 
 export type SkillFileRef =
@@ -631,4 +645,76 @@ export function inferModuleKind(mod: Module): ModuleKind {
   if (hasOauth && hasSchema) return "hybrid";
   if (hasOauth) return "connector";
   return "module";
+}
+
+// ============================================================
+// Connector SDK contract (v2)
+// ============================================================
+
+export interface OAuth2Strategy {
+  type: "oauth2";
+  authorizationUrl: string;
+  tokenUrl: string;
+  clientIdEnv: string;
+  clientSecretEnv: string;
+  pkce?: boolean;
+  accessType?: string;
+  prompt?: string;
+}
+
+export interface ApiKeyStrategy {
+  type: "api-key";
+  headerName?: string;
+  prefix?: string;
+}
+
+export interface BotTokenStrategy {
+  type: "bot-token";
+  tokenUrl?: string;
+}
+
+export interface PatStrategy {
+  type: "pat";
+  headerName?: string;
+}
+
+export type AuthStrategy = OAuth2Strategy | ApiKeyStrategy | BotTokenStrategy | PatStrategy;
+
+export interface ScopeDefinition {
+  scope: string;
+  description: string;
+  required: boolean;
+}
+
+export interface ServiceDefinition {
+  id: string;
+  displayName: string;
+  scopes: ScopeDefinition[];
+}
+
+export interface ConnectorDefinition {
+  provider: string;
+  displayName: string;
+  icon?: string;
+  version?: number;
+  auth: AuthStrategy[];
+  services: ServiceDefinition[];
+  resolveAccountId(tokenResponse: Record<string, unknown>): string;
+}
+
+export interface ConnectedAccount {
+  accountId: string;
+  provider: string;
+  grantedScopes: string[];
+  status: "active" | "expired" | "revoked";
+}
+
+export interface ConnectorTokenHandle {
+  getToken: () => Promise<string>;
+}
+
+export interface ScopeCheckResult {
+  granted: boolean;
+  missing: string[];
+  consentUrl?: string;
 }
