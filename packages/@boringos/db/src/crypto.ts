@@ -21,6 +21,7 @@ export function loadKey(): Buffer {
   return key;
 }
 
+// Wire format: base64(iv[12 bytes] || tag[16 bytes] || ciphertext[N bytes])
 export function encryptJson(value: unknown, key: Buffer): string {
   const iv = randomBytes(IV_LEN);
   const cipher = createCipheriv(ALGO, key, iv);
@@ -32,6 +33,9 @@ export function encryptJson(value: unknown, key: Buffer): string {
 
 export function decryptJson<T = unknown>(encoded: string, key: Buffer): T {
   const buf = Buffer.from(encoded, "base64");
+  if (buf.length < IV_LEN + TAG_LEN + 1) {
+    throw new Error(`Encrypted blob too short (${buf.length} bytes); expected at least ${IV_LEN + TAG_LEN + 1}`);
+  }
   const iv = buf.subarray(0, IV_LEN);
   const tag = buf.subarray(IV_LEN, IV_LEN + TAG_LEN);
   const ciphertext = buf.subarray(IV_LEN + TAG_LEN);

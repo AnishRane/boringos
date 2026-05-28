@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { encryptJson, decryptJson, generateKey } from "../src/crypto.js";
+import { encryptJson, decryptJson, generateKey, loadKey } from "../src/crypto.js";
 
 describe("crypto", () => {
   it("round-trips JSON through encrypt/decrypt", () => {
@@ -30,5 +30,26 @@ describe("crypto", () => {
     const key2 = generateKey();
     const encrypted = encryptJson({ x: 1 }, key1);
     expect(() => decryptJson(encrypted, key2)).toThrow();
+  });
+
+  it("loadKey throws when BORINGOS_ENCRYPTION_KEY is not set", () => {
+    const saved = process.env.BORINGOS_ENCRYPTION_KEY;
+    delete process.env.BORINGOS_ENCRYPTION_KEY;
+    try {
+      expect(() => loadKey()).toThrow("BORINGOS_ENCRYPTION_KEY not set");
+    } finally {
+      if (saved !== undefined) process.env.BORINGOS_ENCRYPTION_KEY = saved;
+    }
+  });
+
+  it("loadKey throws when key decodes to wrong length", () => {
+    const saved = process.env.BORINGOS_ENCRYPTION_KEY;
+    process.env.BORINGOS_ENCRYPTION_KEY = Buffer.alloc(16).toString("hex"); // 32 hex chars = 16 bytes
+    try {
+      expect(() => loadKey()).toThrow("must be 32 bytes");
+    } finally {
+      if (saved !== undefined) process.env.BORINGOS_ENCRYPTION_KEY = saved;
+      else delete process.env.BORINGOS_ENCRYPTION_KEY;
+    }
   });
 });
