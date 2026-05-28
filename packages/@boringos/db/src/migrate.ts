@@ -802,5 +802,60 @@ async function _applySchema(db: Db): Promise<void> {
       ON connector_token_issuance(tenant_id, kind, issued_at);
     CREATE INDEX IF NOT EXISTS token_issuance_caller_idx
       ON connector_token_issuance(tenant_id, caller_module_id, issued_at);
+
+    -- Task 2.1: v2 connector model -- multi-account, OAuth app overrides, module bindings.
+    --
+    -- connector_accounts: replaces the single-account-per-provider model of the
+    -- legacy connectors table. credentials is TEXT (AES-256-GCM ciphertext string)
+    -- rather than JSONB so the encrypted value round-trips without casts.
+    CREATE TABLE IF NOT EXISTS connector_accounts (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      tenant_id UUID NOT NULL REFERENCES tenants(id),
+      provider TEXT NOT NULL,
+      account_id TEXT NOT NULL,
+      auth_strategy TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'active',
+      credentials TEXT NOT NULL,
+      granted_scopes JSONB NOT NULL DEFAULT '[]',
+      profile JSONB,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      UNIQUE(tenant_id, provider, account_id)
+    );
+    CREATE INDEX IF NOT EXISTS connector_accounts_tenant_provider_idx
+      ON connector_accounts(tenant_id, provider);
+
+    -- connector_oauth_apps: per-tenant "bring your own OAuth app" credentials.
+    -- Stored encrypted (TEXT). One override per (tenant, provider).
+    CREATE TABLE IF NOT EXISTS connector_oauth_apps (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      tenant_id UUID NOT NULL REFERENCES tenants(id),
+      provider TEXT NOT NULL,
+      client_id TEXT NOT NULL,
+      client_secret TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      UNIQUE(tenant_id, provider)
+    );
+
+    -- module_connector_bindings: records which connector account a module uses when
+    -- the tenant has multiple accounts for the same provider. Falls back to the most
+    -- recent active account when no binding is present.
+    CREATE TABLE IF NOT EXISTS module_connector_bindings (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      tenant_id UUID NOT NULL REFERENCES tenants(id),
+      module_id TEXT NOT NULL,
+      provider TEXT NOT NULL,
+      account_id TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      UNIQUE(tenant_id, module_id, provider)
+    );
+    CREATE INDEX IF NOT EXISTS module_bindings_tenant_module_idx
+      ON module_connector_bindings(tenant_id, module_id);
+
+    -- Augment connector_token_issuance with v2 fields. Nullable so legacy rows
+    -- written by the v1 dispatcher are unaffected. New rows from AuthManager will
+    -- populate both columns.
+    ALTER TABLE connector_token_issuance ADD COLUMN IF NOT EXISTS provider TEXT;
+    ALTER TABLE connector_token_issuance ADD COLUMN IF NOT EXISTS account_id TEXT;
   `);
 }

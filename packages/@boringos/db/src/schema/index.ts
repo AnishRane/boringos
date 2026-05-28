@@ -29,3 +29,6 @@ export { moduleInstalls } from "./module-installs.js";
 export { moduleMigrations } from "./module-migrations.js";
 export { modulePackages } from "./module-packages.js";
 export { connectorTokenIssuance } from "./connector-token-issuance.js";
+export { connectorAccounts } from "./connector-accounts.js";
+export { connectorOauthApps } from "./connector-oauth-apps.js";
+export { moduleConnectorBindings } from "./module-connector-bindings.js";
