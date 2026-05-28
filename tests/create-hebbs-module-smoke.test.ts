@@ -162,6 +162,42 @@ describe("MDK T5.1 — create-hebbs-module scaffolder", () => {
     ).rejects.toThrow(/unknown template/);
   });
 
+  // ── T5.4 — generated package.json pins versioned registry deps ───
+
+  it("emits versioned npm ranges for @boringos/* — no link: / file: protocols", async () => {
+    const templates = ["default", "data", "agent-only", "connector-consumer"] as const;
+    for (const template of templates) {
+      const dir = await mkdtemp(join(tmpdir(), `cre-${template}-`));
+      try {
+        await scaffold({ id: "demo", targetDir: dir, template });
+        const pkg = JSON.parse(
+          await readFile(join(dir, "package.json"), "utf8"),
+        ) as {
+          dependencies?: Record<string, string>;
+          devDependencies?: Record<string, string>;
+        };
+        const all = {
+          ...(pkg.dependencies ?? {}),
+          ...(pkg.devDependencies ?? {}),
+        };
+        for (const [name, range] of Object.entries(all)) {
+          if (!name.startsWith("@boringos/")) continue;
+          expect(range, `${template}: ${name}`).not.toMatch(/^link:/);
+          expect(range, `${template}: ${name}`).not.toMatch(/^file:/);
+          expect(range, `${template}: ${name}`).not.toMatch(/^workspace:/);
+          // Versioned: either caret / tilde / exact semver.
+          expect(range, `${template}: ${name}`).toMatch(
+            /^(\^|~)?\d+\.\d+\.\d+(?:-[\w.-]+)?(?:\+[\w.-]+)?$/,
+          );
+        }
+        // Every template depends on @boringos/module-sdk.
+        expect(pkg.dependencies?.["@boringos/module-sdk"]).toBeTruthy();
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
+    }
+  });
+
   it("generates a module.json that parses against the SDK schema", async () => {
     const dir = await mkdtemp(join(tmpdir(), "create-hebbs-module-"));
     try {
