@@ -1,5 +1,12 @@
 # @boringos/connector-google
 
+## 0.2.3
+
+### Patch Changes
+
+- Updated dependencies [299ccc3]
+  - @boringos/module-sdk@0.5.0
+
 ## 0.2.2
 
 ### Patch Changes
