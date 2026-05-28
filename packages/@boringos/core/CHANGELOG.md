@@ -1,5 +1,23 @@
 # @boringos/core
 
+## 0.1.10
+
+### Patch Changes
+
+- a4ca940: Add `requiredScopes: ScopeDefinition[]` to `ConnectorDefinition` (closes the `profileService` hidden-service hack in `@boringos/connector-google`). `AuthManager.startOAuthFlow` now merges connector-required identity scopes with caller-requested service scopes (deduped) so any `ConnectorDefinition` can declare always-on OAuth scopes without piggybacking on the services flattener. `googleConnector` switches from `services: [profileService, …]` to `requiredScopes: PROFILE_SCOPES`; the `profileService` export is removed (it had no external consumers). Backward compatible: existing connectors without `requiredScopes` behave identically. Closes the `profileService` API-shape bullet in #61 (MDK Phase 0, T0.1 in `plans/module-dev-kit.md`).
+- Updated dependencies [a4ca940]
+- Updated dependencies [97d205a]
+- Updated dependencies
+  - @boringos/module-sdk@0.3.0
+  - @boringos/connector-google@0.2.1
+  - @boringos/db@0.1.9
+  - @boringos/runtime@0.1.9
+  - @boringos/memory@0.1.9
+  - @boringos/drive@0.1.9
+  - @boringos/pipeline@0.1.9
+  - @boringos/agent@0.1.10
+  - @boringos/connector-slack@0.2.1
+
 ## 0.1.9
 
 ### Patch Changes

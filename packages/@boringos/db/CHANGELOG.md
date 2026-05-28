@@ -1,5 +1,16 @@
 # @boringos/db
 
+## 0.1.9
+
+### Patch Changes
+
+- Republish baseline — closes the T1.4 blocker. Fixes two upstream publish bugs from the `b0897a8` chore release:
+
+  1. Six packages (`db`, `runtime`, `ui`, `memory`, `drive`, `pipeline`) had unresolved `workspace:*` references in their published `0.1.8` tarballs' dependency lists. Republishing via `pnpm changeset publish` correctly converts those to concrete versions.
+  2. `@boringos/ui@0.1.8` source contained `PluginUI` (the canonical UI contract type from Connector SDK v2) but the previously published tarball did not include the export. The patch republish ships it.
+
+  No source-level API changes; this is purely a registry-hygiene catch-up so downstream modules (CRM) can install from npm cleanly.
+
 ## 0.1.2
 
 ### Patch Changes

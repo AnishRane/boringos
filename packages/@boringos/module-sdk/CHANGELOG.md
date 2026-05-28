@@ -1,5 +1,15 @@
 # @boringos/module-sdk
 
+## 0.3.0
+
+### Minor Changes
+
+- a4ca940: Add `requiredScopes: ScopeDefinition[]` to `ConnectorDefinition` (closes the `profileService` hidden-service hack in `@boringos/connector-google`). `AuthManager.startOAuthFlow` now merges connector-required identity scopes with caller-requested service scopes (deduped) so any `ConnectorDefinition` can declare always-on OAuth scopes without piggybacking on the services flattener. `googleConnector` switches from `services: [profileService, …]` to `requiredScopes: PROFILE_SCOPES`; the `profileService` export is removed (it had no external consumers). Backward compatible: existing connectors without `requiredScopes` behave identically. Closes the `profileService` API-shape bullet in #61 (MDK Phase 0, T0.1 in `plans/module-dev-kit.md`).
+
+### Patch Changes
+
+- 97d205a: Hoist the tool result payload convention into `TOOLS.md` and `module-sdk/README.md` as a first-class rule (list-style tools return a named-key object keyed by the plural resource; singular tools return the value directly). Closes the "Tool result shape convention" bullet in #61. Pure documentation — no API or runtime changes.
+
 ## 0.2.0
 
 ### Minor Changes

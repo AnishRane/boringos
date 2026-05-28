@@ -1,5 +1,12 @@
 # @boringos/shell
 
+## 0.0.3
+
+### Patch Changes
+
+- Updated dependencies
+  - @boringos/ui@0.1.9
+
 ## 0.0.2
 
 ### Patch Changes

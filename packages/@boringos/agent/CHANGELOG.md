@@ -1,5 +1,19 @@
 # @boringos/agent
 
+## 0.1.10
+
+### Patch Changes
+
+- Updated dependencies [a4ca940]
+- Updated dependencies [97d205a]
+- Updated dependencies
+  - @boringos/module-sdk@0.3.0
+  - @boringos/db@0.1.9
+  - @boringos/runtime@0.1.9
+  - @boringos/memory@0.1.9
+  - @boringos/drive@0.1.9
+  - @boringos/pipeline@0.1.9
+
 ## 0.1.9
 
 ### Patch Changes
