@@ -1,6 +1,6 @@
 {
   "name": "@boringos/module-sdk",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -32,8 +32,12 @@
     "@boringos/drive": "^0.1.9"
   },
   "peerDependenciesMeta": {
-    "@boringos/memory": { "optional": true },
-    "@boringos/drive": { "optional": true }
+    "@boringos/memory": {
+      "optional": true
+    },
+    "@boringos/drive": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@boringos/drive": "workspace:*",
