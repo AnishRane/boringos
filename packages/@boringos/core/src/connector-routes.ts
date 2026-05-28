@@ -141,7 +141,7 @@ export function createConnectorRoutes(
     try {
       await authManager.handleOAuthCallback(provider, code, state);
       return c.redirect(
-        `${shellOrigin || publicOrigin(c, baseUrl)}/settings/connectors?connect=ok&provider=${encodeURIComponent(provider)}`,
+        `${shellOrigin || publicOrigin(c, baseUrl)}/connectors?connect=ok&provider=${encodeURIComponent(provider)}`,
       );
     } catch (err) {
       const reason = err instanceof Error ? err.message : "callback_failed";
