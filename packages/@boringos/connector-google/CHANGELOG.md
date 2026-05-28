@@ -1,5 +1,12 @@
 # @boringos/connector-google
 
+## 0.2.8
+
+### Patch Changes
+
+- Updated dependencies [efba86b]
+  - @boringos/module-sdk@0.10.0
+
 ## 0.2.7
 
 ### Patch Changes

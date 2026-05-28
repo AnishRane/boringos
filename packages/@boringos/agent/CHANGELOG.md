@@ -1,5 +1,12 @@
 # @boringos/agent
 
+## 0.1.17
+
+### Patch Changes
+
+- Updated dependencies [efba86b]
+  - @boringos/module-sdk@0.10.0
+
 ## 0.1.16
 
 ### Patch Changes
