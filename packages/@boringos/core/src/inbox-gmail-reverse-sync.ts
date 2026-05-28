@@ -24,6 +24,7 @@
 
 import { sql } from "drizzle-orm";
 import type { Db } from "@boringos/db";
+import { packCredentials, unpackCredentials } from "@boringos/db";
 import { GmailClient } from "@boringos/connector-google";
 import { refreshOAuthToken } from "./oauth.js";
 
@@ -52,7 +53,7 @@ async function runGmail(
       if (refreshed.expiresAt) nextCreds.expiresAt = refreshed.expiresAt;
       await db.execute(sql`
         UPDATE connectors
-           SET credentials = ${JSON.stringify(nextCreds)}::jsonb,
+           SET credentials = ${JSON.stringify(packCredentials(nextCreds))}::jsonb,
                updated_at  = now()
          WHERE id = ${row.id}
       `).catch(() => {});
@@ -194,7 +195,14 @@ export function createInboxGmailReverseSyncTicker(
        WHERE kind = ${KIND_GMAIL}
          AND status = ${"active"}
     `);
-    const rows = rowsResult as unknown as ConnectorRow[];
+    const rows = (rowsResult as unknown as Array<ConnectorRow & { credentials: unknown }>).map(
+      (r) => ({
+        ...r,
+        credentials: unpackCredentials<Record<string, unknown>>(
+          r.credentials as string | Record<string, unknown> | null,
+        ),
+      }),
+    ) as ConnectorRow[];
 
     let tenantsScanned = 0;
     let eventsApplied = 0;

@@ -20,6 +20,7 @@
 
 import { sql } from "drizzle-orm";
 import type { Db } from "@boringos/db";
+import { packCredentials, unpackCredentials } from "@boringos/db";
 import { GmailClient, type EmailHeaders } from "@boringos/connector-google";
 import { refreshOAuthToken } from "./oauth.js";
 import type { EventBus } from "./event-bus.js";
@@ -130,7 +131,7 @@ async function runGmail(
       await db
         .execute(
           sql`UPDATE connectors
-                 SET credentials = ${JSON.stringify(nextCreds)}::jsonb,
+                 SET credentials = ${JSON.stringify(packCredentials(nextCreds))}::jsonb,
                      updated_at  = now()
                WHERE id = ${row.id}`,
         )
@@ -291,7 +292,14 @@ export function createInboxGmailForwardSyncTicker(
          AND status = ${"active"}
          AND COALESCE(config->'gmail'->>'forwardSyncEnabled', 'true') <> 'false'
     `);
-    const rows = rowsResult as unknown as ConnectorRow[];
+    const rows = (rowsResult as unknown as Array<ConnectorRow & { credentials: unknown }>).map(
+      (r) => ({
+        ...r,
+        credentials: unpackCredentials<Record<string, unknown>>(
+          r.credentials as string | Record<string, unknown> | null,
+        ),
+      }),
+    ) as ConnectorRow[];
 
     let tenantsScanned = 0;
     let itemsCreated = 0;
