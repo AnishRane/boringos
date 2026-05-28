@@ -10,6 +10,10 @@ export interface SlackCredentials {
   accessToken: string;
 }
 
+/**
+ * @deprecated Use MessagingClient/ChannelsClient/ReactionsClient from the typed service modules.
+ *             This class will be removed in Phase 2 (Task 2.9).
+ */
 export class SlackClient {
   private token: string;
 
