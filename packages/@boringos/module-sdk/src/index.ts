@@ -46,3 +46,4 @@ export {
 // on module-sdk (cycle-free extraction).
 export type { RealtimeBus, RealtimeEvent } from "./realtime.js"; // MDK T3.1b
 export type { EventBus, ConnectorEvent } from "./event-bus.js"; // MDK T3.1c
+export type { ToolRegistry, RegisteredTool } from "./tool-registry.js"; // MDK T3.1d

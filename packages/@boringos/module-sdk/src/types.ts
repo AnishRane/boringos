@@ -26,6 +26,10 @@ import type { RealtimeBus } from "./realtime.js";
 // MDK T3.1c — minimal `EventBus` contract for cycle-free typing of
 // `ModuleFactoryDeps.eventBus`. Same pattern as `RealtimeBus`.
 import type { EventBus } from "./event-bus.js";
+// MDK T3.1d — minimal `ToolRegistry` contract for cycle-free
+// typing of `ModuleFactoryDeps.toolRegistry`. Agent's concrete
+// registry structurally implements this surface.
+import type { ToolRegistry } from "./tool-registry.js";
 
 /**
  * Anything carrying a tenantId. Modules are tenant-scoped via
@@ -414,12 +418,14 @@ export interface ModuleFactoryDeps {
   /** The workflow engine instance. */
   workflowEngine?: unknown;
   /**
-   * The tool registry. Modules that need to invoke other
-   * tools internally (workflow.run dispatching DAG nodes, agent
-   * orchestration code) cast this to ToolRegistry from
-   * `@boringos/agent`.
+   * Read-only view of the host's tool registry — `get` /
+   * `list` / `listByModule`. Modules use this to discover
+   * peer tools (workflow nodes dispatching, agent orchestration
+   * code listing capabilities). Write methods
+   * (register/unregister) stay in the agent's concrete
+   * registry — only the host needs them. MDK T3.1d.
    */
-  toolRegistry?: unknown;
+  toolRegistry?: ToolRegistry;
   /**
    * The realtime SSE bus. Modules that publish live events
    * (workflow block_started/completed for the canvas, run progress
