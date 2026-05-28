@@ -7,3 +7,4 @@
 // MDK T4.2.
 
 export { runTest, type TestOptions, type TestResult } from "./test.js";
+export { startDev, type DevOptions, type DevHandle } from "./dev.js";

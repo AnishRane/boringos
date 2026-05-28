@@ -8,6 +8,7 @@
 // MDK T4.2.
 
 import { runTest } from "./test.js";
+import { startDev } from "./dev.js";
 
 interface ParsedArgs {
   command: string | null;
@@ -50,16 +51,17 @@ function printHelp(): void {
       "hebbs — module dev kit CLI",
       "",
       "Usage:",
-      "  hebbs test <module> [options]",
+      "  hebbs test <module> [options]   one-shot smoke (boot, optional dispatch, tear down)",
+      "  hebbs dev  <module> [options]   boot and stay alive (Ctrl+C to stop) — MDK T6.1",
       "",
       "Arguments:",
       "  <module>           path to a .hebbsmod archive OR a built module package",
       "                     (a directory containing index.mjs + module.json)",
       "",
-      "Options:",
+      "Options (both commands):",
       "  --tool <name>      dispatch a smoke tool after install (e.g. crm.contacts.create)",
       "  --inputs <json>    JSON inputs for --tool (default: {})",
-      "  --json             emit a machine-readable JSON result",
+      "  --json             emit a machine-readable JSON result (test only)",
       "  --help, -h         print this message",
       "",
     ].join("\n"),
@@ -72,7 +74,7 @@ async function main(): Promise<number> {
     printHelp();
     return 0;
   }
-  if (args.command !== "test") {
+  if (args.command !== "test" && args.command !== "dev") {
     process.stderr.write(
       `hebbs: unknown command "${args.command ?? "(none)"}"\n\n`,
     );
@@ -99,6 +101,10 @@ async function main(): Promise<number> {
       );
       return 2;
     }
+  }
+
+  if (args.command === "dev") {
+    return runDev(modulePath, smokeToolName, smokeToolInputs);
   }
 
   const wantJson = args.flags.json === true;
@@ -135,6 +141,65 @@ async function main(): Promise<number> {
   }
 
   return result.ok ? 0 : 1;
+}
+
+async function runDev(
+  modulePath: string,
+  smokeToolName?: string,
+  smokeToolInputs?: unknown,
+): Promise<number> {
+  try {
+    const handle = await startDev({
+      modulePath,
+      smokeToolName,
+      smokeToolInputs,
+    });
+    process.stdout.write(
+      [
+        ``,
+        `▶ hebbs dev — ${handle.host.moduleId}@${handle.host.moduleVersion}`,
+        ``,
+        `  url:        ${handle.host.url}`,
+        `  tenant id:  ${handle.host.tenantId}`,
+        `  jwt:        ${handle.host.callbackToken.slice(0, 24)}…  (Authorization: Bearer)`,
+        ``,
+        `  Try a tool:`,
+        `    curl -X POST '${handle.host.url}/api/tools/${handle.host.moduleId}.greet' \\`,
+        `      -H "Authorization: Bearer ${handle.host.callbackToken.slice(0, 24)}…" \\`,
+        `      -H 'Content-Type: application/json' \\`,
+        `      -d '{"name":"Ada"}'`,
+        ``,
+        `  Ctrl+C to shut down.`,
+        ``,
+      ].join("\n"),
+    );
+
+    let shuttingDown = false;
+    const close = async (signal: string): Promise<void> => {
+      if (shuttingDown) return;
+      shuttingDown = true;
+      process.stdout.write(`\n  caught ${signal} — shutting down…\n`);
+      await handle.shutdown();
+      process.exit(0);
+    };
+    process.on("SIGINT", () => {
+      void close("SIGINT");
+    });
+    process.on("SIGTERM", () => {
+      void close("SIGTERM");
+    });
+
+    // Keep the event loop alive until a signal arrives.
+    await new Promise<void>(() => {
+      /* never resolves; signal handlers exit */
+    });
+    return 0;
+  } catch (err) {
+    process.stderr.write(
+      `✗ hebbs dev FAILED — ${err instanceof Error ? err.message : String(err)}\n`,
+    );
+    return 1;
+  }
 }
 
 main()
