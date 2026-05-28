@@ -15,13 +15,38 @@ call. The framework wires the rest.
 ## What you need
 
 - TypeScript / Node 22+
-- A project with `@boringos/module-sdk` installed from npm. **No framework checkout required.**
-  ```bash
-  pnpm add @boringos/module-sdk
-  # plus — only if your module consumes a connector:
-  pnpm add @boringos/connector-google   # or @boringos/connector-slack, etc.
-  ```
 - A host runtime to load your module: either your own minimal `BoringOS` host (the example below) or a deployed Shell that accepts `.hebbsmod` uploads.
+
+## Quickstart — `pnpm create hebbs-module`
+
+The fastest path: scaffold a buildable module with one command. The
+generator emits the full skeleton (manifest, factory with one tool,
+SKILL.md, demo schema migration, seeded agent / workflow / cron
+routine), all pinned to published `@boringos/*` packages — no
+framework checkout required.
+
+```bash
+pnpm create hebbs-module my-mod         # default — one-of-each surface
+pnpm create hebbs-module my-mod --template data              # schema-heavy
+pnpm create hebbs-module my-mod --template agent-only        # just an agent
+pnpm create hebbs-module my-mod --template connector-consumer  # Gmail via deps
+cd my-mod
+pnpm install
+pnpm build
+pnpm test    # boots a headless host and verifies install
+```
+
+That's the entry point. Everything below is the reference for what
+the scaffolder generated, and how to hand-roll a module from scratch
+if you prefer.
+
+## Manual install (skip if you used the scaffolder)
+
+```bash
+pnpm add @boringos/module-sdk
+# plus — only if your module consumes a connector:
+pnpm add @boringos/connector-google   # or @boringos/connector-slack, etc.
+```
 
 ---
 
