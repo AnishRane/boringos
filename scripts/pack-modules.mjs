@@ -41,8 +41,12 @@ const FRAMEWORK_ROOT = resolvePath(__dirname, "..");
 // standalone Module packages. CLI `--pkg` args, if supplied, fully
 // override this list.
 // ---------------------------------------------------------------------------
+// Paths resolved relative to FRAMEWORK_ROOT so the script works on
+// any dev machine and inside CI. Missing entries skip gracefully
+// (see `packOne` -> "directory not found") so a build without CRM
+// cloned next door still succeeds. MDK T2.4.
 const DEFAULT_PACKAGES = [
-  "/Users/paragarora/Documents/Workspace/research/hebbs-clients/boringos-crm/packages/server",
+  resolvePath(FRAMEWORK_ROOT, "..", "boringos-crm", "packages", "server"),
 ];
 
 const PACK_BIN = resolvePath(
@@ -157,16 +161,23 @@ function shortPath(p) {
  */
 function packOne(pkgPath) {
   if (!isDir(pkgPath)) {
+    // MDK T2.4 — a missing sibling repo (e.g. CRM not cloned on this
+    // build machine) is a SKIP, not a failure. The postbuild hook
+    // must not break the framework build when optional modules are
+    // absent.
     return {
-      status: "failed",
+      status: "skipped",
       pkgPath,
       reason: `directory not found: ${pkgPath}`,
     };
   }
   const packageJsonPath = resolvePath(pkgPath, "package.json");
   if (!isFile(packageJsonPath)) {
+    // Same rationale — a partially-set-up dir isn't a build-breaking
+    // failure. The author can rerun `pnpm pack:modules` explicitly to
+    // get a hard error when they intend to pack everything.
     return {
-      status: "failed",
+      status: "skipped",
       pkgPath,
       reason: `missing package.json in ${pkgPath}`,
     };
@@ -317,15 +328,23 @@ function main() {
   }
   process.stdout.write("\n");
 
-  const failures = results.filter((r) => r.status !== "ok");
-  if (failures.length > 0) {
+  // MDK T2.4 — when wired into `postbuild` ("pnpm pack:modules" runs
+  // after every `pnpm -r build`), skipping a missing sibling package
+  // (e.g. CRM not cloned next door, CI without the optional repo)
+  // must NOT fail the build. Only hard failures (pack-hebbsmod
+  // exited non-zero, expected artifact not produced) abort.
+  const hardFailures = results.filter((r) => r.status === "failed");
+  const skipped = results.filter((r) => r.status === "skipped");
+  const ok = results.filter((r) => r.status === "ok");
+
+  if (hardFailures.length > 0) {
     process.stderr.write(
-      `pack-modules: ${failures.length} of ${results.length} package${results.length === 1 ? "" : "s"} did not pack successfully.\n`,
+      `pack-modules: ${hardFailures.length} of ${results.length} package${results.length === 1 ? "" : "s"} failed to pack.\n`,
     );
     process.exit(1);
   }
   process.stdout.write(
-    `pack-modules: ${results.length} package${results.length === 1 ? "" : "s"} packed successfully.\n`,
+    `pack-modules: ${ok.length} packed, ${skipped.length} skipped.\n`,
   );
 }
 

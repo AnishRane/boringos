@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "node --env-file-if-exists=.env.local scripts/dev-server.mjs",
     "build": "pnpm -r build",
+    "postbuild": "node scripts/pack-modules.mjs",
     "typecheck": "pnpm -r typecheck",
     "test": "vitest",
     "test:run": "vitest run",
