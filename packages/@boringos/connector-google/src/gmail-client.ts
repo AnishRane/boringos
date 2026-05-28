@@ -275,6 +275,10 @@ function encodeMimeHeader(value: string): string {
   return `=?UTF-8?B?${b64}?=`;
 }
 
+/**
+ * @deprecated Use `GmailClient` from "./services/gmail/index.js" with typed methods.
+ *             This class will be removed in Phase 2 (Task 2.9).
+ */
 export class GmailClient {
   private token: string;
 
