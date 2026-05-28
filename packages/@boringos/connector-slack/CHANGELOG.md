@@ -1,5 +1,12 @@
 # @boringos/connector-slack
 
+## 0.2.5
+
+### Patch Changes
+
+- Updated dependencies [09fb6b7]
+  - @boringos/module-sdk@0.7.0
+
 ## 0.2.4
 
 ### Patch Changes

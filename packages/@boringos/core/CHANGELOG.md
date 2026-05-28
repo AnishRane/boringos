@@ -1,5 +1,15 @@
 # @boringos/core
 
+## 0.2.2
+
+### Patch Changes
+
+- Updated dependencies [09fb6b7]
+  - @boringos/module-sdk@0.7.0
+  - @boringos/agent@0.1.14
+  - @boringos/connector-google@0.2.5
+  - @boringos/connector-slack@0.2.5
+
 ## 0.2.1
 
 ### Patch Changes
