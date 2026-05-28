@@ -190,11 +190,30 @@ export class AuthManager {
         )
         .limit(1);
 
-      if (!bindings[0]) {
-        this.audit(provider, "", callerModuleId, "not_connected", tenantId);
-        return null;
+      if (bindings[0]) {
+        accountId = bindings[0].accountId;
+      } else {
+        // No explicit binding. Fall back to the first active account for
+        // this (tenant, provider). Makes single-account flows just work
+        // without requiring the user to configure bindings. Phase 3 UI
+        // will let users explicitly bind modules to specific accounts.
+        const fallback = await this.db
+          .select()
+          .from(connectorAccounts)
+          .where(
+            and(
+              eq(connectorAccounts.tenantId, tenantId),
+              eq(connectorAccounts.provider, provider),
+              eq(connectorAccounts.status, "active"),
+            ),
+          )
+          .limit(1);
+        if (!fallback[0]) {
+          this.audit(provider, "", callerModuleId, "not_connected", tenantId);
+          return null;
+        }
+        accountId = fallback[0].accountId;
       }
-      accountId = bindings[0].accountId;
     }
 
     // --- Step 2: verify the account row exists ---
