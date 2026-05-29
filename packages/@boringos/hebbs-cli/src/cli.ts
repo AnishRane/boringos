@@ -62,6 +62,7 @@ function printHelp(): void {
       "  --tool <name>      dispatch a smoke tool after install (e.g. crm.contacts.create)",
       "  --inputs <json>    JSON inputs for --tool (default: {})",
       "  --json             emit a machine-readable JSON result (test only)",
+      "  --no-watch         dev only: disable file-watcher hot reload",
       "  --help, -h         print this message",
       "",
     ].join("\n"),
@@ -104,7 +105,8 @@ async function main(): Promise<number> {
   }
 
   if (args.command === "dev") {
-    return runDev(modulePath, smokeToolName, smokeToolInputs);
+    const noWatch = args.flags["no-watch"] === true;
+    return runDev(modulePath, smokeToolName, smokeToolInputs, !noWatch);
   }
 
   const wantJson = args.flags.json === true;
@@ -147,12 +149,22 @@ async function runDev(
   modulePath: string,
   smokeToolName?: string,
   smokeToolInputs?: unknown,
+  watch: boolean = true,
 ): Promise<number> {
   try {
     const handle = await startDev({
       modulePath,
       smokeToolName,
       smokeToolInputs,
+      watch: watch ? "auto" : false,
+      onReload: (r) => {
+        process.stdout.write(
+          `  ↻ reloaded ${r.moduleId}@${r.moduleVersion} ` +
+            `(tools ${r.toolsRemoved}→${r.toolsAdded}, ` +
+            `skills ${r.skillsRemoved}→${r.skillsAdded}, ` +
+            `${r.durationMs}ms)\n`,
+        );
+      },
     });
     process.stdout.write(
       [
@@ -162,6 +174,7 @@ async function runDev(
         `  url:        ${handle.host.url}`,
         `  tenant id:  ${handle.host.tenantId}`,
         `  jwt:        ${handle.host.callbackToken.slice(0, 24)}…  (Authorization: Bearer)`,
+        `  watch:      ${handle.watching ? "on (edit files to reload)" : "off"}`,
         ``,
         `  Try a tool:`,
         `    curl -X POST '${handle.host.url}/api/tools/${handle.host.moduleId}.greet' \\`,

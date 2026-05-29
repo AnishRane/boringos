@@ -83,9 +83,39 @@ export interface DevHost {
     fullToolName: string,
     inputs: unknown,
   ): Promise<T>;
+  /**
+   * Drop the currently-registered module and re-import + re-register
+   * from `modulePath`. Powers `hebbs dev` hot reload (MDK T6.2).
+   *
+   * For `.hebbsmod` archives, the archive is re-extracted into a fresh
+   * sibling dir first. For directory paths, the entry file is
+   * re-imported with a `?t=<now>` cache-buster — Node's ESM cache
+   * otherwise serves the old module verbatim. `restartRecommended` from
+   * `unregisterModule()` is surfaced for callers that want to log it
+   * (the dev workflow accepts the closure-leak risk in exchange for
+   * sub-second feedback).
+   */
+  reload(): Promise<ReloadResult>;
   /** Tear down the server, drop the extract dir, and remove the
    *  per-run dataDir. */
   close(): Promise<void>;
+}
+
+export interface ReloadResult {
+  moduleId: string;
+  /** Tools that vanished during the unregister pass. */
+  toolsRemoved: number;
+  /** Skills that vanished during the unregister pass. */
+  skillsRemoved: number;
+  /** Tools the re-registered module brought in. */
+  toolsAdded: number;
+  /** Skills the re-registered module brought in. */
+  skillsAdded: number;
+  /** Manifest version after reload — may differ if the author bumped
+   *  it between edits. */
+  moduleVersion: string;
+  /** Wall-clock ms from `reload()` entry to re-register completion. */
+  durationMs: number;
 }
 
 // ── Implementation ──────────────────────────────────────────────────────
@@ -141,59 +171,93 @@ export async function createDevHost(opts: DevHostOptions): Promise<DevHost> {
 
   const server = await app.listen(0);
 
-  // ── 2. Resolve module bundle ─────────────────────────────────
+  // ── 2. Resolve module bundle + register factory ──────────────
+  //
+  // Wrapped in a closure so `reload()` can re-run the same path with
+  // a fresh extract dir + cache-busted import.
   let bundleDir: string;
-  if (opts.modulePath.endsWith(".hebbsmod")) {
-    const unzip = spawnSync("unzip", [
-      "-q",
-      opts.modulePath,
-      "-d",
-      extractDir,
-    ]);
-    if (unzip.status !== 0) {
+  const resolveAndImport = async (
+    cacheBustToken: string | null,
+  ): Promise<{
+    factory: ModuleFactory;
+    manifest: { id: string; version: string };
+  }> => {
+    if (opts.modulePath.endsWith(".hebbsmod")) {
+      // Each reload extracts into a fresh sibling so we don't try to
+      // overwrite the still-imported files (and so the cache-buster
+      // URL distinguishes them on disk).
+      const reExtractDir = join(
+        harnessRoot,
+        cacheBustToken ? `extract-${cacheBustToken}` : "extract",
+      );
+      await mkdir(reExtractDir, { recursive: true });
+      const unzip = spawnSync("unzip", [
+        "-q",
+        "-o",
+        opts.modulePath,
+        "-d",
+        reExtractDir,
+      ]);
+      if (unzip.status !== 0) {
+        throw new Error(
+          `dev-host: unzip failed (status=${unzip.status}): ${unzip.stderr?.toString() ?? "no stderr"}`,
+        );
+      }
+      bundleDir = reExtractDir;
+    } else {
+      // Pre-built module package directory.
+      bundleDir = opts.modulePath;
+    }
+
+    const manifest = JSON.parse(
+      await readFile(join(bundleDir, "module.json"), "utf8"),
+    ) as { id: string; version: string };
+
+    const entryPath = join(bundleDir, "index.mjs");
+    const entryUrl = cacheBustToken
+      ? `${pathToFileURL(entryPath).href}?t=${cacheBustToken}`
+      : pathToFileURL(entryPath).href;
+    const bundleMod = (await import(entryUrl)) as Record<string, unknown>;
+    const factory =
+      (bundleMod.default as ModuleFactory | undefined) ??
+      (bundleMod[
+        `create${capitalize(manifest.id)}Module`
+      ] as ModuleFactory | undefined);
+    if (typeof factory !== "function") {
       throw new Error(
-        `dev-host: unzip failed (status=${unzip.status}): ${unzip.stderr?.toString() ?? "no stderr"}`,
+        `dev-host: bundle did not expose a ModuleFactory. Keys: ${Object.keys(bundleMod).join(", ")}`,
       );
     }
-    bundleDir = extractDir;
-  } else {
-    // Treat as a pre-built module package directory.
-    bundleDir = opts.modulePath;
-  }
+    return { factory, manifest };
+  };
 
-  const manifest = JSON.parse(
-    await readFile(join(bundleDir, "module.json"), "utf8"),
-  ) as { id: string; version: string };
+  const { factory, manifest } = await resolveAndImport(null);
 
-  // ── 3. Dynamic-import factory ────────────────────────────────
-  const entryPath = bundleDir.endsWith(".hebbsmod")
-    ? join(bundleDir, "index.mjs")
-    : join(bundleDir, "index.mjs");
-  const entryUrl = pathToFileURL(entryPath).href;
-  const bundleMod = (await import(entryUrl)) as Record<string, unknown>;
-  const factory =
-    (bundleMod.default as ModuleFactory | undefined) ??
-    (bundleMod[
-      `create${capitalize(manifest.id)}Module`
-    ] as ModuleFactory | undefined);
-  if (typeof factory !== "function") {
-    throw new Error(
-      `dev-host: bundle did not expose a ModuleFactory. Keys: ${Object.keys(bundleMod).join(", ")}`,
-    );
-  }
-
-  // ── 4. registerModule() ──────────────────────────────────────
+  // ── 3. registerModule() ──────────────────────────────────────
   const deps = (app as unknown as { factoryDeps?: ModuleFactoryDeps })
     .factoryDeps;
   if (!deps) {
     throw new Error("dev-host: app.factoryDeps was null after listen()");
   }
-  await (app as unknown as {
-    registerModule: (
-      f: ModuleFactory | Module,
-      d: ModuleFactoryDeps,
-    ) => Promise<{ moduleId: string; toolsAdded: number; skillsAdded: number }>;
-  }).registerModule(factory, deps);
+  type RegisterFn = (
+    f: ModuleFactory | Module,
+    d: ModuleFactoryDeps,
+  ) => Promise<{ moduleId: string; toolsAdded: number; skillsAdded: number }>;
+  type UnregisterFn = (id: string) => Promise<{
+    moduleId: string;
+    toolsRemoved: number;
+    skillsRemoved: number;
+    restartRecommended: true;
+  }>;
+  const appReg = app as unknown as {
+    registerModule: RegisterFn;
+    unregisterModule: UnregisterFn;
+  };
+  await appReg.registerModule(factory, deps);
+
+  // Tracks the latest manifest version so reload() can surface bumps
+  // back to the caller without re-reading after the fact.
+  let currentManifestVersion = manifest.version;
 
   // ── 5. Sign up a tenant ──────────────────────────────────────
   const signupRes = await fetch(`${server.url}/api/auth/signup`, {
@@ -284,7 +348,8 @@ export async function createDevHost(opts: DevHostOptions): Promise<DevHost> {
     callbackToken,
     db,
     moduleId: manifest.id,
-    moduleVersion: manifest.version,
+    // moduleVersion is exposed through a getter below so reload()
+    // bumps land in the handle without re-construction.
 
     async dispatch<T>(fullToolName: string, inputs: unknown): Promise<T> {
       const r = await fetch(
@@ -305,6 +370,29 @@ export async function createDevHost(opts: DevHostOptions): Promise<DevHost> {
         );
       }
       return body as T;
+    },
+
+    async reload(): Promise<ReloadResult> {
+      const t0 = Date.now();
+      const unreg = await appReg.unregisterModule(manifest.id);
+      const cacheBust = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const { factory: nextFactory, manifest: nextManifest } =
+        await resolveAndImport(cacheBust);
+      const reg = await appReg.registerModule(nextFactory, deps);
+      currentManifestVersion = nextManifest.version;
+      return {
+        moduleId: reg.moduleId,
+        toolsRemoved: unreg.toolsRemoved,
+        skillsRemoved: unreg.skillsRemoved,
+        toolsAdded: reg.toolsAdded,
+        skillsAdded: reg.skillsAdded,
+        moduleVersion: nextManifest.version,
+        durationMs: Date.now() - t0,
+      };
+    },
+
+    get moduleVersion(): string {
+      return currentManifestVersion;
     },
 
     async close(): Promise<void> {

@@ -17,6 +17,9 @@ coverage/
 plans/
 .npmrc
 .worktrees/
+# Dev-host scratch dirs (extract / clone-for-reload-tests). Live
+# under the framework root so Node module resolution still works.
+.dev-host-*
 # TypeScript incremental build cache — regenerates on every build.
 *.tsbuildinfo
 
