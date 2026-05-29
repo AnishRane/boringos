@@ -1,5 +1,25 @@
 # @boringos/core
 
+## 0.4.0
+
+### Minor Changes
+
+- a53e6f4: Per-hook runtime policy + declarative `inboxSource` (MDK T7.3).
+
+  - `@boringos/module-sdk` — new `InboxSource` type. `Module.inboxSource` is the manifest-level equivalent of `app.routeToInbox(...)`, with a JSONPath-lite field projection so `.hebbsmod` modules can declare inbox routing without smuggling closures.
+  - `@boringos/core` — `registerModule()` compiles a manifest `inboxSource` into the existing `inboxRoutes` pipeline. Same downstream behaviour as `app.routeToInbox()`; the helper handles event-type matching, optional path-equals filtering, and `$.` references into the event payload.
+  - `MODULES.md` — new "Hook reach" section codifying the policy table: tools/skills/schema/agents/workflows/routines/events/webhooks/inboxSource/lifecycle ship in the manifest; blockHandler is data-driven; contextProvider/persona/onTenantCreated/route stay host-only (and `route` is **explicitly disallowed** for runtime `.hebbsmod` — modules can't smuggle host-scope HTTP). Includes a worked `inboxSource` example.
+
+  CRM has no `routeToInbox` call to migrate today — it reacts to inbox events via routine triggers instead. The manifest field ships for future authors + the third-party `.hebbsmod` path.
+
+### Patch Changes
+
+- Updated dependencies [a53e6f4]
+  - @boringos/module-sdk@0.13.0
+  - @boringos/agent@0.3.1
+  - @boringos/connector-google@0.2.11
+  - @boringos/connector-slack@0.2.11
+
 ## 0.3.2
 
 ### Patch Changes
