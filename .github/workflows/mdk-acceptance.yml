@@ -1,0 +1,45 @@
+name: MDK Acceptance
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+# The "always-green main" gate for the Module Dev Kit. Runs the full
+# Vitest suite (incl. the CRM E2E that drives `hebbs test` against a
+# packed `.hebbsmod`) plus typecheck + build. If this is red, the
+# MDK contract is broken; module authors will hit it.
+
+concurrency:
+  group: mdk-acceptance-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  acceptance:
+    runs-on: ubuntu-latest
+    name: typecheck + build + full vitest suite
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm -r typecheck
+
+      - name: Build
+        run: pnpm -r build
+
+      - name: Test (full vitest suite)
+        run: pnpm test:run
