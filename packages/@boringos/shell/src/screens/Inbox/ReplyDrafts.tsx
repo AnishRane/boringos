@@ -22,25 +22,25 @@ export function ReplyDrafts({ drafts, onUseDraft, onDiscardDraft }: ReplyDraftsP
   return (
     <section
       data-testid="reply-drafts"
-      className="rounded-lg border border-emerald-200 bg-emerald-50/40"
+      className="rounded-lg border border-success/40 bg-success-tint"
     >
       <div className="px-4 pt-3 pb-1 flex items-center gap-2">
-        <span className="text-[10px] uppercase tracking-wider text-emerald-800 font-medium">
+        <span className="text-[10px] uppercase tracking-wider text-success font-medium">
           ✏ Reply drafts
         </span>
-        <span className="text-[10px] text-emerald-700/70 tabular-nums">
+        <span className="text-[10px] text-muted tabular-nums">
           {drafts.length}
         </span>
       </div>
-      <ul className="divide-y divide-emerald-100">
+      <ul className="divide-y divide-success/20">
         {drafts.map((draft, i) => (
           <li key={`${draft.author}-${i}`} className="px-4 py-3" data-testid="reply-draft-card">
             <div className="flex items-baseline gap-2">
-              <span className="text-[11px] font-medium text-emerald-800">
+              <span className="text-[11px] font-medium text-success">
                 {labelFor(draft.author)}
               </span>
               {draft.draftedAt && (
-                <span className="text-[10px] text-emerald-700/60">
+                <span className="text-[10px] text-muted">
                   {formatAbsoluteTime(draft.draftedAt)}
                 </span>
               )}

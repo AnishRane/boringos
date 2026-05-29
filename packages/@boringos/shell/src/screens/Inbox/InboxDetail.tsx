@@ -126,16 +126,16 @@ export function InboxDetail({
         {sentReply && (
           <section
             data-testid="sent-reply-card"
-            className="rounded-lg border border-emerald-200 bg-emerald-50/40 px-4 py-3"
+            className="rounded-lg border border-success/40 bg-success-tint px-4 py-3"
           >
             <div className="flex items-center gap-2">
-              <span className="text-[10px] uppercase tracking-wider text-emerald-800 font-medium">
+              <span className="text-[10px] uppercase tracking-wider text-success font-medium">
                 ↩ Your reply
               </span>
-              <span className="text-[10px] text-emerald-700/70">
+              <span className="text-[10px] text-muted">
                 {formatAbsoluteTime(sentReply.sentAt)}
               </span>
-              <span className="text-[10px] font-mono text-emerald-700/60 ml-auto">
+              <span className="text-[10px] font-mono text-muted ml-auto">
                 via {sentReply.via}
               </span>
             </div>

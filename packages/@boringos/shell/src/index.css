@@ -103,45 +103,142 @@
  *  most common card-surface and badge-tint utilities to semantic tokens
  *  when [data-theme="dark"] is active. New code should prefer semantic
  *  tokens (bg-surface-raised, bg-danger-tint, etc.) directly.
+ *
+ *  The selectors cover:
+ *    - bare weight classes (`.bg-emerald-50`)
+ *    - opacity-modifier variants (`.bg-emerald-50/40`, written in the class
+ *      attribute as a literal `/`; matched here via `[class*="prefix/"]`)
+ *    - `ring-*-200` badge rings, `divide-*-100` list dividers
+ *  for the four state-color families: danger (red/rose), warning
+ *  (yellow/amber), success (emerald/green), info (blue/sky/cyan).
  */
 [data-theme="dark"] .bg-white { background-color: var(--color-surface-raised) !important; }
 
+/* ── Danger (red / rose) ─────────────────────────────────────────────────── */
 [data-theme="dark"] .bg-red-50,
-[data-theme="dark"] .bg-rose-50 { background-color: var(--color-danger-tint) !important; }
-[data-theme="dark"] .text-red-700,
+[data-theme="dark"] .bg-red-100,
+[data-theme="dark"] .bg-rose-50,
+[data-theme="dark"] .bg-rose-100,
+[data-theme="dark"] [class*="bg-red-50/"],
+[data-theme="dark"] [class*="bg-red-100/"],
+[data-theme="dark"] [class*="bg-rose-50/"],
+[data-theme="dark"] [class*="bg-rose-100/"] { background-color: var(--color-danger-tint) !important; }
 [data-theme="dark"] .text-red-600,
+[data-theme="dark"] .text-red-700,
+[data-theme="dark"] .text-red-800,
+[data-theme="dark"] .text-red-900,
+[data-theme="dark"] .text-rose-600,
 [data-theme="dark"] .text-rose-700,
-[data-theme="dark"] .text-rose-600 { color: var(--color-danger) !important; }
+[data-theme="dark"] .text-rose-800,
+[data-theme="dark"] .text-rose-900,
+[data-theme="dark"] [class*="text-red-600/"],
+[data-theme="dark"] [class*="text-red-700/"],
+[data-theme="dark"] [class*="text-red-800/"],
+[data-theme="dark"] [class*="text-rose-600/"],
+[data-theme="dark"] [class*="text-rose-700/"],
+[data-theme="dark"] [class*="text-rose-800/"] { color: var(--color-danger) !important; }
 [data-theme="dark"] .border-red-200,
-[data-theme="dark"] .border-rose-200 { border-color: var(--color-danger) !important; opacity: 0.6; }
+[data-theme="dark"] .border-rose-200,
+[data-theme="dark"] .ring-red-200,
+[data-theme="dark"] .ring-rose-200 { border-color: var(--color-danger) !important; --tw-ring-color: var(--color-danger) !important; opacity: 0.6; }
 
+/* ── Warning (yellow / amber) ────────────────────────────────────────────── */
 [data-theme="dark"] .bg-yellow-50,
-[data-theme="dark"] .bg-amber-50 { background-color: var(--color-warning-tint) !important; }
+[data-theme="dark"] .bg-yellow-100,
+[data-theme="dark"] .bg-amber-50,
+[data-theme="dark"] .bg-amber-100,
+[data-theme="dark"] [class*="bg-yellow-50/"],
+[data-theme="dark"] [class*="bg-yellow-100/"],
+[data-theme="dark"] [class*="bg-amber-50/"],
+[data-theme="dark"] [class*="bg-amber-100/"] { background-color: var(--color-warning-tint) !important; }
+[data-theme="dark"] .text-yellow-600,
 [data-theme="dark"] .text-yellow-700,
 [data-theme="dark"] .text-yellow-800,
 [data-theme="dark"] .text-yellow-900,
+[data-theme="dark"] .text-amber-600,
 [data-theme="dark"] .text-amber-700,
 [data-theme="dark"] .text-amber-800,
-[data-theme="dark"] .text-amber-900 { color: var(--color-warning) !important; }
+[data-theme="dark"] .text-amber-900,
+[data-theme="dark"] [class*="text-yellow-700/"],
+[data-theme="dark"] [class*="text-yellow-800/"],
+[data-theme="dark"] [class*="text-amber-700/"],
+[data-theme="dark"] [class*="text-amber-800/"] { color: var(--color-warning) !important; }
 [data-theme="dark"] .border-yellow-200,
-[data-theme="dark"] .border-amber-200 { border-color: var(--color-warning) !important; opacity: 0.6; }
+[data-theme="dark"] .border-amber-200,
+[data-theme="dark"] .ring-yellow-200,
+[data-theme="dark"] .ring-amber-200 { border-color: var(--color-warning) !important; --tw-ring-color: var(--color-warning) !important; opacity: 0.6; }
 
+/* ── Success (emerald / green) ───────────────────────────────────────────── */
 [data-theme="dark"] .bg-emerald-50,
-[data-theme="dark"] .bg-green-50 { background-color: var(--color-success-tint) !important; }
-[data-theme="dark"] .text-emerald-700,
+[data-theme="dark"] .bg-emerald-100,
+[data-theme="dark"] .bg-green-50,
+[data-theme="dark"] .bg-green-100,
+[data-theme="dark"] [class*="bg-emerald-50/"],
+[data-theme="dark"] [class*="bg-emerald-100/"],
+[data-theme="dark"] [class*="bg-green-50/"],
+[data-theme="dark"] [class*="bg-green-100/"] { background-color: var(--color-success-tint) !important; }
 [data-theme="dark"] .text-emerald-600,
+[data-theme="dark"] .text-emerald-700,
+[data-theme="dark"] .text-emerald-800,
+[data-theme="dark"] .text-emerald-900,
+[data-theme="dark"] .text-green-600,
 [data-theme="dark"] .text-green-700,
-[data-theme="dark"] .text-green-600 { color: var(--color-success) !important; }
+[data-theme="dark"] .text-green-800,
+[data-theme="dark"] .text-green-900,
+[data-theme="dark"] [class*="text-emerald-600/"],
+[data-theme="dark"] [class*="text-emerald-700/"],
+[data-theme="dark"] [class*="text-emerald-800/"],
+[data-theme="dark"] [class*="text-emerald-900/"],
+[data-theme="dark"] [class*="text-green-600/"],
+[data-theme="dark"] [class*="text-green-700/"],
+[data-theme="dark"] [class*="text-green-800/"],
+[data-theme="dark"] [class*="text-green-900/"] { color: var(--color-success) !important; }
+[data-theme="dark"] .border-emerald-100,
 [data-theme="dark"] .border-emerald-200,
-[data-theme="dark"] .border-green-200 { border-color: var(--color-success) !important; opacity: 0.6; }
+[data-theme="dark"] .border-green-100,
+[data-theme="dark"] .border-green-200,
+[data-theme="dark"] .ring-emerald-200,
+[data-theme="dark"] .ring-green-200 { border-color: var(--color-success) !important; --tw-ring-color: var(--color-success) !important; opacity: 0.6; }
+[data-theme="dark"] .divide-emerald-100 > :not([hidden]) ~ :not([hidden]),
+[data-theme="dark"] .divide-emerald-200 > :not([hidden]) ~ :not([hidden]),
+[data-theme="dark"] .divide-green-100 > :not([hidden]) ~ :not([hidden]),
+[data-theme="dark"] .divide-green-200 > :not([hidden]) ~ :not([hidden]) { border-color: var(--color-border) !important; }
 
+/* ── Info (blue / sky / cyan) ────────────────────────────────────────────── */
 [data-theme="dark"] .bg-blue-50,
+[data-theme="dark"] .bg-blue-100,
 [data-theme="dark"] .bg-cyan-50,
-[data-theme="dark"] .bg-sky-50 { background-color: var(--color-info-tint) !important; }
-[data-theme="dark"] .text-blue-700,
+[data-theme="dark"] .bg-cyan-100,
+[data-theme="dark"] .bg-sky-50,
+[data-theme="dark"] .bg-sky-100,
+[data-theme="dark"] [class*="bg-blue-50/"],
+[data-theme="dark"] [class*="bg-blue-100/"],
+[data-theme="dark"] [class*="bg-sky-50/"],
+[data-theme="dark"] [class*="bg-sky-100/"],
+[data-theme="dark"] [class*="bg-cyan-50/"],
+[data-theme="dark"] [class*="bg-cyan-100/"] { background-color: var(--color-info-tint) !important; }
 [data-theme="dark"] .text-blue-600,
+[data-theme="dark"] .text-blue-700,
+[data-theme="dark"] .text-blue-800,
+[data-theme="dark"] .text-blue-900,
+[data-theme="dark"] .text-sky-600,
 [data-theme="dark"] .text-sky-700,
-[data-theme="dark"] .text-sky-600 { color: var(--color-info) !important; }
+[data-theme="dark"] .text-sky-800,
+[data-theme="dark"] .text-sky-900,
+[data-theme="dark"] .text-cyan-600,
+[data-theme="dark"] .text-cyan-700,
+[data-theme="dark"] .text-cyan-800,
+[data-theme="dark"] .text-cyan-900,
+[data-theme="dark"] [class*="text-blue-700/"],
+[data-theme="dark"] [class*="text-blue-800/"],
+[data-theme="dark"] [class*="text-sky-700/"],
+[data-theme="dark"] [class*="text-sky-800/"] { color: var(--color-info) !important; }
+[data-theme="dark"] .border-blue-200,
+[data-theme="dark"] .border-sky-200,
+[data-theme="dark"] .border-cyan-200,
+[data-theme="dark"] .ring-blue-200,
+[data-theme="dark"] .ring-sky-200,
+[data-theme="dark"] .ring-cyan-200 { border-color: var(--color-info) !important; --tw-ring-color: var(--color-info) !important; opacity: 0.6; }
 
 /* Neutral palette utilities (slate/gray/zinc/neutral/stone) — common for
  * borders, dividers, and muted text. Remap to our semantic border/muted
