@@ -1,0 +1,11 @@
+{
+  "id": "email-needy",
+  "version": "0.1.0",
+  "kind": "module",
+  "name": "Email Needy",
+  "description": "MDK T6.4 fixture — declares dependsOn capability:email-send so the dev-host walkthrough resolves to @boringos/connector-google.",
+  "entry": "./index.mjs",
+  "minFrameworkVersion": "0.1.0",
+  "publisher": { "id": "hebbs", "name": "Hebbs" },
+  "license": "AGPL-3.0-or-later"
+}

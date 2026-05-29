@@ -7,7 +7,12 @@
 //
 // MDK T6.1: stay-alive + smoke. MDK T6.2: file watcher → host.reload().
 
-import { createDevHost, type DevHost, type ReloadResult } from "@boringos/dev-host";
+import {
+  createDevHost,
+  type AuthStep,
+  type DevHost,
+  type ReloadResult,
+} from "@boringos/dev-host";
 import { watch as fsWatch, statSync } from "node:fs";
 import { extname } from "node:path";
 
@@ -46,6 +51,8 @@ export interface DevHandle {
   shutdown: () => Promise<void>;
   /** True while a watcher is armed. */
   watching: boolean;
+  /** Auth steps the module-under-test still needs (MDK T6.4). */
+  authSteps: AuthStep[];
 }
 
 /**
@@ -61,6 +68,19 @@ export async function startDev(opts: DevOptions): Promise<DevHandle> {
 
   if (opts.smokeToolName) {
     await host.dispatch(opts.smokeToolName, opts.smokeToolInputs ?? {});
+  }
+
+  // MDK T6.4 — compute the OAuth walkthrough up front so callers
+  // (CLI banner, tests) can decide what to show without re-querying.
+  let authSteps: AuthStep[] = [];
+  try {
+    authSteps = await host.getAuthSteps();
+  } catch (err) {
+    // Don't fail the boot if the walkthrough probe errors — log and
+    // hand back an empty list.
+    process.stderr.write(
+      `  ⚠ getAuthSteps failed: ${err instanceof Error ? err.message : String(err)}\n`,
+    );
   }
 
   // ── Hot reload watcher (MDK T6.2) ──────────────────────────────
@@ -164,7 +184,12 @@ export async function startDev(opts: DevOptions): Promise<DevHandle> {
     });
   };
 
-  return { host, shutdown, watching: stopWatcher !== null };
+  return {
+    host,
+    shutdown,
+    watching: stopWatcher !== null,
+    authSteps,
+  };
 }
 
 function resolveWatchMode(

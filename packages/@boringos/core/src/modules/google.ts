@@ -233,4 +233,14 @@ export const createGoogleModule: ModuleFactory = (deps) => ({
     },
   ],
   skills: [],
+  // Capability advertisements — module authors declare
+  // `dependsOn: [{ capability: "email-send" }]` etc. and the
+  // framework resolves them to this connector. MDK T6.4.
+  provides: [
+    "email-send",
+    "email-read",
+    "calendar",
+    "google-drive",
+    "google-contacts",
+  ],
 });

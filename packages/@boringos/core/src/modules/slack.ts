@@ -89,4 +89,8 @@ export const createSlackModule: ModuleFactory = (deps) => ({
     },
   ],
   skills: [],
+  // Capability advertisements — module authors declare
+  // `dependsOn: [{ capability: "chat-send" }]` etc. and the framework
+  // resolves them to this connector. MDK T6.4.
+  provides: ["chat-send", "chat-read", "slack"],
 });

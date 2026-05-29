@@ -107,6 +107,13 @@ export interface DevHost {
    * sub-second feedback).
    */
   reload(): Promise<ReloadResult>;
+  /**
+   * Walk the module-under-test's `dependsOn` capabilities, resolve
+   * each to a connector module via `provides`, and report the OAuth
+   * steps the author still needs to complete for the dev tenant.
+   * Returns an empty array if everything is already wired up. MDK T6.4.
+   */
+  getAuthSteps(): Promise<AuthStep[]>;
   /** Tear down the server, drop the extract dir, and remove the
    *  per-run dataDir. */
   close(): Promise<void>;
@@ -127,6 +134,29 @@ export interface ReloadResult {
   moduleVersion: string;
   /** Wall-clock ms from `reload()` entry to re-register completion. */
   durationMs: number;
+}
+
+/**
+ * One actionable next step for the module author — typically "open
+ * this URL to authorise the connector account this module needs".
+ * Returned by {@link DevHost.getAuthSteps}; surfaced by `hebbs dev`
+ * (MDK T6.4) when a module declares `dependsOn: [{ capability: ... }]`
+ * and the resolving connector isn't yet connected for the dev tenant.
+ */
+export interface AuthStep {
+  /** The capability from `dependsOn` that triggered this step. */
+  capability: string;
+  /** The connector module id that resolves it (e.g. "google"). */
+  providerModuleId: string;
+  /** Human-friendly provider name (e.g. "Google Workspace"). */
+  providerName: string;
+  /** Fully-qualified URL the author opens in a browser to start the
+   *  OAuth dance against this dev-host instance. */
+  authorizeUrl: string;
+  /** Scopes the OAuth dance will request. */
+  scopes: string[];
+  /** Why we're asking — used verbatim in CLI output. */
+  reason: string;
 }
 
 // ── Implementation ──────────────────────────────────────────────────────
@@ -408,6 +438,75 @@ export async function createDevHost(opts: DevHostOptions): Promise<DevHost> {
       };
     },
 
+    async getAuthSteps(): Promise<AuthStep[]> {
+      // Pulled inline so reload()-time manifest changes are honoured.
+      type ModuleLike = {
+        id: string;
+        name?: string;
+        dependsOn?: Array<{ moduleId?: string; capability?: string; optional?: boolean }>;
+        provides?: string[];
+        oauth?: { scopes?: string[] };
+        connectors?: Record<string, { services?: Array<{ scopes?: Array<{ scope: string }> }> }>;
+      };
+      const boundModules =
+        ((app as unknown as { boundModules?: ModuleLike[] }).boundModules ?? []);
+      const tested = boundModules.find((m) => m.id === manifest.id);
+      if (!tested || !tested.dependsOn?.length) return [];
+
+      // Index registered providers by capability.
+      const byCapability = new Map<string, ModuleLike[]>();
+      for (const m of boundModules) {
+        for (const cap of m.provides ?? []) {
+          const list = byCapability.get(cap) ?? [];
+          list.push(m);
+          byCapability.set(cap, list);
+        }
+      }
+
+      // Already-connected providers for this tenant.
+      const { connectorAccounts } = await import("@boringos/db");
+      const { eq } = await import("drizzle-orm");
+      const accounts = await db
+        .select()
+        .from(connectorAccounts)
+        .where(eq(connectorAccounts.tenantId, tenant.id));
+      const connectedProviders = new Set(accounts.map((a) => a.provider));
+
+      const steps: AuthStep[] = [];
+      for (const dep of tested.dependsOn) {
+        if (dep.optional) continue;
+        if (!dep.capability) continue;
+        const providers = byCapability.get(dep.capability) ?? [];
+        // Pick the first provider that needs OAuth. A capability can
+        // be satisfied by multiple modules; the first is good enough
+        // for the walkthrough.
+        const provider = providers.find(
+          (p) => p.connectors !== undefined || p.oauth !== undefined,
+        );
+        if (!provider) continue;
+        if (connectedProviders.has(provider.id)) continue;
+
+        const scopes = collectScopes(provider);
+        const scopesParam = scopes.length
+          ? `&scopes=${encodeURIComponent(scopes.join(","))}`
+          : "";
+        const authorizeUrl =
+          `${server.url}/api/connectors/oauth/${provider.id}/authorize` +
+          `?tenantId=${encodeURIComponent(tenant.id)}${scopesParam}`;
+        steps.push({
+          capability: dep.capability,
+          providerModuleId: provider.id,
+          providerName: provider.name ?? provider.id,
+          authorizeUrl,
+          scopes,
+          reason:
+            `${manifest.id} declares dependsOn capability "${dep.capability}" — ` +
+            `${provider.name ?? provider.id} provides it but hasn't been connected for this tenant.`,
+        });
+      }
+      return steps;
+    },
+
     get moduleVersion(): string {
       return currentManifestVersion;
     },
@@ -455,4 +554,31 @@ async function safeRm(path: string): Promise<void> {
   } catch {
     /* best-effort */
   }
+}
+
+/**
+ * Best-effort scope extraction for a connector module — either from
+ * its declared `connectors` services or from the legacy `oauth`
+ * config. The dev walkthrough URL embeds these as a `?scopes=` query
+ * param so the OAuth dance asks for the right consent up front.
+ */
+function collectScopes(provider: {
+  oauth?: { scopes?: string[] };
+  connectors?: Record<
+    string,
+    { services?: Array<{ scopes?: Array<{ scope: string }> }> }
+  >;
+}): string[] {
+  const out = new Set<string>();
+  for (const s of provider.oauth?.scopes ?? []) {
+    out.add(s);
+  }
+  for (const conn of Object.values(provider.connectors ?? {})) {
+    for (const service of conn.services ?? []) {
+      for (const scopeEntry of service.scopes ?? []) {
+        out.add(scopeEntry.scope);
+      }
+    }
+  }
+  return [...out];
 }

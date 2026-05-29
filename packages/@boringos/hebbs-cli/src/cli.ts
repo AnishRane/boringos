@@ -181,27 +181,42 @@ async function runDev(
         );
       },
     });
-    process.stdout.write(
-      [
-        ``,
-        `▶ hebbs dev — ${handle.host.moduleId}@${handle.host.moduleVersion}`,
-        ``,
-        `  url:        ${handle.host.url}`,
-        `  tenant id:  ${handle.host.tenantId}`,
-        `  jwt:        ${handle.host.callbackToken.slice(0, 24)}…  (Authorization: Bearer)`,
-        `  watch:      ${handle.watching ? "on (edit files to reload)" : "off"}`,
-        `  postgres:   ${postgresUrl ? "external (--postgres-url / $DATABASE_URL)" : "embedded"}`,
-        ``,
-        `  Try a tool:`,
-        `    curl -X POST '${handle.host.url}/api/tools/${handle.host.moduleId}.greet' \\`,
-        `      -H "Authorization: Bearer ${handle.host.callbackToken.slice(0, 24)}…" \\`,
-        `      -H 'Content-Type: application/json' \\`,
-        `      -d '{"name":"Ada"}'`,
-        ``,
-        `  Ctrl+C to shut down.`,
-        ``,
-      ].join("\n"),
+    const lines = [
+      ``,
+      `▶ hebbs dev — ${handle.host.moduleId}@${handle.host.moduleVersion}`,
+      ``,
+      `  url:        ${handle.host.url}`,
+      `  tenant id:  ${handle.host.tenantId}`,
+      `  jwt:        ${handle.host.callbackToken.slice(0, 24)}…  (Authorization: Bearer)`,
+      `  watch:      ${handle.watching ? "on (edit files to reload)" : "off"}`,
+      `  postgres:   ${postgresUrl ? "external (--postgres-url / $DATABASE_URL)" : "embedded"}`,
+    ];
+    if (handle.authSteps.length > 0) {
+      lines.push(``);
+      lines.push(
+        `  ⚠ ${handle.authSteps.length} connector account${handle.authSteps.length === 1 ? "" : "s"} not yet connected:`,
+      );
+      for (const step of handle.authSteps) {
+        lines.push(``);
+        lines.push(`    [${step.capability}] → ${step.providerName} (${step.providerModuleId})`);
+        lines.push(`      open: ${step.authorizeUrl}`);
+        lines.push(`      scopes: ${step.scopes.length ? step.scopes.join(", ") : "(provider default)"}`);
+      }
+    }
+    lines.push(``);
+    lines.push(`  Try a tool:`);
+    lines.push(
+      `    curl -X POST '${handle.host.url}/api/tools/${handle.host.moduleId}.greet' \\`,
     );
+    lines.push(
+      `      -H "Authorization: Bearer ${handle.host.callbackToken.slice(0, 24)}…" \\`,
+    );
+    lines.push(`      -H 'Content-Type: application/json' \\`);
+    lines.push(`      -d '{"name":"Ada"}'`);
+    lines.push(``);
+    lines.push(`  Ctrl+C to shut down.`);
+    lines.push(``);
+    process.stdout.write(lines.join("\n"));
 
     let shuttingDown = false;
     const close = async (signal: string): Promise<void> => {
