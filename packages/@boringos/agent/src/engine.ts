@@ -188,7 +188,9 @@ export function createAgentEngine(config: AgentEngineConfig): AgentEngine {
     // sets BORINGOS_RUNTIME accordingly. agent.runtimeId is ignored;
     // the column stays nullable for backward compat but is no longer
     // the source of truth. `agent.model` (per-agent) still wins when set.
-    const runtimeType = process.env.BORINGOS_RUNTIME ?? "pi";
+    // Default is `claude` — matches the Hebbs harness-driver path
+    // (claude CLI, no provider API keys).
+    const runtimeType = process.env.BORINGOS_RUNTIME ?? "claude";
     const runtimeConfig: Record<string, unknown> = {};
     if (process.env.BORINGOS_MODEL) runtimeConfig.model = process.env.BORINGOS_MODEL;
     const agentModel = (agent as { model?: string | null }).model;
