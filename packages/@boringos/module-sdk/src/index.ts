@@ -41,6 +41,18 @@ export {
   type Manifest,
 } from "./manifest.js";
 
+// Lifecycle helpers — `Lifecycle.seed(ctx, payload)` is the
+// imperative seeding entry point for `onInstall` hooks that need
+// preconditions. The declarative path (manifest-level `agents`,
+// `workflows`, `routines`) is auto-seeded by the host. MDK T7.1.
+export {
+  Lifecycle,
+  type SeedPayload,
+  type SeedResult,
+  type SeedFn,
+  type LifecycleContext,
+} from "./lifecycle.js";
+
 // Narrow runtime contracts for `ModuleFactoryDeps` fields whose
 // concrete implementations live in framework packages that depend
 // on module-sdk (cycle-free extraction).

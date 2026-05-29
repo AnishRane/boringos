@@ -396,6 +396,27 @@ export interface ModuleContext {
   tenantId: string;
   moduleId: string;
   db: ModuleDb;
+  /**
+   * Imperative seeding helper provisioned by the framework's install
+   * manager for lifecycle hook calls. Authors invoke it via
+   * `Lifecycle.seed(ctx, payload)` from `@boringos/module-sdk`.
+   * Undefined when the context comes from a non-lifecycle caller
+   * (e.g. webhook handlers that don't need to seed) or from a host
+   * predating MDK T7.1.
+   */
+  seed?: (payload: {
+    agents?: readonly AgentSeed[];
+    workflows?: readonly WorkflowSeed[];
+    routines?: readonly Routine[];
+    custom?: () => Promise<void>;
+  }) => Promise<{
+    agentsSeeded: number;
+    workflowsSeeded: number;
+    routinesSeeded: number;
+    agentsSkipped: number;
+    workflowsSkipped: number;
+    routinesSkipped: number;
+  }>;
 }
 
 /**

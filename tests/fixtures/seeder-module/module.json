@@ -1,0 +1,11 @@
+{
+  "id": "seeder",
+  "version": "0.1.0",
+  "kind": "module",
+  "name": "Seeder Demo",
+  "description": "MDK T7.1 fixture — exercises declarative + imperative seeding paths.",
+  "entry": "./index.mjs",
+  "minFrameworkVersion": "0.1.0",
+  "publisher": { "id": "hebbs", "name": "Hebbs" },
+  "license": "AGPL-3.0-or-later"
+}

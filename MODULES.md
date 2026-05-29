@@ -304,6 +304,78 @@ Hooks must be **idempotent** — install may be retried on partial
 failure; uninstall may be called against tenants that never had
 the Module.
 
+### Seeding agents / workflows / routines
+
+Modules ship default agents, workflows, and routines two ways. Pick
+based on whether your seeds need preconditions.
+
+**Declarative (preferred).** Declare them on the Module manifest;
+the framework auto-seeds them after `onInstall` returns. Idempotent
+on `(tenantId, source_app_id = <module-id>, name)` for agents,
+`(tenantId, type = module:<id>, name)` for workflows, and
+`(tenantId, title)` for routines — re-installs and tenant edits
+survive.
+
+```ts
+{
+  id: "my-module",
+  // …
+  agents: [
+    { name: "Lead Triager", persona: "personas-default.email-lens" },
+  ],
+  workflows: [
+    { name: "Daily digest", blocks: […], edges: […] },
+  ],
+  routines: [
+    {
+      id: "digest-cron",
+      title: "Daily digest",
+      trigger: { type: "cron", expression: "0 9 * * *", timezone: "UTC" },
+      tool: "framework.workflows.run",
+      inputs: { workflowName: "Daily digest" },
+    },
+  ],
+}
+```
+
+**Imperative — `Lifecycle.seed`.** Reach for it from `onInstall`
+when seeding needs a precondition the manifest can't express (a
+fetched runtime id, a hand-built `reportsTo` chain, a custom table
+write). Same idempotency keys as the declarative path; you can call
+it multiple times across hooks safely.
+
+```ts
+import { Lifecycle } from "@boringos/module-sdk";
+
+lifecycle: {
+  async onInstall(ctx) {
+    const runtimeId = await pickClaudeRuntime(ctx);
+    if (!runtimeId) return; // try again next install
+
+    await Lifecycle.seed(ctx, {
+      agents: [
+        { name: "Email Lens", persona: "personas-default.email-lens" },
+      ],
+      workflows: [...],
+      routines: [...],
+      custom: async () => {
+        await ctx.db.execute(`INSERT INTO my_module__pipelines …`);
+      },
+    });
+  },
+},
+```
+
+`Lifecycle.seed` returns counts (`agentsSeeded / agentsSkipped / …`)
+so you can log what changed. The framework runs the declarative
+seeds first and the imperative call second — both are idempotent,
+so it's safe to declare a row both ways during a migration.
+
+> CRM keeps a hand-written seeder today (Phase 8 / T8.3 moves it
+> onto this helper). When you're authoring a new module, prefer the
+> declarative path and only reach for `Lifecycle.seed` if you hit
+> something it can't express.
+
 ---
 
 ## UI registration

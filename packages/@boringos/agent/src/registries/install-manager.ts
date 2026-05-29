@@ -21,12 +21,22 @@ import {
   tenants as tenantsTable,
   moduleInstalls,
   moduleMigrations,
+  agents as agentsTable,
+  workflows as workflowsTable,
+  routines as routinesTable,
+  runtimes as runtimesTable,
 } from "@boringos/db";
 import type {
   Migration,
   Module,
   ModuleContext,
   ModuleDb,
+  SeedFn,
+  SeedPayload,
+  SeedResult,
+  AgentSeed,
+  WorkflowSeed,
+  Routine,
 } from "@boringos/module-sdk";
 
 export interface InstallManager {
@@ -105,10 +115,20 @@ export function createInstallManager(deps: InstallManagerDeps): InstallManager {
     },
   };
 
+  // MDK T7.1 — Lifecycle.seed implementation. Idempotent on
+  // (tenant_id, source = `module:<id>`, name/title). Authors call
+  // this from `onInstall` via `Lifecycle.seed(ctx, ...)`; the
+  // framework also calls it after `onInstall` returns for any
+  // declarative collections on the manifest.
+  const seedFor = (mod: Module, tenantId: string): SeedFn => async (payload) => {
+    return runSeed(deps.db, mod, tenantId, payload);
+  };
+
   const ctxFor = (mod: Module, tenantId: string): ModuleContext => ({
     tenantId,
     moduleId: mod.id,
     db: moduleDb,
+    seed: seedFor(mod, tenantId),
   });
 
   const writeInstallRow = async (mod: Module, tenantId: string) => {
@@ -244,6 +264,20 @@ export function createInstallManager(deps: InstallManagerDeps): InstallManager {
           hookError = e instanceof Error ? e.message : String(e);
         }
       }
+      // MDK T7.1 — declarative auto-seed. Runs after `onInstall` so
+      // hooks can wire preconditions (e.g. fetch the Claude runtime
+      // id). Idempotent on (tenantId, source = `module:<id>`, name).
+      if (!hookError) {
+        try {
+          await runSeed(deps.db, mod, tenantId, {
+            agents: mod.agents,
+            workflows: mod.workflows,
+            routines: mod.routines,
+          });
+        } catch (e) {
+          hookError = `auto-seed error: ${e instanceof Error ? e.message : String(e)}`;
+        }
+      }
       await writeInstallRow(mod, tenantId);
       // Notify subscribers (shell SSE → invalidate install cache).
       deps.realtimeBus?.publish({
@@ -313,6 +347,20 @@ export function createInstallManager(deps: InstallManagerDeps): InstallManager {
             e,
           );
         }
+        // MDK T7.1 — declarative auto-seed for new tenants too.
+        try {
+          await runSeed(deps.db, mod, tenantId, {
+            agents: mod.agents,
+            workflows: mod.workflows,
+            routines: mod.routines,
+          });
+        } catch (e) {
+          // eslint-disable-next-line no-console
+          console.error(
+            `[install-manager] auto-seed failed for ${mod.id} on new tenant ${tenantId}:`,
+            e,
+          );
+        }
         await writeInstallRow(mod, tenantId);
       }
     },
@@ -366,4 +414,186 @@ export function createInstallManager(deps: InstallManagerDeps): InstallManager {
       }));
     },
   };
+}
+
+// ── MDK T7.1: Lifecycle.seed implementation ────────────────────────────────
+
+/**
+ * Idempotent seeder for module-declared agents / workflows / routines.
+ *
+ * Idempotency keys per kind:
+ *   - agents:    (tenantId, source = "app", sourceAppId = `<id>`, name)
+ *                The check constraint `agents_source_app_id_check`
+ *                forces `source = 'app'` whenever `source_app_id` is
+ *                set, so module-installed agents live under the
+ *                "app"-source bucket with the module id in
+ *                `source_app_id`. CRM uses the same convention; T8.3
+ *                will promote CRM seeds onto this helper.
+ *   - workflows: (tenantId, type = `module:<id>`, name) — workflows
+ *                table has no `source_app_id` constraint, so the
+ *                `type` column doubles as the source bucket.
+ *   - routines:  (tenantId, title) — routines table has no source
+ *                column today; T7.2 introduces `__seed_meta` with a
+ *                stable seedId, making this dedupe formal. For now,
+ *                (tenant, title) is the natural key the framework
+ *                already treats as unique per tenant.
+ *
+ * Skipped rows are counted but not modified — tenant edits survive
+ * re-installs (the "always updated" guarantee comes from T7.2's
+ * `modified_since_install` flag).
+ */
+async function runSeed(
+  db: Db,
+  mod: Module,
+  tenantId: string,
+  payload: SeedPayload,
+): Promise<SeedResult> {
+  const sourceAppId = mod.id;
+  const workflowBucket = `module:${mod.id}`;
+  const result: SeedResult = {
+    agentsSeeded: 0,
+    workflowsSeeded: 0,
+    routinesSeeded: 0,
+    agentsSkipped: 0,
+    workflowsSkipped: 0,
+    routinesSkipped: 0,
+  };
+
+  // ── Agents ────────────────────────────────────────────────
+  // Resolve the tenant's root agent once — every seeded agent
+  // reports up to it by default. The `agents_tenant_one_root_idx`
+  // unique index allows only one `reports_to IS NULL` row per tenant,
+  // so seeded agents MUST have a parent.
+  let rootAgentId: string | null = null;
+  if ((payload.agents ?? []).length > 0) {
+    const rootRows = await db
+      .select({ id: agentsTable.id })
+      .from(agentsTable)
+      .where(
+        and(
+          eq(agentsTable.tenantId, tenantId),
+          // drizzle isNull import would add weight; inline raw is fine.
+          sql`${agentsTable.reportsTo} IS NULL`,
+        ),
+      )
+      .limit(1);
+    rootAgentId = rootRows[0]?.id ?? null;
+  }
+  const agentSeedIds = new Map<string, string>(); // name → row id, for reportsTo resolution
+  for (const seed of payload.agents ?? []) {
+    const existing = await db
+      .select({ id: agentsTable.id })
+      .from(agentsTable)
+      .where(
+        and(
+          eq(agentsTable.tenantId, tenantId),
+          eq(agentsTable.sourceAppId, sourceAppId),
+          eq(agentsTable.name, seed.name),
+        ),
+      )
+      .limit(1);
+    if (existing[0]) {
+      agentSeedIds.set(seed.name, existing[0].id);
+      result.agentsSkipped += 1;
+      continue;
+    }
+    // Resolve runtime (best-effort): pick any active runtime for the
+    // tenant. Authors needing a specific runtime (e.g. Claude) should
+    // use the imperative path (Lifecycle.seed from onInstall) instead.
+    const rtRows = await db
+      .select({ id: runtimesTable.id })
+      .from(runtimesTable)
+      .where(eq(runtimesTable.tenantId, tenantId))
+      .limit(1);
+    const runtimeId = rtRows[0]?.id ?? null;
+    const reportsToId =
+      seed.reportsTo && agentSeedIds.has(seed.reportsTo)
+        ? agentSeedIds.get(seed.reportsTo)!
+        : rootAgentId;
+    const inserted = await db
+      .insert(agentsTable)
+      .values({
+        tenantId,
+        name: seed.name,
+        role: seed.persona,
+        source: "app",
+        sourceAppId,
+        runtimeId,
+        reportsTo: reportsToId,
+        instructions: seed.instructions ?? null,
+      })
+      .returning({ id: agentsTable.id });
+    if (inserted[0]) {
+      agentSeedIds.set(seed.name, inserted[0].id);
+      result.agentsSeeded += 1;
+    }
+  }
+
+  // ── Workflows ─────────────────────────────────────────────
+  for (const seed of payload.workflows ?? []) {
+    const existing = await db
+      .select({ id: workflowsTable.id })
+      .from(workflowsTable)
+      .where(
+        and(
+          eq(workflowsTable.tenantId, tenantId),
+          eq(workflowsTable.type, workflowBucket),
+          eq(workflowsTable.name, seed.name),
+        ),
+      )
+      .limit(1);
+    if (existing[0]) {
+      result.workflowsSkipped += 1;
+      continue;
+    }
+    await db.insert(workflowsTable).values({
+      tenantId,
+      name: seed.name,
+      type: workflowBucket,
+      status: "active",
+      blocks: seed.blocks as unknown as Record<string, unknown>[],
+      edges: seed.edges as unknown as Record<string, unknown>[],
+    });
+    result.workflowsSeeded += 1;
+  }
+
+  // ── Routines ──────────────────────────────────────────────
+  for (const seed of payload.routines ?? []) {
+    if (seed.trigger.type !== "cron") {
+      // Routines table currently only models cron triggers; event /
+      // webhook routines are stored elsewhere (the workflow trigger
+      // field). Skip non-cron seeds rather than fail — they'll be
+      // covered by T7.2 + T7.3.
+      continue;
+    }
+    const existing = await db
+      .select({ id: routinesTable.id })
+      .from(routinesTable)
+      .where(
+        and(
+          eq(routinesTable.tenantId, tenantId),
+          eq(routinesTable.title, seed.title),
+        ),
+      )
+      .limit(1);
+    if (existing[0]) {
+      result.routinesSkipped += 1;
+      continue;
+    }
+    await db.insert(routinesTable).values({
+      tenantId,
+      title: seed.title,
+      cronExpression: seed.trigger.expression,
+      timezone: seed.trigger.timezone ?? "UTC",
+      status: seed.enabled === false ? "paused" : "active",
+      concurrencyPolicy: seed.concurrency ?? "skip_if_active",
+    });
+    result.routinesSeeded += 1;
+  }
+
+  // ── Custom ────────────────────────────────────────────────
+  if (typeof payload.custom === "function") {
+    await payload.custom();
+  }
+  return result;
 }
