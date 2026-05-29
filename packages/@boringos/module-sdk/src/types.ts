@@ -242,6 +242,11 @@ export interface Routine {
   concurrency?: "skip_if_active" | "coalesce_if_active" | "allow_concurrent";
   /** Disable without deleting. */
   enabled?: boolean;
+  /**
+   * Stable seed identifier the framework uses across upgrades (MDK
+   * T7.2). Defaults to the routine's `id` field.
+   */
+  seedId?: string;
 }
 
 export type RoutineTrigger =
@@ -649,6 +654,8 @@ export interface WorkflowSeed {
   blocks: WorkflowBlock[];
   edges: WorkflowEdge[];
   trigger?: RoutineTrigger;
+  /** Stable seed identifier (MDK T7.2). Defaults to `name`. */
+  seedId?: string;
 }
 
 export interface WorkflowBlock {
@@ -690,6 +697,13 @@ export interface AgentSeed {
   tools?: string[];
   /** Optional reportsTo target by name. */
   reportsTo?: string;
+  /**
+   * Stable identifier the framework uses to track this seed across
+   * upgrades (MDK T7.2). Defaults to the agent's `name` when omitted
+   * — set explicitly when you might rename the seed in a future
+   * version and still want to upgrade the same tenant row in place.
+   */
+  seedId?: string;
 }
 
 /**

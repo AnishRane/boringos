@@ -25,7 +25,9 @@ import {
   workflows as workflowsTable,
   routines as routinesTable,
   runtimes as runtimesTable,
+  seedMeta as seedMetaTable,
 } from "@boringos/db";
+import { createHash } from "node:crypto";
 import type {
   Migration,
   Module,
@@ -472,7 +474,6 @@ async function runSeed(
       .where(
         and(
           eq(agentsTable.tenantId, tenantId),
-          // drizzle isNull import would add weight; inline raw is fine.
           sql`${agentsTable.reportsTo} IS NULL`,
         ),
       )
@@ -481,25 +482,63 @@ async function runSeed(
   }
   const agentSeedIds = new Map<string, string>(); // name → row id, for reportsTo resolution
   for (const seed of payload.agents ?? []) {
-    const existing = await db
-      .select({ id: agentsTable.id })
-      .from(agentsTable)
-      .where(
-        and(
-          eq(agentsTable.tenantId, tenantId),
-          eq(agentsTable.sourceAppId, sourceAppId),
-          eq(agentsTable.name, seed.name),
-        ),
-      )
-      .limit(1);
-    if (existing[0]) {
-      agentSeedIds.set(seed.name, existing[0].id);
-      result.agentsSkipped += 1;
+    const seedId = seed.seedId ?? seed.name;
+    const desiredHash = canonicalHash({
+      name: seed.name,
+      role: seed.persona,
+      instructions: seed.instructions ?? null,
+    });
+    const meta = await loadSeedMeta(db, tenantId, mod.id, "agent", seedId);
+    if (meta) {
+      // Already seeded once. Re-load the target row to compare.
+      const cur = await db
+        .select({
+          id: agentsTable.id,
+          name: agentsTable.name,
+          role: agentsTable.role,
+          instructions: agentsTable.instructions,
+        })
+        .from(agentsTable)
+        .where(eq(agentsTable.id, meta.targetId))
+        .limit(1);
+      if (!cur[0]) {
+        // Row was deleted by the tenant. Don't resurrect — leave the
+        // meta in place so a future explicit re-install can decide.
+        agentSeedIds.set(seed.name, meta.targetId);
+        result.agentsSkipped += 1;
+        continue;
+      }
+      const currentHash = canonicalHash({
+        name: cur[0].name,
+        role: cur[0].role,
+        instructions: cur[0].instructions ?? null,
+      });
+      if (currentHash === meta.baselineHash && currentHash !== desiredHash) {
+        // Unmodified by tenant, author bumped → safe upgrade.
+        await db
+          .update(agentsTable)
+          .set({
+            name: seed.name,
+            role: seed.persona,
+            instructions: seed.instructions ?? null,
+            updatedAt: new Date(),
+          })
+          .where(eq(agentsTable.id, cur[0].id));
+        await db
+          .update(seedMetaTable)
+          .set({ baselineHash: desiredHash, moduleVersion: mod.version, updatedAt: new Date() })
+          .where(eq(seedMetaTable.id, meta.id));
+        agentSeedIds.set(seed.name, cur[0].id);
+        result.agentsSeeded += 1;
+      } else {
+        // Either tenant edited (currentHash != baselineHash) or
+        // payload unchanged. Skip in both cases.
+        agentSeedIds.set(seed.name, cur[0].id);
+        result.agentsSkipped += 1;
+      }
       continue;
     }
-    // Resolve runtime (best-effort): pick any active runtime for the
-    // tenant. Authors needing a specific runtime (e.g. Claude) should
-    // use the imperative path (Lifecycle.seed from onInstall) instead.
+    // First-time seed.
     const rtRows = await db
       .select({ id: runtimesTable.id })
       .from(runtimesTable)
@@ -526,69 +565,152 @@ async function runSeed(
     if (inserted[0]) {
       agentSeedIds.set(seed.name, inserted[0].id);
       result.agentsSeeded += 1;
+      await writeSeedMeta(db, tenantId, mod, "agent", seedId, inserted[0].id, desiredHash);
     }
   }
 
   // ── Workflows ─────────────────────────────────────────────
   for (const seed of payload.workflows ?? []) {
-    const existing = await db
-      .select({ id: workflowsTable.id })
-      .from(workflowsTable)
-      .where(
-        and(
-          eq(workflowsTable.tenantId, tenantId),
-          eq(workflowsTable.type, workflowBucket),
-          eq(workflowsTable.name, seed.name),
-        ),
-      )
-      .limit(1);
-    if (existing[0]) {
-      result.workflowsSkipped += 1;
+    const seedId = seed.seedId ?? seed.name;
+    const desiredHash = canonicalHash({
+      name: seed.name,
+      blocks: seed.blocks,
+      edges: seed.edges,
+    });
+    const meta = await loadSeedMeta(db, tenantId, mod.id, "workflow", seedId);
+    if (meta) {
+      const cur = await db
+        .select({
+          id: workflowsTable.id,
+          name: workflowsTable.name,
+          blocks: workflowsTable.blocks,
+          edges: workflowsTable.edges,
+        })
+        .from(workflowsTable)
+        .where(eq(workflowsTable.id, meta.targetId))
+        .limit(1);
+      if (!cur[0]) {
+        result.workflowsSkipped += 1;
+        continue;
+      }
+      const currentHash = canonicalHash({
+        name: cur[0].name,
+        blocks: cur[0].blocks,
+        edges: cur[0].edges,
+      });
+      if (currentHash === meta.baselineHash && currentHash !== desiredHash) {
+        await db
+          .update(workflowsTable)
+          .set({
+            name: seed.name,
+            blocks: seed.blocks as unknown as Record<string, unknown>[],
+            edges: seed.edges as unknown as Record<string, unknown>[],
+            updatedAt: new Date(),
+          })
+          .where(eq(workflowsTable.id, cur[0].id));
+        await db
+          .update(seedMetaTable)
+          .set({ baselineHash: desiredHash, moduleVersion: mod.version, updatedAt: new Date() })
+          .where(eq(seedMetaTable.id, meta.id));
+        result.workflowsSeeded += 1;
+      } else {
+        result.workflowsSkipped += 1;
+      }
       continue;
     }
-    await db.insert(workflowsTable).values({
-      tenantId,
-      name: seed.name,
-      type: workflowBucket,
-      status: "active",
-      blocks: seed.blocks as unknown as Record<string, unknown>[],
-      edges: seed.edges as unknown as Record<string, unknown>[],
-    });
-    result.workflowsSeeded += 1;
+    const inserted = await db
+      .insert(workflowsTable)
+      .values({
+        tenantId,
+        name: seed.name,
+        type: workflowBucket,
+        status: "active",
+        blocks: seed.blocks as unknown as Record<string, unknown>[],
+        edges: seed.edges as unknown as Record<string, unknown>[],
+      })
+      .returning({ id: workflowsTable.id });
+    if (inserted[0]) {
+      result.workflowsSeeded += 1;
+      await writeSeedMeta(db, tenantId, mod, "workflow", seedId, inserted[0].id, desiredHash);
+    }
   }
 
   // ── Routines ──────────────────────────────────────────────
   for (const seed of payload.routines ?? []) {
     if (seed.trigger.type !== "cron") {
-      // Routines table currently only models cron triggers; event /
-      // webhook routines are stored elsewhere (the workflow trigger
-      // field). Skip non-cron seeds rather than fail — they'll be
-      // covered by T7.2 + T7.3.
+      // Non-cron triggers go through T7.3's inboxSource/events wiring.
       continue;
     }
-    const existing = await db
-      .select({ id: routinesTable.id })
-      .from(routinesTable)
-      .where(
-        and(
-          eq(routinesTable.tenantId, tenantId),
-          eq(routinesTable.title, seed.title),
-        ),
-      )
-      .limit(1);
-    if (existing[0]) {
-      result.routinesSkipped += 1;
-      continue;
-    }
-    await db.insert(routinesTable).values({
-      tenantId,
+    const seedId = seed.seedId ?? seed.id;
+    const desiredHash = canonicalHash({
       title: seed.title,
-      cronExpression: seed.trigger.expression,
-      timezone: seed.trigger.timezone ?? "UTC",
-      status: seed.enabled === false ? "paused" : "active",
-      concurrencyPolicy: seed.concurrency ?? "skip_if_active",
+      cron: seed.trigger.expression,
+      tz: seed.trigger.timezone ?? "UTC",
+      enabled: seed.enabled !== false,
+      concurrency: seed.concurrency ?? "skip_if_active",
     });
-    result.routinesSeeded += 1;
+    const meta = await loadSeedMeta(db, tenantId, mod.id, "routine", seedId);
+    if (meta) {
+      const cur = await db
+        .select({
+          id: routinesTable.id,
+          title: routinesTable.title,
+          cronExpression: routinesTable.cronExpression,
+          timezone: routinesTable.timezone,
+          status: routinesTable.status,
+          concurrencyPolicy: routinesTable.concurrencyPolicy,
+        })
+        .from(routinesTable)
+        .where(eq(routinesTable.id, meta.targetId))
+        .limit(1);
+      if (!cur[0]) {
+        result.routinesSkipped += 1;
+        continue;
+      }
+      const currentHash = canonicalHash({
+        title: cur[0].title,
+        cron: cur[0].cronExpression,
+        tz: cur[0].timezone ?? "UTC",
+        enabled: cur[0].status !== "paused",
+        concurrency: cur[0].concurrencyPolicy,
+      });
+      if (currentHash === meta.baselineHash && currentHash !== desiredHash) {
+        await db
+          .update(routinesTable)
+          .set({
+            title: seed.title,
+            cronExpression: seed.trigger.expression,
+            timezone: seed.trigger.timezone ?? "UTC",
+            status: seed.enabled === false ? "paused" : "active",
+            concurrencyPolicy: seed.concurrency ?? "skip_if_active",
+            updatedAt: new Date(),
+          })
+          .where(eq(routinesTable.id, cur[0].id));
+        await db
+          .update(seedMetaTable)
+          .set({ baselineHash: desiredHash, moduleVersion: mod.version, updatedAt: new Date() })
+          .where(eq(seedMetaTable.id, meta.id));
+        result.routinesSeeded += 1;
+      } else {
+        result.routinesSkipped += 1;
+      }
+      continue;
+    }
+    const inserted = await db
+      .insert(routinesTable)
+      .values({
+        tenantId,
+        title: seed.title,
+        cronExpression: seed.trigger.expression,
+        timezone: seed.trigger.timezone ?? "UTC",
+        status: seed.enabled === false ? "paused" : "active",
+        concurrencyPolicy: seed.concurrency ?? "skip_if_active",
+      })
+      .returning({ id: routinesTable.id });
+    if (inserted[0]) {
+      result.routinesSeeded += 1;
+      await writeSeedMeta(db, tenantId, mod, "routine", seedId, inserted[0].id, desiredHash);
+    }
   }
 
   // ── Custom ────────────────────────────────────────────────
@@ -596,4 +718,75 @@ async function runSeed(
     await payload.custom();
   }
   return result;
+}
+
+// MDK T7.2 helpers ---------------------------------------------------------
+
+/**
+ * Canonical JSON hash — sorts object keys recursively so semantically
+ * equivalent payloads hash to the same value. Used to detect tenant
+ * edits to seeded rows (baselineHash vs currentHash) and to detect
+ * author bumps (baselineHash vs desiredHash).
+ */
+function canonicalHash(value: unknown): string {
+  return createHash("sha256").update(stableStringify(value)).digest("hex");
+}
+
+function stableStringify(value: unknown): string {
+  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  if (Array.isArray(value)) return "[" + value.map(stableStringify).join(",") + "]";
+  const entries = Object.keys(value as Record<string, unknown>)
+    .sort()
+    .map((k) => JSON.stringify(k) + ":" + stableStringify((value as Record<string, unknown>)[k]));
+  return "{" + entries.join(",") + "}";
+}
+
+async function loadSeedMeta(
+  db: Db,
+  tenantId: string,
+  moduleId: string,
+  kind: "agent" | "workflow" | "routine",
+  seedId: string,
+): Promise<{
+  id: string;
+  targetId: string;
+  baselineHash: string;
+} | null> {
+  const rows = await db
+    .select({
+      id: seedMetaTable.id,
+      targetId: seedMetaTable.targetId,
+      baselineHash: seedMetaTable.baselineHash,
+    })
+    .from(seedMetaTable)
+    .where(
+      and(
+        eq(seedMetaTable.tenantId, tenantId),
+        eq(seedMetaTable.moduleId, moduleId),
+        eq(seedMetaTable.kind, kind),
+        eq(seedMetaTable.seedId, seedId),
+      ),
+    )
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+async function writeSeedMeta(
+  db: Db,
+  tenantId: string,
+  mod: Module,
+  kind: "agent" | "workflow" | "routine",
+  seedId: string,
+  targetId: string,
+  baselineHash: string,
+): Promise<void> {
+  await db.insert(seedMetaTable).values({
+    tenantId,
+    moduleId: mod.id,
+    kind,
+    seedId,
+    targetId,
+    baselineHash,
+    moduleVersion: mod.version,
+  });
 }

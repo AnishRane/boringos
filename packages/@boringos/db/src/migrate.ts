@@ -854,5 +854,29 @@ async function _applySchema(db: Db): Promise<void> {
     -- filtering by provider see historical rows. Idempotent: only fills
     -- where provider is still NULL.
     UPDATE connector_token_issuance SET provider = kind WHERE provider IS NULL AND kind IS NOT NULL;
+
+    -- MDK T7.2 -- per-tenant seed tracking. One row per (tenant, module,
+    -- kind, seedId) the framework or Lifecycle.seed has seeded. The
+    -- baseline_hash column is the canonical JSON hash of the seed
+    -- payload at install time; on upgrade we compare the current
+    -- row hash to detect tenant edits (modified_since_install).
+    -- target_id points at the row in agents/workflows/routines so
+    -- re-seeds can update or skip without redoing the lookup.
+    CREATE TABLE IF NOT EXISTS __seed_meta (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+      module_id TEXT NOT NULL,
+      kind TEXT NOT NULL CHECK (kind IN ('agent', 'workflow', 'routine')),
+      seed_id TEXT NOT NULL,
+      target_id UUID NOT NULL,
+      baseline_hash TEXT NOT NULL,
+      module_version TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS __seed_meta_uniq_idx
+      ON __seed_meta(tenant_id, module_id, kind, seed_id);
+    CREATE INDEX IF NOT EXISTS __seed_meta_target_idx
+      ON __seed_meta(target_id);
   `);
 }

@@ -31,3 +31,4 @@ export { connectorTokenIssuance } from "./connector-token-issuance.js";
 export { connectorAccounts } from "./connector-accounts.js";
 export { connectorOauthApps } from "./connector-oauth-apps.js";
 export { moduleConnectorBindings } from "./module-connector-bindings.js";
+export { seedMeta } from "./seed-meta.js"; // MDK T7.2

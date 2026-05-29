@@ -376,6 +376,38 @@ so it's safe to declare a row both ways during a migration.
 > declarative path and only reach for `Lifecycle.seed` if you hit
 > something it can't express.
 
+#### Upgrades — tenant edits survive (MDK T7.2)
+
+Every seeded row is tracked in `__seed_meta` with a stable `seedId`
+(defaults to the seed's `name` / `title` / `id`) and a `baseline_hash`
+of the seed payload at install time. On re-install or `module.json`
+upgrade the framework looks each seed up:
+
+| Current row hash | Author payload changed? | Outcome |
+|---|---|---|
+| `== baseline_hash` | yes | **Update** the row + bump `baseline_hash`. |
+| `== baseline_hash` | no  | Skip (no churn). |
+| `!= baseline_hash` | either | Skip — tenant edited; leave their changes alone. |
+
+The mechanism is implicit: the framework compares the row's current
+canonical-JSON hash to the baseline. No `modified_since_install`
+column lives on the seed target — tenant edits via the normal admin
+API are detected by hash, not by a flag the framework has to remember
+to set.
+
+Pin `seedId` explicitly when you might rename or restyle the seed
+across versions:
+
+```ts
+agents: [
+  {
+    seedId: "lead-triager-v1",
+    name: "Lead Triager",        // renaming this later still upgrades the right row
+    persona: "personas-default.email-lens",
+  },
+],
+```
+
 ---
 
 ## UI registration
