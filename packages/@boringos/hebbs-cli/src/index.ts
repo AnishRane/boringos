@@ -8,3 +8,9 @@
 
 export { runTest, type TestOptions, type TestResult } from "./test.js";
 export { startDev, type DevOptions, type DevHandle } from "./dev.js";
+export {
+  runDoctor,
+  type DoctorOptions,
+  type DoctorReport,
+  type DoctorFinding,
+} from "./doctor.js";

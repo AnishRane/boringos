@@ -9,6 +9,7 @@
 
 import { runTest } from "./test.js";
 import { startDev } from "./dev.js";
+import { runDoctor } from "./doctor.js";
 
 interface ParsedArgs {
   command: string | null;
@@ -51,8 +52,9 @@ function printHelp(): void {
       "hebbs — module dev kit CLI",
       "",
       "Usage:",
-      "  hebbs test <module> [options]   one-shot smoke (boot, optional dispatch, tear down)",
-      "  hebbs dev  <module> [options]   boot and stay alive (Ctrl+C to stop) — MDK T6.1",
+      "  hebbs test   <module> [options]   one-shot smoke (boot, optional dispatch, tear down)",
+      "  hebbs dev    <module> [options]   boot and stay alive (Ctrl+C to stop) — MDK T6.1",
+      "  hebbs doctor <module> [options]   health-check the module (SDK compat, deprecated APIs) — MDK T7.4",
       "",
       "Arguments:",
       "  <module>           path to a .hebbsmod archive OR a built module package",
@@ -76,7 +78,7 @@ async function main(): Promise<number> {
     printHelp();
     return 0;
   }
-  if (args.command !== "test" && args.command !== "dev") {
+  if (args.command !== "test" && args.command !== "dev" && args.command !== "doctor") {
     process.stderr.write(
       `hebbs: unknown command "${args.command ?? "(none)"}"\n\n`,
     );
@@ -103,6 +105,32 @@ async function main(): Promise<number> {
       );
       return 2;
     }
+  }
+
+  if (args.command === "doctor") {
+    const report = await runDoctor({ modulePath });
+    const wantJson = args.flags.json === true;
+    if (wantJson) {
+      process.stdout.write(JSON.stringify(report, null, 2) + "\n");
+    } else {
+      const lines: string[] = [
+        ``,
+        `▶ hebbs doctor — ${modulePath}`,
+        ``,
+      ];
+      if (report.findings.length === 0) {
+        lines.push(`  ✓ All checks passed.`);
+      } else {
+        for (const f of report.findings) {
+          const icon = f.severity === "error" ? "✗" : f.severity === "warn" ? "⚠" : "·";
+          lines.push(`  ${icon} [${f.code}] ${f.message}`);
+          if (f.file) lines.push(`      ${f.file}${f.line ? `:${f.line}` : ""}`);
+        }
+      }
+      lines.push(``);
+      process.stdout.write(lines.join("\n"));
+    }
+    return report.ok ? 0 : 1;
   }
 
   if (args.command === "dev") {
