@@ -1,5 +1,12 @@
 # @boringos/core
 
+## 1.0.1
+
+### Patch Changes
+
+- Updated dependencies [2715428]
+  - @boringos/agent@1.1.0
+
 ## 1.0.0
 
 ### Major Changes
