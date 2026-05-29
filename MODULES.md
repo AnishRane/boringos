@@ -274,6 +274,58 @@ Module re-runs unapplied migrations only.
 
 ---
 
+## Hook reach — what a Module can wire (MDK T7.3)
+
+Modules carry two kinds of surface today: **manifest fields**
+(serialisable; safe to ship inside a `.hebbsmod`) and **host-only
+hooks** (chained off the `BoringOS` instance at boot via `app.X()`,
+not available to runtime-installed modules).
+
+| Hook | Manifest | `app.X()` | Notes |
+|---|---|---|---|
+| `tools` | ✅ | n/a | Always declarative. |
+| `skills` | ✅ | n/a | Always declarative. |
+| `schema` | ✅ | n/a | Per-module migrations. |
+| `agents` / `workflows` / `routines` | ✅ (declarative seeds) | n/a | See "Seeding" above; `Lifecycle.seed` from `onInstall` for imperative cases. |
+| `events` | ✅ | n/a | Listed for discovery; emitters call `eventBus.publish`. |
+| `webhooks` | ✅ | n/a | Mounted at `/api/webhooks/<id>/<event>`. |
+| `inboxSource` | ✅ (new T7.3) | `app.routeToInbox(...)` | The declarative manifest field is the only path .hebbsmod modules have. |
+| `blockHandler` | ❌ | data-driven discovery via `@boringos/block-*` packages | The host scans installed packages; modules don't push handlers explicitly. |
+| `contextProvider` | ❌ | `app.contextProvider(p)` | Host-only at boot; runtime modules can't add provider closures. |
+| `persona` | ❌ | `app.persona(role, bundle)` | Host-only at boot; persona bundles ship as packages, registered before `app.listen()`. |
+| `onTenantCreated` | ❌ | `app.onTenantCreated(fn)` | Host-only: framework-shaped tenant bootstrap, never module-scoped. |
+| `onEvent` | ✅ (`events` declarations + routine triggers) / `app.onEvent(...)` for host code | Author manifest declares `events` they emit; subscribers wire via `routines.trigger: { type: "event", eventType }` or workflow-level event triggers. |
+| `route(path, hono)` | ❌ — explicitly **NOT allowed** for runtime `.hebbsmod` | `app.route(...)` only | Mounting arbitrary HTTP at host scope is a security gate; manifest cannot smuggle it. |
+| `lifecycle` | ✅ (`onInstall` / `onUninstall` / `onTenantCreate`) | n/a | Runs per-tenant with `ctx.seed` provisioned. |
+
+The principle: **anything serialisable lives on the manifest;
+anything that requires a host-level closure stays on `app.X()` and is
+never available to runtime-installed modules.** This keeps the
+`.hebbsmod` install path safe — a third-party bundle can't mount
+arbitrary HTTP routes or context providers — while still letting
+static built-ins compose freely.
+
+### `inboxSource` — declarative inbox routing
+
+```ts
+inboxSource: {
+  eventType: "gmail.email_received",
+  filter: { path: "$.data.classification.label", equals: "important" },
+  map: {
+    source: "gmail",
+    subject: "$.data.email.subject",
+    body: "$.data.email.body",
+    from: "$.data.email.from",
+  },
+}
+```
+
+Strings starting with `$.` are JSONPath-lite references into the
+event payload; everything else is literal. The framework subscribes
+on registration; one `inbox_items` row is written per matching event.
+
+---
+
 ## Lifecycle hooks
 
 | Hook | When called | Typical use |

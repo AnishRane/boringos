@@ -325,6 +325,15 @@ export class BoringOS {
     }
     this.boundModules.push(resolved);
 
+    // MDK T7.3 — declarative inbox source. The manifest field is the
+    // .hebbsmod-safe path for what static modules can also achieve
+    // with `app.routeToInbox(...)`.
+    if (resolved.inboxSource) {
+      this.inboxRoutes.push(
+        compileInboxSource(resolved.id, resolved.inboxSource),
+      );
+    }
+
     // Default-install backfill — only meaningful after the
     // install-manager exists (i.e. post-listen). At boot time the
     // manager isn't built yet; the existing boot path runs a single
@@ -1594,4 +1603,62 @@ export class BoringOS {
       },
     };
   }
+}
+
+// MDK T7.3 — turn a declarative `InboxSource` manifest into the
+// callback shape `routeToInbox` already consumes. A leading "$." in
+// any map field draws from the event payload; everything else is
+// literal. Filter is an exact-match on a single payload path.
+function compileInboxSource(
+  moduleId: string,
+  src: import("@boringos/module-sdk").InboxSource,
+): {
+  filter: (event: Record<string, unknown>) => boolean;
+  transform: (event: Record<string, unknown>) => {
+    source: string;
+    subject: string;
+    body?: string;
+    from?: string;
+    assigneeUserId?: string;
+  };
+} {
+  const pickPath = (obj: Record<string, unknown>, path: string): unknown => {
+    // "$.a.b.c" → walk obj.a.b.c
+    const parts = path.replace(/^\$\.?/, "").split(".").filter(Boolean);
+    let cur: unknown = obj;
+    for (const p of parts) {
+      if (cur && typeof cur === "object") {
+        cur = (cur as Record<string, unknown>)[p];
+      } else {
+        return undefined;
+      }
+    }
+    return cur;
+  };
+  const resolve = (
+    event: Record<string, unknown>,
+    field: string | undefined,
+  ): string | undefined => {
+    if (field === undefined) return undefined;
+    if (field.startsWith("$.") || field === "$") {
+      const v = pickPath(event, field);
+      return v === undefined ? undefined : String(v);
+    }
+    return field;
+  };
+  return {
+    filter: (event) => {
+      if ((event as { type?: string }).type !== src.eventType) return false;
+      if (!src.filter) return true;
+      const v = pickPath(event, src.filter.path);
+      return v === src.filter.equals;
+    },
+    transform: (event) => ({
+      source: resolve(event, src.map.source) ?? moduleId,
+      subject: resolve(event, src.map.subject) ?? "(no subject)",
+      body: resolve(event, src.map.body),
+      from: resolve(event, src.map.from),
+      assigneeUserId: resolve(event, src.map.assigneeUserId),
+    }),
+  };
 }

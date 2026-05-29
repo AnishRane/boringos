@@ -255,6 +255,35 @@ export type RoutineTrigger =
   | { type: "webhook"; event: string };
 
 /**
+ * Declarative inbox source — what a Module's manifest contributes to
+ * the host's inbox via the `inboxSource` field. The framework
+ * subscribes to `eventType` at registration time, applies the
+ * optional `filter`, and writes one inbox row using `map` to project
+ * fields out of the event payload. MDK T7.3.
+ *
+ * A leading "$." reference in any string draws from the event
+ * payload (e.g. `"$.email.subject"`); other strings are literal.
+ */
+export interface InboxSource {
+  /** Fully-qualified event type, e.g. `gmail.email_received`. */
+  eventType: string;
+  /** Optional payload predicate; both `path` (JSONPath-lite) and
+   *  `equals` must match for the source to fire. */
+  filter?: { path: string; equals: unknown };
+  /** Field projection into the inbox item. */
+  map: {
+    source: InboxField;
+    subject: InboxField;
+    body?: InboxField;
+    from?: InboxField;
+    assigneeUserId?: InboxField;
+  };
+}
+
+/** A literal string OR a `$.path` reference into the event payload. */
+export type InboxField = string;
+
+/**
  * An EventSpec — what events this Module can emit. Other Modules
  * subscribe via routines or `dependsOn` capability resolution.
  */
@@ -583,6 +612,16 @@ export interface Module {
   routines?: Routine[];
   /** Events this Module can emit. */
   events?: EventSpec[];
+  /**
+   * Declarative inbox source — the manifest-side equivalent of
+   * `app.routeToInbox(...)`. Authors declare the event type the
+   * source listens for plus a payload-path mapping into the inbox
+   * item. The framework wires the subscription at registration time
+   * (MDK T7.3). Static modules can still use `app.routeToInbox()`
+   * directly; runtime `.hebbsmod` modules MUST use this field
+   * because they can't smuggle host-level handlers.
+   */
+  inboxSource?: InboxSource;
   /** Inbound webhooks. Mounted at `/api/webhooks/<id>/<event>`. */
   webhooks?: Webhook[];
   /** Required for connector modules brokering a 3rd party. */
