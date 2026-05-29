@@ -181,29 +181,16 @@ export function createAgentEngine(config: AgentEngineConfig): AgentEngine {
       });
       return;
     }
-    // Resolve the agent's runtime up-front — we need its type to gate
-    // session resume below (a session belongs to the runtime that
-    // created it). Defaults to claude when the agent has no runtimeId.
-    let runtimeType = "claude";
-    let runtimeConfig: Record<string, unknown> = {};
-    if (agent.runtimeId) {
-      try {
-        const { runtimes: runtimesTable } = await import("@boringos/db");
-        const rtRows = await db.select().from(runtimesTable).where(eq(runtimesTable.id, agent.runtimeId)).limit(1);
-        if (rtRows[0]) {
-          runtimeType = rtRows[0].type;
-          runtimeConfig = (rtRows[0].config as Record<string, unknown>) ?? {};
-          if (rtRows[0].model && !runtimeConfig.model) {
-            runtimeConfig.model = rtRows[0].model;
-          }
-        }
-      } catch {
-        // DB unavailable (e.g. a shutdown race) — fall back to defaults.
-        // This lookup runs before the main try/catch; without this guard a
-        // rejected query during teardown surfaces as an unhandled rejection.
-      }
-    }
-    // Per-agent model override wins over runtime defaults.
+    // Runtime selection is host-wide, set at deploy via env. No
+    // per-tenant runtimes table lookup, no per-agent runtime_id read.
+    // The operator deploys the framework with the CLI they want
+    // (claude / pi / gemini / ollama / …) installed + authed and
+    // sets BORINGOS_RUNTIME accordingly. agent.runtimeId is ignored;
+    // the column stays nullable for backward compat but is no longer
+    // the source of truth. `agent.model` (per-agent) still wins when set.
+    const runtimeType = process.env.BORINGOS_RUNTIME ?? "pi";
+    const runtimeConfig: Record<string, unknown> = {};
+    if (process.env.BORINGOS_MODEL) runtimeConfig.model = process.env.BORINGOS_MODEL;
     const agentModel = (agent as { model?: string | null }).model;
     if (agentModel) runtimeConfig.model = agentModel;
 

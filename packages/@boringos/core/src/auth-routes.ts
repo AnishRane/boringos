@@ -165,52 +165,36 @@ export function createAuthRoutes(
         VALUES (${tenantId}, ${tenantName}, ${slug}, now(), now())
       `);
 
-      // Auto-seed runtimes
-      await db.execute(sql`
-        INSERT INTO runtimes (id, tenant_id, name, type, config, model, status, created_at, updated_at) VALUES
-          (${randomUUID()}, ${tenantId}, 'claude', 'claude', '{"model":"claude-haiku-4-5-20251001"}', 'claude-haiku-4-5-20251001', 'active', now(), now()),
-          (${randomUUID()}, ${tenantId}, 'chatgpt', 'chatgpt', '{"model":"gpt-4o"}', 'gpt-4o', 'active', now(), now()),
-          (${randomUUID()}, ${tenantId}, 'gemini', 'gemini', '{"model":"gemini-2.5-pro"}', 'gemini-2.5-pro', 'active', now(), now()),
-          (${randomUUID()}, ${tenantId}, 'ollama', 'ollama', '{}', null, 'active', now(), now()),
-          (${randomUUID()}, ${tenantId}, 'command', 'command', '{}', null, 'active', now(), now()),
-          (${randomUUID()}, ${tenantId}, 'webhook', 'webhook', '{}', null, 'active', now(), now())
-      `);
+      // No runtime seeding — runtime is host-wide via BORINGOS_RUNTIME
+      // env var, resolved by the agent engine at wake time. Per-tenant
+      // runtime rows + per-agent runtime_id are deprecated.
 
-      // Auto-create Chief of Staff (organizational root) and Copilot
+      // Auto-create Chief of Staff (organizational root) and Copilot.
+      // No runtime_id needed — engine resolves at wake.
       let rootAgentId: string | undefined;
       try {
         const { createAgentFromTemplate } = await import("@boringos/agent");
-        const rtRows = await db.execute(sql`
-          SELECT id FROM runtimes WHERE tenant_id = ${tenantId} AND type = 'claude' LIMIT 1
+        const cosResult = await createAgentFromTemplate(db as any, "chief-of-staff", {
+          tenantId,
+          name: "Chief of Staff",
+          source: "shell",
+        });
+        rootAgentId = cosResult.id;
+
+        await db.execute(sql`
+          UPDATE tenants SET root_agent_id = ${rootAgentId}, updated_at = now()
+          WHERE id = ${tenantId}
         `);
-        const runtimeId = (rtRows as unknown as Array<{ id: string }>)[0]?.id;
-        if (runtimeId) {
-          // 1. Create Chief of Staff as organizational root
-          const cosResult = await createAgentFromTemplate(db as any, "chief-of-staff", {
-            tenantId,
-            name: "Chief of Staff",
-            runtimeId,
-            source: "shell",
-          });
-          rootAgentId = cosResult.id;
 
-          // 2. Update tenant root_agent_id
-          await db.execute(sql`
-            UPDATE tenants SET root_agent_id = ${rootAgentId}, updated_at = now()
-            WHERE id = ${tenantId}
-          `);
-
-          // 3. Create Copilot under Chief of Staff
-          await createAgentFromTemplate(db as any, "copilot", {
-            tenantId,
-            name: "Copilot",
-            runtimeId,
-            reportsTo: rootAgentId,
-            source: "shell",
-          });
-        }
+        await createAgentFromTemplate(db as any, "copilot", {
+          tenantId,
+          name: "Copilot",
+          reportsTo: rootAgentId,
+          source: "shell",
+        });
       } catch {
-        // Non-fatal — agents can be created later, but provision may fail if hook depends on rootAgentId
+        // Non-fatal — agents can be created later, but provision may
+        // fail if hook depends on rootAgentId.
       }
 
       // Link user as admin

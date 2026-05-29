@@ -274,6 +274,33 @@ Module re-runs unapplied migrations only.
 
 ---
 
+## Runtime selection (host-wide)
+
+Hebbs spawns agents as agentic CLI subprocesses. **One CLI per host
+instance**, picked at deploy time:
+
+```bash
+# .env.local (or wherever your process env lives)
+BORINGOS_RUNTIME=pi          # default; alternatives: claude, gemini, ollama, command
+BORINGOS_MODEL=openai/gpt-5.1 # optional — overrides the runtime's default
+```
+
+The operator installs the chosen CLI (`npm install -g pi`,
+`claude`, etc.) + completes its login flow; the framework just
+spawns it. **No API keys live in the framework's config.** No
+per-tenant runtime selection, no per-agent runtime pinning — every
+agent on the host runs on the same CLI.
+
+`agents.model` per-agent still wins when set (Pi supports
+`openai/gpt-5.1` / `openai/gpt-5-nano` / `openai/gpt-4.1-mini`;
+Claude has Haiku / Sonnet / Opus tiers).
+
+The legacy `runtimes` DB table + `agents.runtime_id` FK are
+vestigial — engine never reads them. They'll be dropped in a
+future major.
+
+---
+
 ## Hook reach — what a Module can wire (MDK T7.3)
 
 Modules carry two kinds of surface today: **manifest fields**

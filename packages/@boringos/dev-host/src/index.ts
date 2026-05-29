@@ -328,7 +328,7 @@ export async function createDevHost(opts: DevHostOptions): Promise<DevHost> {
   const db = (
     server as unknown as { context: { db: Db } }
   ).context.db;
-  const { tenants, agents, runtimes } = await import("@boringos/db");
+  const { tenants, agents } = await import("@boringos/db");
   const { eq, and, isNull } = await import("drizzle-orm");
 
   const tenantRows = await db
@@ -359,13 +359,9 @@ export async function createDevHost(opts: DevHostOptions): Promise<DevHost> {
   }
 
   // ── 7. Provision an agent + mint a callback JWT ──────────────
-  const rtRows = await db
-    .select()
-    .from(runtimes)
-    .where(eq(runtimes.tenantId, tenant.id));
-  const rt = rtRows[0];
-  if (!rt) throw new Error("dev-host: no runtime seeded for tenant");
-
+  // Runtime is host-wide via BORINGOS_RUNTIME — no per-tenant runtime
+  // lookup needed. Dev-host agent only exists to mint a callback JWT;
+  // it never actually spawns a CLI, so runtimeId is left null.
   const rootRows = await db
     .select({ id: agents.id })
     .from(agents)
@@ -379,7 +375,7 @@ export async function createDevHost(opts: DevHostOptions): Promise<DevHost> {
     tenantId: tenant.id,
     name: "Dev Host Agent",
     role: "general",
-    runtimeId: rt.id,
+    runtimeId: null,
     reportsTo,
   });
   const runId = randomUUID();

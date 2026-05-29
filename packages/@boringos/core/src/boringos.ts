@@ -1253,13 +1253,8 @@ export class BoringOS {
         const firstTenantId = firstTenant.id;
         const { createAgentFromTemplate } = await import("@boringos/agent");
 
-        // Get available runtime for this tenant
-        const rtRows = await dbConn.db.select().from(
-          (await import("@boringos/db")).runtimes
-        ).where(
-          eq((await import("@boringos/db")).runtimes.tenantId, firstTenantId),
-        ).limit(1);
-        const runtimeId = rtRows[0]?.id;
+        // Runtime is host-wide via BORINGOS_RUNTIME — no per-tenant
+        // runtimes table lookup. createAgentFromTemplate accepts null.
 
         // Check for Chief of Staff
         const existingCoS = await dbConn.db.select().from(agentsTable).where(
@@ -1279,12 +1274,11 @@ export class BoringOS {
           .limit(1);
 
         let cosId = existingCoS[0]?.id;
-        if (!cosId && runtimeId && existingRootAgent.length === 0) {
+        if (!cosId && existingRootAgent.length === 0) {
           // Create CoS only when the tenant has no root agent at all
           const cosResult = await createAgentFromTemplate(dbConn.db, "chief-of-staff", {
             tenantId: firstTenantId,
             name: "Chief of Staff",
-            runtimeId,
             source: "shell",
           });
           cosId = cosResult.id;
@@ -1304,12 +1298,10 @@ export class BoringOS {
           ),
         ).limit(1);
 
-        if (existingCopilot.length === 0 && runtimeId && cosId) {
-          // Create Copilot under CoS
+        if (existingCopilot.length === 0 && cosId) {
           await createAgentFromTemplate(dbConn.db, "copilot", {
             tenantId: firstTenantId,
             name: "Copilot",
-            runtimeId,
             reportsTo: cosId,
             source: "shell",
           });

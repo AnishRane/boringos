@@ -24,7 +24,6 @@ import {
   agents as agentsTable,
   workflows as workflowsTable,
   routines as routinesTable,
-  runtimes as runtimesTable,
   seedMeta as seedMetaTable,
 } from "@boringos/db";
 import { createHash } from "node:crypto";
@@ -549,12 +548,8 @@ async function runSeed(
       await db.delete(seedMetaTable).where(eq(seedMetaTable.id, meta.id));
     }
     // First-time seed (no meta, or meta orphaned + just cleared).
-    const rtRows = await db
-      .select({ id: runtimesTable.id })
-      .from(runtimesTable)
-      .where(eq(runtimesTable.tenantId, tenantId))
-      .limit(1);
-    const runtimeId = rtRows[0]?.id ?? null;
+    // Runtime is host-wide via BORINGOS_RUNTIME — no per-agent
+    // runtime_id stored.
     const reportsToId =
       seed.reportsTo && agentSeedIds.has(seed.reportsTo)
         ? agentSeedIds.get(seed.reportsTo)!
@@ -567,7 +562,7 @@ async function runSeed(
         role: seed.persona,
         source: "app",
         sourceAppId,
-        runtimeId,
+        runtimeId: null,
         reportsTo: reportsToId,
         instructions: seed.instructions ?? null,
       })
