@@ -1,6 +1,6 @@
 {
   "name": "@boringos/shell",
-  "version": "0.0.3",
+  "version": "0.1.0",
   "private": false,
   "type": "module",
   "scripts": {

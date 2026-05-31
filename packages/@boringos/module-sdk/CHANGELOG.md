@@ -1,5 +1,15 @@
 # @boringos/module-sdk
 
+## 1.0.0
+
+### Patch Changes
+
+- Updated dependencies [6f6786e]
+  - @boringos/ui@1.0.0
+  - @boringos/shared@1.0.0
+  - @boringos/drive@0.1.11
+  - @boringos/memory@0.1.10
+
 ## 0.13.0
 
 ### Minor Changes

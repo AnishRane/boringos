@@ -1,6 +1,6 @@
 {
   "name": "@boringos/module-sdk",
-  "version": "0.13.0",
+  "version": "1.0.0",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -28,9 +28,9 @@
     "zod": "^3.23.0"
   },
   "peerDependencies": {
-    "@boringos/memory": "^0.1.9",
-    "@boringos/drive": "^0.1.10",
-    "@boringos/ui": "^0.1.9"
+    "@boringos/memory": "^0.1.10",
+    "@boringos/drive": "^0.1.11",
+    "@boringos/ui": "^1.0.0"
   },
   "peerDependenciesMeta": {
     "@boringos/memory": {

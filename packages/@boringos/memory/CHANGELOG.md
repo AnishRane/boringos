@@ -1,5 +1,12 @@
 # @boringos/memory
 
+## 0.1.10
+
+### Patch Changes
+
+- Updated dependencies [6f6786e]
+  - @boringos/shared@1.0.0
+
 ## 0.1.9
 
 ### Patch Changes

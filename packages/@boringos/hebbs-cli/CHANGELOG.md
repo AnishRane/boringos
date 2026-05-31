@@ -1,5 +1,12 @@
 # @boringos/hebbs-cli
 
+## 0.8.4
+
+### Patch Changes
+
+- Updated dependencies [6f6786e]
+  - @boringos/dev-host@0.6.2
+
 ## 0.8.3
 
 ### Patch Changes
