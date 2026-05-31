@@ -1,6 +1,5 @@
 import { type AnyPgColumn, pgTable, uuid, text, integer, timestamp, jsonb, index } from "drizzle-orm/pg-core";
 import { tenants } from "./tenants.js";
-import { runtimes } from "./runtimes.js";
 
 export const agents = pgTable(
   "agents",
@@ -17,8 +16,6 @@ export const agents = pgTable(
     status: text("status").notNull().default("idle"),
     reportsTo: uuid("reports_to").references((): AnyPgColumn => agents.id),
     instructions: text("instructions"),
-    runtimeId: uuid("runtime_id").references(() => runtimes.id, { onDelete: "set null" }),
-    fallbackRuntimeId: uuid("fallback_runtime_id").references(() => runtimes.id, { onDelete: "set null" }),
     model: text("model"),
     budgetMonthlyCents: integer("budget_monthly_cents").notNull().default(0),
     spentMonthlyCents: integer("spent_monthly_cents").notNull().default(0),

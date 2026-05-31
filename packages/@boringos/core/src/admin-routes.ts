@@ -9,7 +9,6 @@ import {
   taskWorkProducts,
   agentRuns,
   agentWakeupRequests,
-  runtimes,
   costEvents,
   activityLog,
   budgetPolicies,
@@ -267,7 +266,6 @@ export function createAdminRoutes(
       name: body.name as string,
       role: (body.role as string) ?? "general",
       instructions: body.instructions as string | undefined,
-      runtimeId: body.runtimeId as string | undefined,
       reportsTo,
       source,
       sourceAppId: sourceAppId ?? null,
@@ -309,8 +307,6 @@ export function createAdminRoutes(
     if (body.icon !== undefined) values.icon = body.icon;
     if (body.instructions !== undefined) values.instructions = body.instructions;
     if (body.status !== undefined) values.status = body.status;
-    if (body.runtimeId !== undefined) values.runtimeId = body.runtimeId;
-    if (body.fallbackRuntimeId !== undefined) values.fallbackRuntimeId = body.fallbackRuntimeId;
     if (body.model !== undefined) values.model = body.model;
     if (body.budgetMonthlyCents !== undefined) values.budgetMonthlyCents = body.budgetMonthlyCents;
     // Accept both keys on PATCH for one release; new = routingTags.
@@ -457,7 +453,6 @@ export function createAdminRoutes(
     const agent = await createAgentFromTemplate(db, body.role as string, {
       tenantId: c.get("tenantId"),
       name: body.name as string | undefined,
-      runtimeId: body.runtimeId as string | undefined,
       reportsTo: body.reportsTo as string | undefined,
     });
     emit("agent:created", c.get("tenantId"), { agentId: agent.id, name: agent.name, role: agent.role });
@@ -471,7 +466,6 @@ export function createAdminRoutes(
     const { createTeam } = await import("@boringos/agent");
     const agents = await createTeam(db, body.template as string, {
       tenantId: c.get("tenantId"),
-      runtimeId: body.runtimeId as string | undefined,
     });
     for (const a of agents) {
       emit("agent:created", c.get("tenantId"), { agentId: a.id, name: a.name, role: a.role });
@@ -1173,65 +1167,16 @@ export function createAdminRoutes(
     return c.json({ ok: true });
   });
 
-  // ── Runtimes ────────────────────────────────────────────────────────────
-
-  app.get("/runtimes", async (c) => {
-    const rows = await db.select().from(runtimes).where(eq(runtimes.tenantId, c.get("tenantId")));
-    return c.json({ runtimes: rows });
-  });
-
-  app.post("/runtimes", async (c) => {
-    const denied = requireAdmin(c); if (denied) return denied;
-    const body = await c.req.json() as Record<string, unknown>;
-    const id = generateId();
-    await db.insert(runtimes).values({
-      id,
-      tenantId: c.get("tenantId"),
-      name: body.name as string,
-      type: body.type as string,
-      config: (body.config as Record<string, unknown>) ?? {},
-      model: body.model as string | undefined,
-    });
-    const rows = await db.select().from(runtimes).where(eq(runtimes.id, id)).limit(1);
-    return c.json(rows[0], 201);
-  });
-
-  app.patch("/runtimes/:id", async (c) => {
-    const denied = requireAdmin(c); if (denied) return denied;
-    const body = await c.req.json() as Record<string, unknown>;
-    const values: Record<string, unknown> = { updatedAt: new Date() };
-    if (body.name !== undefined) values.name = body.name;
-
-    // Keep config.model and model column in sync
-    if (body.config !== undefined) {
-      const cfg = body.config as Record<string, unknown>;
-      values.config = cfg;
-      if (cfg.model && body.model === undefined) values.model = cfg.model as string;
-    }
-    if (body.model !== undefined) {
-      values.model = body.model;
-      const existing = await db.select().from(runtimes).where(eq(runtimes.id, c.req.param("id"))).limit(1);
-      if (existing[0]) {
-        const cfg = { ...(existing[0].config as Record<string, unknown>), model: body.model };
-        if (!body.config) values.config = cfg;
-      }
-    }
-
-    await db.update(runtimes).set(values).where(
-      and(eq(runtimes.id, c.req.param("id")), eq(runtimes.tenantId, c.get("tenantId"))),
-    );
-    const rows = await db.select().from(runtimes).where(eq(runtimes.id, c.req.param("id"))).limit(1);
-    return c.json(rows[0]);
-  });
-
-  app.get("/runtimes/:id/models", async (c) => {
-    const rows = await db.select().from(runtimes).where(
-      and(eq(runtimes.id, c.req.param("id")), eq(runtimes.tenantId, c.get("tenantId"))),
-    ).limit(1);
-    if (!rows[0]) return c.json({ error: "Runtime not found" }, 404);
-
-    const rtModule = runtimeRegistry?.get(rows[0].type);
-    if (!rtModule) return c.json({ models: [] });
+  // ── Runtime model catalog ─────────────────────────────────────────────────
+  // The runtime (harness/CLI) is host-wide, set via BORINGOS_RUNTIME at
+  // deploy — there is no per-tenant runtimes table any more. This endpoint
+  // exposes the model list of the *host* runtime so the per-agent model
+  // picker (Settings → Agents) can offer the right options. Picking one
+  // writes `agents.model`; the engine passes it as the runtime's --model.
+  app.get("/runtime/models", async (c) => {
+    const hostType = process.env.BORINGOS_RUNTIME ?? "claude";
+    const rtModule = runtimeRegistry?.get(hostType);
+    if (!rtModule) return c.json({ type: hostType, models: [] });
 
     // Prefer the runtime's live catalog (listModels) when it provides one —
     // e.g. pi enumerates the models its configured key can access — and fall
@@ -1240,27 +1185,7 @@ export function createAdminRoutes(
     const models = rtModule.listModels
       ? await rtModule.listModels()
       : (rtModule.models ?? []);
-    return c.json({ models });
-  });
-
-  app.delete("/runtimes/:id", async (c) => {
-    const denied = requireAdmin(c); if (denied) return denied;
-    await db.delete(runtimes).where(
-      and(eq(runtimes.id, c.req.param("id")), eq(runtimes.tenantId, c.get("tenantId"))),
-    );
-    return c.json({ ok: true });
-  });
-
-  app.post("/runtimes/:id/default", async (c) => {
-    const denied = requireAdmin(c); if (denied) return denied;
-    const tenantId = c.get("tenantId");
-    // Unset all defaults first
-    await db.update(runtimes).set({ isDefault: false }).where(eq(runtimes.tenantId, tenantId));
-    // Set this one as default
-    await db.update(runtimes).set({ isDefault: true, updatedAt: new Date() }).where(
-      and(eq(runtimes.id, c.req.param("id")), eq(runtimes.tenantId, tenantId)),
-    );
-    return c.json({ ok: true });
+    return c.json({ type: hostType, models });
   });
 
   // Approvals routes removed — collapsed into tasks. See

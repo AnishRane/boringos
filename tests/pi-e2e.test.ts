@@ -50,23 +50,15 @@ describe.skipIf(!RUN)("pi E2E — multi-turn continuity on gpt-4.1-mini", () => 
       await db.insert(tenants).values({ id: tenantId, name: "Pi E2E", slug: `pi-e2e-${Date.now()}` });
       const h = headers(tenantId);
 
-      // 1. "Pi · OpenAI" connection (default openai/gpt-4.1-mini).
-      const rtRes = await fetch(`${base}/api/admin/runtimes`, {
-        method: "POST",
-        headers: h,
-        body: JSON.stringify({ name: "Pi · OpenAI", type: "pi", config: { provider: "openai" }, model: "openai/gpt-4.1-mini" }),
-      });
-      expect(rtRes.status).toBe(201);
-      const runtime = (await rtRes.json()) as { id: string };
-
-      // 2. A conversational agent on the pi connection.
+      // 1. A conversational agent. The runtime (pi) is host-wide via
+      // BORINGOS_RUNTIME / BORINGOS_RUNTIME_CONFIG, set by the harness that
+      // runs this e2e (PI_E2E=1) — there is no per-agent runtime binding.
       const agentRes = await fetch(`${base}/api/admin/agents`, {
         method: "POST",
         headers: h,
         body: JSON.stringify({
           name: "Pi Chat",
           role: "general",
-          runtimeId: runtime.id,
           instructions:
             "You are a friendly assistant in a chat thread. Read the whole conversation and reply in one short, full sentence to the user's most recent message. Always answer directly and restate the relevant fact.",
         }),

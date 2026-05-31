@@ -12,9 +12,14 @@ import { join } from "node:path";
 describe("golden: full agent execution", () => {
   it("agent wakes, receives context, executes, and completes", async () => {
     const { BoringOS } = await import("@boringos/core");
-    const { tenants, agents, tasks, runtimes, agentRuns } = await import("@boringos/db");
+    const { tenants, agents, tasks, agentRuns } = await import("@boringos/db");
     const { eq } = await import("drizzle-orm");
     const { generateId } = await import("@boringos/shared");
+
+    // Saved so the host-wide runtime env we set below doesn't leak into
+    // sibling tests sharing this fork (vitest runs with a single fork).
+    const prevRuntime = process.env.BORINGOS_RUNTIME;
+    const prevRuntimeConfig = process.env.BORINGOS_RUNTIME_CONFIG;
 
     const dataDir = await mkdtemp(join(tmpdir(), "boringos-golden-"));
     const stdinCapture = join(dataDir, "captured-stdin.txt");
@@ -49,15 +54,11 @@ describe("golden: full agent execution", () => {
         slug: "test-corp",
       });
 
-      // 2. Create a command runtime that runs our test script
-      const runtimeId = generateId();
-      await db.insert(runtimes).values({
-        id: runtimeId,
-        tenantId,
-        name: "test-script",
-        type: "command",
-        config: { command: scriptPath },
-      });
+      // 2. Point the host runtime at our test script. Runtime is host-wide
+      // via BORINGOS_RUNTIME; the command path comes from the host-wide
+      // BORINGOS_RUNTIME_CONFIG (replaces the old per-tenant runtimes.config).
+      process.env.BORINGOS_RUNTIME = "command";
+      process.env.BORINGOS_RUNTIME_CONFIG = JSON.stringify({ command: scriptPath });
 
       // 3. Create agent
       const agentId = generateId();
@@ -67,7 +68,6 @@ describe("golden: full agent execution", () => {
         name: "Test Engineer",
         role: "engineer",
         instructions: "Focus on writing clean code with tests.",
-        runtimeId,
       });
 
       // 4. Create task
@@ -129,6 +129,11 @@ describe("golden: full agent execution", () => {
 
     } finally {
       await server.close();
+      // Restore host-wide runtime env so other tests see the default.
+      if (prevRuntime === undefined) delete process.env.BORINGOS_RUNTIME;
+      else process.env.BORINGOS_RUNTIME = prevRuntime;
+      if (prevRuntimeConfig === undefined) delete process.env.BORINGOS_RUNTIME_CONFIG;
+      else process.env.BORINGOS_RUNTIME_CONFIG = prevRuntimeConfig;
     }
   }, 60000);
 });

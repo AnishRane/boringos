@@ -115,8 +115,6 @@ export interface Agent extends Identifiable, TenantScoped, Timestamped {
   status: AgentStatus;
   reportsTo: string | null;
   instructions: string | null;
-  runtimeId: string | null;
-  fallbackRuntimeId: string | null;
   model: string | null;
   budgetMonthlyCents: number;
   spentMonthlyCents: number;

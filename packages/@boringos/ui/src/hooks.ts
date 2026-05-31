@@ -10,8 +10,6 @@ type AgentUpdate = {
   icon?: string | null;
   instructions?: string | null;
   status?: string;
-  runtimeId?: string | null;
-  fallbackRuntimeId?: string | null;
   model?: string | null;
   reportsTo?: string | null;
   routingTags?: string[];
@@ -30,7 +28,7 @@ export function useAgents() {
   });
 
   const createAgent = useMutation({
-    mutationFn: (data: { name: string; role?: string; instructions?: string; runtimeId?: string }) =>
+    mutationFn: (data: { name: string; role?: string; instructions?: string }) =>
       client.createAgent(data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["agents"] }),
   });
@@ -367,59 +365,17 @@ export function useRuns(filters?: { agentId?: string; status?: string }) {
   };
 }
 
-// ── Runtimes ─────────────────────────────────────────────────────────────────
-
-export function useRuntimes() {
-  const client = useClient();
-  const queryClient = useQueryClient();
-
-  const query = useQuery({
-    queryKey: ["runtimes"],
-    queryFn: () => client.getRuntimes(),
-  });
-
-  const createRuntime = useMutation({
-    mutationFn: (data: { name: string; type: string; config?: Record<string, unknown>; model?: string }) =>
-      client.createRuntime(data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["runtimes"] }),
-  });
-
-  const updateRuntime = useMutation({
-    mutationFn: (params: { runtimeId: string; data: { name?: string; config?: Record<string, unknown>; model?: string } }) =>
-      client.updateRuntime(params.runtimeId, params.data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["runtimes"] }),
-  });
-
-  const deleteRuntime = useMutation({
-    mutationFn: (runtimeId: string) => client.deleteRuntime(runtimeId),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["runtimes"] }),
-  });
-
-  const setDefault = useMutation({
-    mutationFn: (runtimeId: string) => client.setDefaultRuntime(runtimeId),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["runtimes"] }),
-  });
-
-  return {
-    runtimes: query.data ?? [],
-    isLoading: query.isLoading,
-    error: query.error,
-    createRuntime: createRuntime.mutateAsync,
-    updateRuntime: updateRuntime.mutateAsync,
-    deleteRuntime: deleteRuntime.mutateAsync,
-    setDefault: setDefault.mutateAsync,
-  };
-}
-
 // ── Runtime Models ────────────────────────────────────────────────────────────
+// The runtime (harness/CLI) is host-wide via BORINGOS_RUNTIME; there is no
+// per-tenant runtimes table. This returns the host runtime's model catalog
+// so the per-agent model picker can offer the right options.
 
-export function useRuntimeModels(runtimeId: string | undefined) {
+export function useRuntimeModels() {
   const client = useClient();
 
   return useQuery({
-    queryKey: ["runtimeModels", runtimeId],
-    queryFn: () => client.getRuntimeModels(runtimeId!),
-    enabled: !!runtimeId,
+    queryKey: ["runtimeModels"],
+    queryFn: () => client.getRuntimeModels(),
   });
 }
 

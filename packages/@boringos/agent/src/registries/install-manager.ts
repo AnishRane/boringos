@@ -562,7 +562,6 @@ async function runSeed(
         role: seed.persona,
         source: "app",
         sourceAppId,
-        runtimeId: null,
         reportsTo: reportsToId,
         instructions: seed.instructions ?? null,
       })

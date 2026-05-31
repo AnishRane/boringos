@@ -181,17 +181,25 @@ export function createAgentEngine(config: AgentEngineConfig): AgentEngine {
       });
       return;
     }
-    // Runtime selection is host-wide, set at deploy via env. No
-    // per-tenant runtimes table lookup, no per-agent runtime_id read.
-    // The operator deploys the framework with the CLI they want
-    // (claude / pi / gemini / ollama / …) installed + authed and
-    // sets BORINGOS_RUNTIME accordingly. agent.runtimeId is ignored;
-    // the column stays nullable for backward compat but is no longer
-    // the source of truth. `agent.model` (per-agent) still wins when set.
-    // Default is `claude` — matches the Hebbs harness-driver path
-    // (claude CLI, no provider API keys).
+    // Runtime selection is host-wide, set at deploy via env. There is
+    // no per-tenant runtimes table and no per-agent runtime_id — both
+    // were removed. The operator deploys the framework with the CLI
+    // they want (claude / pi / gemini / ollama / …) installed + authed
+    // and sets BORINGOS_RUNTIME accordingly. `agent.model` (per-agent)
+    // still wins when set. Default is `claude` — matches the Hebbs
+    // harness-driver path (claude CLI, no provider API keys).
     const runtimeType = process.env.BORINGOS_RUNTIME ?? "claude";
     const runtimeConfig: Record<string, unknown> = {};
+    // Host-wide runtime config (e.g. `command`/`webhook` need a command
+    // path or URL). This replaces the per-tenant runtimes.config column;
+    // set BORINGOS_RUNTIME_CONFIG to a JSON object at deploy time.
+    if (process.env.BORINGOS_RUNTIME_CONFIG) {
+      try {
+        Object.assign(runtimeConfig, JSON.parse(process.env.BORINGOS_RUNTIME_CONFIG));
+      } catch {
+        // Malformed JSON — ignore and fall back to env-derived config below.
+      }
+    }
     if (process.env.BORINGOS_MODEL) runtimeConfig.model = process.env.BORINGOS_MODEL;
     const agentModel = (agent as { model?: string | null }).model;
     if (agentModel) runtimeConfig.model = agentModel;
@@ -281,8 +289,6 @@ export function createAgentEngine(config: AgentEngineConfig): AgentEngine {
         status: agent.status as "idle" | "running" | "paused" | "error" | "archived",
         reportsTo: agent.reportsTo,
         instructions: agent.instructions,
-        runtimeId: agent.runtimeId,
-        fallbackRuntimeId: agent.fallbackRuntimeId,
         model: (agent as { model?: string | null }).model ?? null,
         budgetMonthlyCents: agent.budgetMonthlyCents,
         spentMonthlyCents: agent.spentMonthlyCents,

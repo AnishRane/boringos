@@ -283,7 +283,7 @@ export interface BoringOSClient {
     activity: Record<string, Record<string, number>>;
     days: number;
   }>;
-  createAgent(data: { name: string; role?: string; instructions?: string; runtimeId?: string }): Promise<Agent>;
+  createAgent(data: { name: string; role?: string; instructions?: string }): Promise<Agent>;
   updateAgent(
     agentId: string,
     data: {
@@ -293,8 +293,7 @@ export interface BoringOSClient {
       icon?: string | null;
       instructions?: string | null;
       status?: string;
-      runtimeId?: string | null;
-      fallbackRuntimeId?: string | null;
+      model?: string | null;
       reportsTo?: string | null;
       routingTags?: string[];
       permissions?: Record<string, unknown>;
@@ -429,13 +428,10 @@ export interface BoringOSClient {
   getRun(runId: string): Promise<AgentRun>;
   cancelRun(runId: string): Promise<void>;
 
-  // Runtimes
-  getRuntimes(): Promise<Record<string, unknown>[]>;
-  createRuntime(data: { name: string; type: string; config?: Record<string, unknown>; model?: string }): Promise<Record<string, unknown>>;
-  updateRuntime(runtimeId: string, data: { name?: string; config?: Record<string, unknown>; model?: string }): Promise<Record<string, unknown>>;
-  deleteRuntime(runtimeId: string): Promise<void>;
-  setDefaultRuntime(runtimeId: string): Promise<void>;
-  getRuntimeModels(runtimeId: string): Promise<RuntimeModel[]>;
+  // Runtime model catalog — the runtime (harness/CLI) is host-wide via
+  // BORINGOS_RUNTIME; this returns the host runtime's available models so
+  // the per-agent model picker can offer them. Picking one sets agents.model.
+  getRuntimeModels(): Promise<RuntimeModel[]>;
 
   // Approvals — collapsed into tasks (see decideTask above; tasks
   // with origin_kind="agent_action" carry the decision affordance).
@@ -842,17 +838,9 @@ export function createBoringOSClient(config: BoringOSClientConfig): BoringOSClie
     getRun: (runId) => get<AgentRun>(`${api}/runs/${runId}`),
     cancelRun: async (runId) => { await post(`${api}/runs/${runId}/cancel`, {}); },
 
-    // Runtimes
-    getRuntimes: async () => {
-      const res = await get<{ runtimes: Record<string, unknown>[] }>(`${api}/runtimes`);
-      return res.runtimes;
-    },
-    createRuntime: (data) => post<Record<string, unknown>>(`${api}/runtimes`, data),
-    updateRuntime: (runtimeId, data) => patch<Record<string, unknown>>(`${api}/runtimes/${runtimeId}`, data),
-    deleteRuntime: (runtimeId) => del(`${api}/runtimes/${runtimeId}`),
-    setDefaultRuntime: async (runtimeId) => { await post(`${api}/runtimes/${runtimeId}/default`, {}); },
-    getRuntimeModels: async (runtimeId) => {
-      const res = await get<{ models: RuntimeModel[] }>(`${api}/runtimes/${runtimeId}/models`);
+    // Runtime model catalog (host-wide runtime via BORINGOS_RUNTIME)
+    getRuntimeModels: async () => {
+      const res = await get<{ models: RuntimeModel[] }>(`${api}/runtime/models`);
       return res.models;
     },
 

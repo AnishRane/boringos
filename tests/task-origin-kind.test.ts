@@ -30,8 +30,6 @@ function makeEvent(
       status: "idle",
       reportsTo: null,
       instructions: "",
-      runtimeId: null,
-      fallbackRuntimeId: null,
       model: null,
       budgetMonthlyCents: null,
       spentMonthlyCents: 0,

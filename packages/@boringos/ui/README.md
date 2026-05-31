@@ -76,7 +76,7 @@ function Dashboard() {
 | `useTasks(filters?)` | Task list | `createTask` |
 | `useTask(taskId)` | Task + comments | `updateTask`, `postComment`, `assignTask`, `addWorkProduct` |
 | `useRuns(filters?)` | Runs (polls 5s) | `cancelRun` |
-| `useRuntimes()` | Runtime list | `createRuntime`, `setDefault` |
+| `useRuntimeModels()` | Host runtime model catalog (for the per-agent model picker) | — |
 | `useApprovals(status?)` | Approval list | `approve`, `reject` |
 | `useConnectors()` | Connector list | `invokeAction` |
 | `useProjects()` | Project list | -- |

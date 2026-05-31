@@ -40,16 +40,6 @@ export function OverviewTab({
           <span className="text-text">{agent.title}</span>
         </Row>
       )}
-      <Row label="Runtime">
-        <span className="font-mono text-xs text-text-secondary">
-          {agent.runtimeId ?? "(default)"}
-        </span>
-      </Row>
-      {agent.fallbackRuntimeId && (
-        <Row label="Fallback runtime">
-          <span className="font-mono text-xs text-text-secondary">{agent.fallbackRuntimeId}</span>
-        </Row>
-      )}
       <Row label="Last seen">
         <span className="text-text">{formatRelative(agent.lastHeartbeatAt)}</span>
       </Row>

@@ -391,63 +391,59 @@ counts failures.
 
 ---
 
-### 13. Tenant signup doesn't seed a `runtimes` row → silent install failures
+### 13. ~~Tenant signup doesn't seed a `runtimes` row → silent install failures~~ ✅ FIXED
 
-**Severity:** high (silent feature loss).
+**Severity:** high (silent feature loss). **Status: resolved** — see fix below.
 
-**Repro:**
-1. Sign up a new user → tenant gets created
-2. Built-in modules auto-install on tenant create
-3. Check `runtimes` table for the new tenant: **empty**
-4. Modules that gate on "is there a claude runtime?" silently no-op.
+**The real diagnosis (corrected).** This was NOT a missing-scaffold
+bug. It was two leaf modules left stranded on the wrong side of the
+`dc748a4` migration ("host-wide runtime via `BORINGOS_RUNTIME`; deprecate
+per-tenant runtimes table"). After `dc748a4` the `runtimes` table is empty
+on every fresh tenant *by design* — runtime is host-wide and the engine
+resolves it from `BORINGOS_RUNTIME` at wake time, ignoring `agent.runtime_id`.
 
-**Concrete breakage observed in this session:** the `inbox-triage`
-module's `installHandler` runs:
+But `inbox-triage` and `inbox-replier` still ran the pre-migration guard:
 
 ```ts
 const runtimes = await db.execute(sql`
   SELECT id FROM runtimes WHERE tenant_id = ${ctx.tenantId} AND type = 'claude' LIMIT 1
 `);
 const runtimeId = runtimes[0]?.id;
-if (!runtimeId) {
-  console.warn(`[inbox-triage] No Claude runtime for tenant ${ctx.tenantId}; skipping seed`);
-  return;
-}
+if (!runtimeId) { console.warn(...); return; }   // ← silently no-op'd on EVERY fresh tenant
 ```
-(`packages/@boringos/core/src/modules/inbox-triage.ts:226-235`)
 
-So the "Triage incoming inbox items" workflow + triage agent never
-got created, even though the module reports `installed`. Visible
-only in dev-server console; not surfaced anywhere the operator
-can see.
+So the triage agent + "Triage incoming inbox items" workflow (and the
+replier's) were never created, even though the modules reported
+`installed`. Real Gmail then sat `unread, linkedTaskId=null` forever.
 
-**Cascading effect:** real Gmail came in via forward-sync,
-`Enrich inbox items on ingestion` workflow fired and added
-`crmLens.pendingLead` metadata — but the *triage* workflow that's
-supposed to wake the triage agent and produce a draft reply never
-existed, so the email sat `unread, linkedTaskId=null` indefinitely.
+**Why the originally-recommended fix here was wrong.** The earlier entry
+suggested *inserting* a `runtimes` row at tenant create. That would have
+revived exactly the path `dc748a4` deprecated and made the engine's
+"runtime_id is ignored" contract a lie. There is no longer any such thing
+as "no runtime" — there's always the host-wide one from the env var.
 
-The system-wide pattern: any module with `if (!runtime) return` is a
-silent loss. Other built-ins likely have similar guards.
-
-**Fix:**
-1. Insert a `runtimes` row (`{type: 'claude', name: 'Claude', isDefault: true}`)
-   in `onTenantCreated` **before** any modules' `installHandler` fires.
-2. Have `installHandler`s upgrade their no-runtime branch from
-   `console.warn(...); return;` to either (a) throw so install fails
-   loudly, or (b) register a "needs-runtime" deferred state that
-   auto-completes when a runtime is later added.
-3. Smoke test in CI: signup → list workflows → assert every
-   `defaultInstall: true` module's workflows are present.
-
-**Manual workaround (used in this session):**
-```bash
-curl -X POST .../api/admin/runtimes -d '{"name":"Claude","type":"claude","config":{}}'
-curl -X POST .../api/admin/modules/inbox-triage/install
-curl -X POST .../api/admin/workflows/<triage-id>/execute -d '{"payload":{...email...}}'
-```
-After that the triage workflow appeared and execute-against the
-existing email succeeded.
+**The fix that shipped (full excision of the per-tenant runtime layer):**
+1. Deleted the `runtimes` lookup + `if (!runtimeId) return` guard in both
+   `inbox-triage.ts` and `inbox-replier.ts`; agents now insert with no
+   `runtime_id` (column removed).
+2. Removed the framework's coupling to the per-tenant runtime layer:
+   `agents.runtime_id` / `agents.fallback_runtime_id` columns, the
+   `/api/admin/runtimes` CRUD endpoints, the runtime-picker UI, the drizzle
+   schema, and all engine reads. Runtime is host-wide via `BORINGOS_RUNTIME`;
+   runtime *config* (e.g. `command`/`webhook`) is host-wide via
+   `BORINGOS_RUNTIME_CONFIG`. The `runtimes` **table is kept as an empty,
+   read-only backward-compat shim** so already-published `.hebbsmod` packages
+   that still `SELECT ... FROM runtimes` in their install hooks degrade
+   gracefully (empty → their "no runtime, skip" branch) instead of hard-
+   erroring on a missing relation. A future major can drop the table.
+3. Kept per-agent model selection: `agents.model` stays; the picker now
+   sources its options from the host runtime via `GET /api/admin/runtime/models`.
+4. Default Claude model is now **Haiku** (`CLAUDE_DEFAULT_MODEL`) when no
+   per-agent `agents.model` / `BORINGOS_MODEL` override is set.
+5. Added a regression test (`tests/inbox-default-install-fresh-tenant.test.ts`)
+   that installs both default modules on a tenant with **no** runtimes row
+   and asserts the agents + workflows land — the coverage gap that let this
+   ship in the first place.
 
 ---
 

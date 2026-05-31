@@ -27,8 +27,6 @@ function mkAgent(over: Partial<Agent> = {}): Agent {
     status: over.status ?? "idle",
     reportsTo: null,
     instructions: null,
-    runtimeId: null,
-    fallbackRuntimeId: null,
     budgetMonthlyCents: over.budgetMonthlyCents ?? 0,
     spentMonthlyCents: over.spentMonthlyCents ?? 0,
     pauseReason: null,

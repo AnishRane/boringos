@@ -38,7 +38,6 @@ export const FRAMEWORK_TABLES = [
   "task_attachments",
   "task_labels",
   "task_read_states",
-  "runtimes",
   "cost_events",
   "budget_policies",
   "budget_incidents",

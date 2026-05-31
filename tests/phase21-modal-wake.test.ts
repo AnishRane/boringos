@@ -5,7 +5,7 @@
  * a wake event when creating a task and assigning it to an agent.
  */
 import { describe, it, expect } from "vitest";
-import { mkdtemp, writeFile, chmod } from "node:fs/promises";
+import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -30,7 +30,7 @@ describe("NewTaskModal: wake fires", () => {
     const server = await boot(5570);
     try {
       const { generateId } = await import("@boringos/shared");
-      const { tenants, agents, tasks, runtimes, agentWakeupRequests } = await import("@boringos/db");
+      const { tenants, agents, tasks, agentWakeupRequests } = await import("@boringos/db");
       const { eq } = await import("drizzle-orm");
       const db = server.context.db as import("@boringos/db").Db;
 
@@ -38,29 +38,13 @@ describe("NewTaskModal: wake fires", () => {
       const tenantId = generateId();
       await db.insert(tenants).values({ id: tenantId, name: "Modal Test", slug: "modal-test" });
 
-      // 2. Create a command runtime
-      const runtimeId = generateId();
-      const dataDir = await mkdtemp(join(tmpdir(), "boringos-modal-runtime-"));
-      const scriptPath = join(dataDir, "test-agent.sh");
-      await writeFile(scriptPath, "#!/bin/bash\nexit 0\n");
-      await chmod(scriptPath, 0o755);
-
-      await db.insert(runtimes).values({
-        id: runtimeId,
-        tenantId,
-        name: "test-runtime",
-        type: "command",
-        config: { command: scriptPath },
-      });
-
-      // 3. Create agent
+      // 2. Create agent (runtime is host-wide via BORINGOS_RUNTIME)
       const agentId = generateId();
       await db.insert(agents).values({
         id: agentId,
         tenantId,
         name: "Test Agent",
         role: "engineer",
-        runtimeId,
       });
 
       // 4. Create task (simulating modal's createTask)
@@ -121,27 +105,13 @@ describe("NewTaskModal: wake fires", () => {
     const server = await boot(5569);
     try {
       const { generateId } = await import("@boringos/shared");
-      const { tenants, agents, tasks, runtimes, agentWakeupRequests } = await import("@boringos/db");
+      const { tenants, agents, tasks, agentWakeupRequests } = await import("@boringos/db");
       const { eq } = await import("drizzle-orm");
       const db = server.context.db as import("@boringos/db").Db;
 
-      // Setup: tenant, runtime, agent
+      // Setup: tenant, agent (runtime is host-wide via BORINGOS_RUNTIME)
       const tenantId = generateId();
       await db.insert(tenants).values({ id: tenantId, name: "No Wake Test", slug: "no-wake-test" });
-
-      const runtimeId = generateId();
-      const dataDir = await mkdtemp(join(tmpdir(), "boringos-no-wake-"));
-      const scriptPath = join(dataDir, "test.sh");
-      await writeFile(scriptPath, "#!/bin/bash\nexit 0\n");
-      await chmod(scriptPath, 0o755);
-
-      await db.insert(runtimes).values({
-        id: runtimeId,
-        tenantId,
-        name: "test-runtime",
-        type: "command",
-        config: { command: scriptPath },
-      });
 
       const agentId = generateId();
       await db.insert(agents).values({
@@ -149,7 +119,6 @@ describe("NewTaskModal: wake fires", () => {
         tenantId,
         name: "Test Agent",
         role: "engineer",
-        runtimeId,
       });
 
       // Create task

@@ -6,36 +6,33 @@
 import { useState } from "react";
 
 import { useAuth } from "../../auth/AuthProvider.js";
-import { useAgents, useRuntimes, useRuntimeModels, useSettings, useCosts } from "@boringos/ui";
+import { useAgents, useRuntimeModels, useSettings, useCosts } from "@boringos/ui";
 import { Switch } from "../../components/ui/switch.js";
 import { LoadingState, EmptyState } from "../_shared.js";
 
-// Per-agent model picker. Options come live from the agent's runtime
-// (GET /runtimes/:id/models → the runtime's models[]/listModels()), so the
-// list is always correct for whatever runtime backs the agent — claude,
-// pi (OpenAI), etc. — instead of a hardcoded set. Picking one sets
-// `agents.model`; the engine passes it as the runtime's --model.
+// Per-agent model picker. Options come live from the host runtime
+// (GET /runtime/models → the runtime's models[]/listModels()), so the
+// list is always correct for whatever harness the host runs — claude,
+// pi (OpenAI), etc. — instead of a hardcoded set. The runtime itself is
+// host-wide via BORINGOS_RUNTIME; picking a model here sets `agents.model`,
+// which the engine passes as the runtime's --model (empty = runtime default).
 function ModelSelect({
-  runtimeId,
-  runtimeDefaultModel,
   currentModel,
   onChange,
 }: {
-  runtimeId: string | undefined;
-  runtimeDefaultModel: string | undefined;
   currentModel: string | undefined;
   onChange: (model: string) => void;
 }) {
-  const { data: models } = useRuntimeModels(runtimeId);
+  const { data: models } = useRuntimeModels();
   const list = models ?? [];
-  const current = currentModel ?? runtimeDefaultModel ?? "";
+  const current = currentModel ?? "";
   const isOverride = !!currentModel;
   return (
     <select
       value={current}
       onChange={(e) => onChange(e.target.value)}
       className="bg-bg border border-border rounded px-2 py-1 text-xs text-text focus:outline-none focus:ring-1 focus:ring-accent"
-      title={isOverride ? "Per-agent override" : runtimeDefaultModel ? "Inherited from runtime" : "Runtime default"}
+      title={isOverride ? "Per-agent override" : "Runtime default"}
     >
       <option value="">— Runtime default —</option>
       {list.map((m) => (
@@ -51,7 +48,6 @@ function ModelSelect({
 export function AgentsPanel() {
   const { user } = useAuth();
   const { agents, isLoading: agentsLoading, updateAgent } = useAgents();
-  const { runtimes } = useRuntimes();
   const { settings, updateSettings } = useSettings();
   const { costs } = useCosts();
   const [error, setError] = useState<string | null>(null);
@@ -164,12 +160,6 @@ export function AgentsPanel() {
                     </td>
                     <td className="px-4 py-3 text-muted-strong">
                       <ModelSelect
-                        runtimeId={agent.runtimeId ?? undefined}
-                        runtimeDefaultModel={
-                          agent.runtimeId
-                            ? (runtimes.find((r: any) => r.id === agent.runtimeId)?.model as string | undefined)
-                            : undefined
-                        }
                         currentModel={(agent as any).model ?? undefined}
                         onChange={(model) => handleModelChange(agent.id, model)}
                       />

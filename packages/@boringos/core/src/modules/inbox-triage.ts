@@ -223,18 +223,11 @@ function buildLifecycle(deps: TriageDeps): ModuleLifecycle {
   // Same handler runs for explicit install AND new-tenant creation
   // — the agent + workflow + skill all need to land either way.
   const installHandler = async (ctx: { tenantId: string; moduleId: string }) => {
-    const runtimes = (await deps.db.execute(sql`
-      SELECT id FROM runtimes WHERE tenant_id = ${ctx.tenantId} AND type = 'claude' LIMIT 1
-    `)) as unknown as Array<{ id: string }>;
-    const runtimeId = runtimes[0]?.id;
-    if (!runtimeId) {
-      // eslint-disable-next-line no-console
-      console.warn(
-        `[inbox-triage] No Claude runtime for tenant ${ctx.tenantId}; skipping seed`,
-      );
-      return;
-    }
-
+    // Runtime is host-wide via BORINGOS_RUNTIME, resolved by the engine
+    // at wake time — there is no per-tenant runtimes row to bind to, and
+    // agents.runtime_id no longer exists. (Previously this handler looked
+    // up a `runtimes` row and silently no-op'd on fresh tenants, which
+    // broke triage on every new signup — see drive_issues.md #13.)
     const rootRows = (await deps.db.execute(sql`
       SELECT id FROM agents
       WHERE tenant_id = ${ctx.tenantId} AND reports_to IS NULL
@@ -246,9 +239,9 @@ function buildLifecycle(deps: TriageDeps): ModuleLifecycle {
 
     const agentId = randomUUID();
     await deps.db.execute(sql`
-      INSERT INTO agents (id, tenant_id, name, role, status, instructions, runtime_id, reports_to, created_at, updated_at)
+      INSERT INTO agents (id, tenant_id, name, role, status, instructions, reports_to, created_at, updated_at)
       VALUES (${agentId}, ${ctx.tenantId}, ${TRIAGE_AGENT_NAME}, ${TRIAGE_AGENT_ROLE}, 'idle',
-        ${TRIAGE_AGENT_INSTRUCTIONS}, ${runtimeId}, ${rootAgentId}, now(), now())
+        ${TRIAGE_AGENT_INSTRUCTIONS}, ${rootAgentId}, now(), now())
     `);
 
     const workflowId = randomUUID();

@@ -55,15 +55,13 @@ describe("routine scheduler", () => {
     const server = await bootServer(5580);
     try {
       const { generateId } = await import("@boringos/shared");
-      const { tenants, agents, runtimes } = await import("@boringos/db");
+      const { tenants, agents } = await import("@boringos/db");
       const db = server.context.db as import("@boringos/db").Db;
       const tenantId = generateId();
       await db.insert(tenants).values({ id: tenantId, name: "Routine Co", slug: "routine-co" });
 
-      const runtimeId = generateId();
-      await db.insert(runtimes).values({ id: runtimeId, tenantId, name: "echo", type: "command", config: { command: "echo", args: ["ok"] } });
       const agentId = generateId();
-      await db.insert(agents).values({ id: agentId, tenantId, name: "Cron Bot", role: "engineer", runtimeId });
+      await db.insert(agents).values({ id: agentId, tenantId, name: "Cron Bot", role: "engineer" });
 
       // Create routine
       const res = await fetch(`${server.url}/api/admin/routines`, {

@@ -50,6 +50,14 @@ async function _applySchema(db: Db): Promise<void> {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
 
+    -- runtimes table: VESTIGIAL backward-compat shim. The framework no
+    -- longer reads or writes it -- runtime is host-wide via BORINGOS_RUNTIME,
+    -- resolved by the engine at wake time (no drizzle schema, no API, no UI,
+    -- no agents.runtime_id). It is kept (empty) ONLY so already-published
+    -- third-party .hebbsmod packages that still SELECT from runtimes in
+    -- their install hooks degrade gracefully (empty result hits their own
+    -- "no runtime, skip" branch) instead of hard-erroring on a missing
+    -- relation. New modules must not depend on it; a future major may drop it.
     CREATE TABLE IF NOT EXISTS runtimes (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       tenant_id UUID NOT NULL REFERENCES tenants(id),
@@ -77,8 +85,6 @@ async function _applySchema(db: Db): Promise<void> {
       status TEXT NOT NULL DEFAULT 'idle',
       reports_to UUID REFERENCES agents(id),
       instructions TEXT,
-      runtime_id UUID REFERENCES runtimes(id) ON DELETE SET NULL,
-      fallback_runtime_id UUID REFERENCES runtimes(id) ON DELETE SET NULL,
       budget_monthly_cents INTEGER NOT NULL DEFAULT 0,
       spent_monthly_cents INTEGER NOT NULL DEFAULT 0,
       pause_reason TEXT,
@@ -572,11 +578,17 @@ async function _applySchema(db: Db): Promise<void> {
     -- Add model column to agent_runs for tracking which model was used
     ALTER TABLE agent_runs ADD COLUMN IF NOT EXISTS model TEXT;
 
-    -- Per-agent model override. When set, takes priority over the
-    -- runtime row's model column at execution time. Lets the operator
-    -- pick Sonnet vs Opus vs Haiku per agent without spinning up a
-    -- separate runtime row for each model variant.
+    -- Per-agent model override. When set, takes priority over the host
+    -- runtime's default model at execution time. Lets the operator pick
+    -- Sonnet vs Opus vs Haiku (or the host runtime's equivalents) per
+    -- agent. The engine passes it as the runtime's --model.
     ALTER TABLE agents ADD COLUMN IF NOT EXISTS model TEXT;
+
+    -- Drop the deprecated per-agent runtime binding. Runtime is host-wide
+    -- via BORINGOS_RUNTIME; the engine never reads these columns. Idempotent.
+    -- (The runtimes table itself is kept as an empty compat shim — see above.)
+    ALTER TABLE agents DROP COLUMN IF EXISTS runtime_id;
+    ALTER TABLE agents DROP COLUMN IF EXISTS fallback_runtime_id;
 
     -- Routing tags column on agents (used by the delegation router for
     -- keyword matching). Originally named "skills" — task_15 §1 renamed

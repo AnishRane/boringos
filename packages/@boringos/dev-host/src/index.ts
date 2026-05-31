@@ -375,7 +375,6 @@ export async function createDevHost(opts: DevHostOptions): Promise<DevHost> {
     tenantId: tenant.id,
     name: "Dev Host Agent",
     role: "general",
-    runtimeId: null,
     reportsTo,
   });
   const runId = randomUUID();

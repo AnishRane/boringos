@@ -4,13 +4,20 @@ import { tmpdir } from "node:os";
 import type { RuntimeModule, RuntimeExecutionContext, RuntimeExecutionResult, AgentRunCallbacks } from "../types.js";
 import { spawnAgent, buildAgentEnv, detectCli } from "../spawn.js";
 
+// Default model when neither a per-agent `agents.model` override nor
+// `BORINGOS_MODEL` is set. Haiku is the cheapest tier — the framework
+// defaults to it so a fresh deploy doesn't burn Opus/Sonnet tokens on
+// routine wakes. Operators bump individual agents up via the per-agent
+// model picker (Settings → Agents) when a task needs the bigger model.
+export const CLAUDE_DEFAULT_MODEL = "claude-haiku-4-5-20251001";
+
 export const claudeRuntime: RuntimeModule = {
   type: "claude",
 
   models: [
+    { id: "claude-haiku-4-5-20251001", label: "Claude Haiku 4.5 (default)" },
     { id: "claude-sonnet-4-6", label: "Claude Sonnet 4.6" },
     { id: "claude-opus-4-6", label: "Claude Opus 4.6" },
-    { id: "claude-haiku-4-5-20251001", label: "Claude Haiku 4.5" },
   ],
 
   skillMarkdown() {
@@ -20,7 +27,10 @@ export const claudeRuntime: RuntimeModule = {
   async execute(ctx: RuntimeExecutionContext, callbacks: AgentRunCallbacks): Promise<RuntimeExecutionResult> {
     const config = ctx.config as Record<string, string | string[] | undefined>;
     const command = (config.command as string) ?? "claude";
-    const model = config.model as string | undefined;
+    // Fall back to Haiku when nothing upstream set a model. The engine
+    // only populates config.model from BORINGOS_MODEL or the per-agent
+    // agents.model override, so an un-overridden agent lands on Haiku.
+    const model = (config.model as string | undefined) ?? CLAUDE_DEFAULT_MODEL;
     const cwd = ctx.workspaceCwd ?? process.cwd();
 
     const args = ["--print", "-", "--output-format", "stream-json", "--verbose", "--dangerously-skip-permissions"];

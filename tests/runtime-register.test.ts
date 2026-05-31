@@ -88,7 +88,7 @@ describe("task_22 — runtime registerModule()", () => {
 
       const server = await app.listen(0);
       try {
-        const { tenants, agents, runtimes } = await import("@boringos/db");
+        const { tenants, agents } = await import("@boringos/db");
         const { sql } = await import("drizzle-orm");
         const db = (server as unknown as { context: { db: import("@boringos/db").Db } })
           .context.db;
@@ -116,27 +116,19 @@ describe("task_22 — runtime registerModule()", () => {
         expect(crmRow).toBeDefined();
         expect(crmRow!.tools).toBeGreaterThan(0);
 
-        // ── Step 2: insert tenant + runtime + agent ─────────────
+        // ── Step 2: insert tenant + agent ───────────────────────
         const tenantId = randomUUID();
-        const runtimeId = randomUUID();
         const agentId = randomUUID();
         const runId = randomUUID();
         await db
           .insert(tenants)
           .values({ id: tenantId, name: "U2 Test", slug: `u2-${Date.now()}` })
           .onConflictDoNothing();
-        await db.insert(runtimes).values({
-          id: runtimeId,
-          tenantId,
-          name: "claude",
-          type: "claude",
-        });
         await db.insert(agents).values({
           id: agentId,
           tenantId,
           name: "U2 Test Agent",
           role: "general",
-          runtimeId,
         });
 
         // ── Step 3: install CRM for the tenant ───────────────────

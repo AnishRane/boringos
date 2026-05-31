@@ -68,20 +68,11 @@ describe("admin API: full CRUD flow", () => {
 
       const h = adminHeaders(tenantId);
 
-      // 2. Create a runtime (command type for testing)
-      const rtRes = await fetch(`${server.url}/api/admin/runtimes`, {
-        method: "POST",
-        headers: h,
-        body: JSON.stringify({ name: "echo-rt", type: "command", config: { command: "echo", args: ["done"] } }),
-      });
-      expect(rtRes.status).toBe(201);
-      const runtime = await rtRes.json() as Record<string, string>;
-
-      // 3. Create agent
+      // 2. Create agent (runtime is host-wide via BORINGOS_RUNTIME)
       const agentRes = await fetch(`${server.url}/api/admin/agents`, {
         method: "POST",
         headers: h,
-        body: JSON.stringify({ name: "Admin Bot", role: "engineer", runtimeId: runtime.id }),
+        body: JSON.stringify({ name: "Admin Bot", role: "engineer" }),
       });
       expect(agentRes.status).toBe(201);
       const agent = await agentRes.json() as Record<string, string>;

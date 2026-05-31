@@ -5,7 +5,7 @@
 //
 //   1. From persona — POST /agents/from-template with a role; the
 //      framework loads the persona bundle and fills instructions.
-//   2. Blank — POST /agents with name + role + runtime + reportsTo.
+//   2. Blank — POST /agents with name + role + reportsTo.
 //
 // On success the panel auto-opens for the new agent so the operator
 // can immediately customise instructions / icon / routing tags.
@@ -59,21 +59,8 @@ export function NewAgentModal({
   const [name, setName] = useState<string>("");
   const [role, setRole] = useState<string>("general");
   const [reportsTo, setReportsTo] = useState<string>("");
-  const [runtimes, setRuntimes] = useState<Array<{ id: string; name: string; type: string }>>([]);
-  const [runtimeId, setRuntimeId] = useState<string>("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    void (async () => {
-      try {
-        const list = (await client.getRuntimes()) as Array<{ id: string; name: string; type: string }>;
-        setRuntimes(list);
-      } catch {
-        // non-fatal — modal still works without runtime selection
-      }
-    })();
-  }, [client]);
 
   // Default reportsTo to the tenant root agent (Chief of Staff).
   // We pick the first agent without a manager — that's the rooted one.
@@ -102,7 +89,6 @@ export function NewAgentModal({
           body: JSON.stringify({
             role: persona,
             name: name.trim() || undefined,
-            runtimeId: runtimeId || undefined,
             reportsTo: reportsTo || undefined,
           }),
         });
@@ -120,7 +106,6 @@ export function NewAgentModal({
         created = await createAgent({
           name: name.trim(),
           role: role.trim() || "general",
-          runtimeId: runtimeId || undefined,
         });
       }
       onCreated(created.id);
@@ -180,21 +165,6 @@ export function NewAgentModal({
               autoFocus
               className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm text-text"
             />
-          </Field>
-
-          <Field label="Runtime">
-            <select
-              value={runtimeId}
-              onChange={(e) => setRuntimeId(e.target.value)}
-              className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm text-text"
-            >
-              <option value="">— Tenant default —</option>
-              {runtimes.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.name} ({r.type})
-                </option>
-              ))}
-            </select>
           </Field>
 
           <Field label="Reports to">

@@ -70,31 +70,23 @@ describe("task_22 — POST/DELETE/GET /api/admin/modules/* package routes", () =
 
       const server = await app.listen(0);
       try {
-        const { tenants, agents, runtimes, modulePackages } = await import("@boringos/db");
+        const { tenants, agents, modulePackages } = await import("@boringos/db");
         const { sql, eq, and } = await import("drizzle-orm");
         const db = (server as unknown as { context: { db: import("@boringos/db").Db } })
           .context.db;
 
         const tenantId = randomUUID();
-        const runtimeId = randomUUID();
         const agentId = randomUUID();
         const runId = randomUUID();
         await db
           .insert(tenants)
           .values({ id: tenantId, name: "U3 Test", slug: `u3-${Date.now()}` })
           .onConflictDoNothing();
-        await db.insert(runtimes).values({
-          id: runtimeId,
-          tenantId,
-          name: "claude",
-          type: "claude",
-        });
         await db.insert(agents).values({
           id: agentId,
           tenantId,
           name: "U3 Agent",
           role: "general",
-          runtimeId,
         });
 
         const fixturePath = join(__dirname, "fixtures", "crm-0.3.0.hebbsmod");

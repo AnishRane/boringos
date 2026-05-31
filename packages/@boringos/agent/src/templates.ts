@@ -9,7 +9,6 @@ import { loadPersonaBundle, mergePersonaBundle, resolvePersonaRole } from "./per
 export interface AgentTemplateConfig {
   name?: string;
   tenantId: string;
-  runtimeId?: string;
   instructions?: string;
   reportsTo?: string;
   source?: 'shell' | 'user' | 'app';
@@ -55,7 +54,6 @@ export async function createAgentFromTemplate(
     name,
     role: resolvedRole,
     instructions: config.instructions ?? personaInstructions.slice(0, 500), // Summary for DB
-    runtimeId: config.runtimeId ?? null,
     reportsTo,
     source: config.source ?? 'user',
     sourceAppId: config.sourceAppId ?? null,
@@ -140,7 +138,7 @@ export const BUILT_IN_TEAMS: Record<string, TeamTemplate> = {
 export async function createTeam(
   db: Db,
   templateName: string,
-  config: { tenantId: string; runtimeId?: string },
+  config: { tenantId: string },
 ): Promise<CreatedAgent[]> {
   const template = BUILT_IN_TEAMS[templateName];
   if (!template) {
@@ -156,7 +154,6 @@ export async function createTeam(
     const agent = await createAgentFromTemplate(db, roleDef.role, {
       name: roleDef.name,
       tenantId: config.tenantId,
-      runtimeId: config.runtimeId,
       reportsTo,
     });
 

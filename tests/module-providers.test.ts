@@ -22,7 +22,6 @@ const makeEvent = (partial: Partial<ContextBuildEvent> = {}): ContextBuildEvent 
     name: "Test Agent",
     role: "engineer",
     status: "idle",
-    runtimeId: "claude",
     instructions: null,
     reportsTo: null,
     persona: null,
