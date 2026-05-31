@@ -14,7 +14,8 @@ import {
   piRuntime,
 } from "@boringos/runtime";
 import type { RuntimeModule, RuntimeRegistry } from "@boringos/runtime";
-import { createLocalStorage, scaffoldDrive } from "@boringos/drive";
+import { createLocalStorage } from "@boringos/drive";
+import { scaffoldTenantSharedMemory } from "./drive-scaffold.js";
 import type { StorageBackend } from "@boringos/drive";
 import { createDatabase, createMigrationManager, workflows as workflowsSchema } from "@boringos/db";
 import type { Db, DatabaseConnection } from "@boringos/db";
@@ -919,25 +920,29 @@ export class BoringOS {
     // Modules with `defaultInstall: true` auto-install via
     // install-manager.onTenantCreated().
 
-    // composedTenantHook fires the user hook (if any) and the
-    // install-manager.s onTenantCreated for Modules.
+    // composedTenantHook fires the user hook (if any), the
+    // install-manager's onTenantCreated for Modules, and the
+    // shared-memory scaffold so `shared/memory/MEMORY.md` exists on
+    // disk + in the driveFiles index from the moment a tenant is
+    // born (see drive_issues #1).
     const userHook = this.tenantProvisionedHook;
-    const composedTenantHook = userHook || installManagerEarly
-      ? async (db: Db, tenantId: string) => {
-          if (userHook) await userHook(db, tenantId);
-          if (installManagerEarly) {
-            try {
-              await installManagerEarly.onTenantCreated(tenantId);
-            } catch (err) {
-              console.warn(
-                "[boringos] onTenantCreated hooks failed for tenant",
-                tenantId,
-                err,
-              );
-            }
-          }
+    const composedTenantHook = async (db: Db, tenantId: string) => {
+      if (userHook) await userHook(db, tenantId);
+      if (installManagerEarly) {
+        try {
+          await installManagerEarly.onTenantCreated(tenantId);
+        } catch (err) {
+          console.warn(
+            "[boringos] onTenantCreated hooks failed for tenant",
+            tenantId,
+            err,
+          );
         }
-      : undefined;
+      }
+      // Seed the tenant-wide brain scaffold. Idempotent + best-effort
+      // inside the helper — never blocks signup.
+      await scaffoldTenantSharedMemory({ db: dbConn.db, drive }, tenantId);
+    };
 
     // Auth routes (login, signup, session). Drive passed so signup
     // can scaffold preferences.md + memory/MEMORY.md per new user.
@@ -970,6 +975,30 @@ export class BoringOS {
         // eslint-disable-next-line no-console
         console.error("[install-manager] backfill failed:", e);
       });
+
+      // Backfill the shared-memory brain scaffold for every existing
+      // tenant. The new-tenant hook seeds it going forward (see
+      // composedTenantHook above); this catches tenants created
+      // before that hook existed so `/api/admin/drive/list` shows
+      // the brain template without any user action. Idempotent +
+      // fire-and-forget — drive_issues #1.
+      void (async () => {
+        try {
+          const { sql } = await import("drizzle-orm");
+          const rows = (await dbConn.db.execute(
+            sql`SELECT id FROM tenants`,
+          )) as unknown as Array<{ id: string }>;
+          for (const row of rows) {
+            await scaffoldTenantSharedMemory(
+              { db: dbConn.db, drive },
+              row.id,
+            );
+          }
+        } catch (e) {
+          // eslint-disable-next-line no-console
+          console.error("[drive-scaffold] shared-memory backfill failed:", e);
+        }
+      })();
 
       const toolsApp = createToolRoutes({
         db: dbConn.db,

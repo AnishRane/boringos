@@ -3,75 +3,10 @@ import { sql } from "drizzle-orm";
 import { createHmac, randomUUID } from "node:crypto";
 import type { Db } from "@boringos/db";
 import type { StorageBackend } from "@boringos/drive";
+import { scaffoldUserMemory } from "./drive-scaffold.js";
 
 export interface TenantProvisionedHook {
   (db: Db, tenantId: string): Promise<void>;
-}
-
-/**
- * task_24 D — scaffold a user's memory files when they're linked to
- * a tenant. Creates two templates:
- *
- *   users/<id>/preferences.md          ← user-editable "rules of
- *                                         engagement" with this user.
- *                                         Section headers, no content.
- *   users/<id>/memory/MEMORY.md        ← agent-maintained index;
- *                                         starts empty under each section.
- *
- * Idempotent — re-running on an existing user is a no-op (the files
- * already exist on disk). Non-fatal failures are swallowed: signup
- * must never block on memory scaffolding.
- */
-async function scaffoldUserMemoryFiles(
-  drive: StorageBackend,
-  tenantId: string,
-  userId: string,
-  displayName: string,
-): Promise<void> {
-  const prefPath = `${tenantId}/users/${userId}/preferences.md`;
-  const memPath = `${tenantId}/users/${userId}/memory/MEMORY.md`;
-
-  try {
-    if (!(await drive.exists(prefPath))) {
-      await drive.write(
-        prefPath,
-        `# Preferences — ${displayName}\n\n` +
-          `This file captures **your** rules of engagement with the agent.\n` +
-          `You can edit it directly — the agent reads it on every wake.\n\n` +
-          `## Communication style\n\n` +
-          `_e.g. "prefer terse responses, no preamble", "always cite sources"_\n\n` +
-          `## Workflow preferences\n\n` +
-          `_e.g. "ask before sending email", "draft commits with no co-authors"_\n\n` +
-          `## What to remember about me\n\n` +
-          `_e.g. "I work on a CRM product called Acme", "my timezone is IST"_\n\n` +
-          `## Hard rules\n\n` +
-          `_e.g. "never bypass code review", "do not auto-merge"_\n`,
-      );
-    }
-  } catch {
-    /* preferences scaffold is best-effort */
-  }
-
-  try {
-    if (!(await drive.exists(memPath))) {
-      await drive.write(
-        memPath,
-        `# Memory index — ${displayName}\n\n` +
-          `What I know about ${displayName}, kept brief. Pointers to detail\n` +
-          `files in \`decisions/\` and \`domains/\`. Stale entries roll out to\n` +
-          `\`archive/\`.\n\n` +
-          `## Active state\n\n` +
-          `_Watch items, current blockers, in-flight approvals._\n\n` +
-          `## Standing rules\n\n` +
-          `_One-liners with pointers to \`decisions/<topic>.md\`._\n\n` +
-          `## Known entities\n\n` +
-          `_Stable facts about people, companies, projects.\n` +
-          `Pointers to \`domains/<entity>.md\`._\n`,
-      );
-    }
-  } catch {
-    /* memory scaffold is best-effort */
-  }
 }
 
 /**
@@ -152,7 +87,7 @@ export function createAuthRoutes(
         WHERE code = ${body.inviteCode}
       `);
       if (drive) {
-        await scaffoldUserMemoryFiles(drive, inviteRows[0].tenant_id, userId, body.name);
+        await scaffoldUserMemory({ db, drive }, inviteRows[0].tenant_id, userId, body.name);
       }
     } else if (body.tenantName || !body.tenantId) {
       // Create new tenant
@@ -203,7 +138,7 @@ export function createAuthRoutes(
         VALUES (${randomUUID()}, ${userId}, ${tenantId}, 'admin')
       `);
       if (drive) {
-        await scaffoldUserMemoryFiles(drive, tenantId, userId, body.name);
+        await scaffoldUserMemory({ db, drive }, tenantId, userId, body.name);
       }
 
       // App-specific provisioning hook (pass rootAgentId for app provisioning)
@@ -224,7 +159,7 @@ export function createAuthRoutes(
         VALUES (${randomUUID()}, ${userId}, ${body.tenantId}, 'admin')
       `);
       if (drive) {
-        await scaffoldUserMemoryFiles(drive, body.tenantId, userId, body.name);
+        await scaffoldUserMemory({ db, drive }, body.tenantId, userId, body.name);
       }
     }
 

@@ -10,7 +10,7 @@ Repro environment: `pnpm dev` on port 3030, tenant `397cac55-19f3-44ad-9d34-16e1
 
 ## 2026-05-30 — Session 1 findings
 
-### 1. `shared/memory/` is not seeded at tenant creation
+### 1. `shared/memory/` is not seeded at tenant creation ✅ FIXED 2026-05-31
 
 **What I expected:** every new tenant has an empty `shared/memory/MEMORY.md`
 template waiting on disk, the same way each new user gets `users/<id>/memory/MEMORY.md`
@@ -23,9 +23,32 @@ itself. Before that, the brain has no physical scaffold at all.
 **Cost:** new tenants look "blank" in the dashboard until an agent happens
 to write to shared scope. Onboarding can't preview the structure.
 
-**Fix:** in the tenant-creation hook (`packages/@boringos/core/src/boringos.ts`
-around the per-tenant scaffold), also write a `shared/memory/MEMORY.md`
-template via the DriveManager (so it also lands in the `driveFiles` index — see #4).
+**Resolution:** New file `packages/@boringos/core/src/drive-scaffold.ts`
+exposes `scaffoldTenantSharedMemory(deps, tenantId)`. Wired into
+`composedTenantHook` in `boringos.ts` so it runs on every tenant create,
+plus a fire-and-forget backfill loop right after the install-manager
+backfill so existing tenants get seeded on next boot. Routes through
+`DriveManager.write` so the file lands in **both** the filesystem and
+the `driveFiles` index in one call — also closes the **scaffold slice**
+of #4 below. Verified end-to-end: fresh signup yields 3 templates on
+disk + 3 entries in `/api/admin/drive/list` immediately.
+
+Also closed in the same PR:
+- The dead `scaffoldDrive()` in `@boringos/drive/src/local.ts` (imported
+  but never called; the empty-dirs concept was wrong — empty dirs don't
+  help the brain). Deleted.
+- The inline `scaffoldUserMemoryFiles` in `auth-routes.ts` is gone;
+  `scaffoldUserMemory` from the new shared helper replaces it in all
+  three signup paths (new-tenant, invite-accept, legacy-join). User
+  templates now also land in `/drive/list` on fresh signup.
+
+**Known limitation:** the backfill only re-seeds tenant-level
+`shared/memory/MEMORY.md`; existing users' `preferences.md` files
+written by the legacy bypass-path scaffold stay invisible in `/list`
+until an agent edits them (at which point the `**/memory/**` reindex
+catches one of them — but `preferences.md` is not under `memory/`, so
+it stays invisible forever for legacy users). Per-user backfill is
+deliberately deferred — different concern, broader change.
 
 ---
 
@@ -73,7 +96,7 @@ so it only fires when the log volume warrants.
 
 ---
 
-### 4. Dashboard drive list is incomplete — 8/10 files invisible to the user
+### 4. Dashboard drive list is incomplete — 8/10 files invisible to the user (scaffold slice ✅ FIXED 2026-05-31; checkpoint + agent-FS slices open)
 
 **Repro:**
 ```bash

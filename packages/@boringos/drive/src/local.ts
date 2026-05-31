@@ -1,5 +1,5 @@
 import { readFile, writeFile, unlink, stat, readdir, rename, mkdir } from "node:fs/promises";
-import { join, dirname, relative, basename } from "node:path";
+import { join, dirname, relative } from "node:path";
 import { existsSync } from "node:fs";
 import type { StorageBackend, FileEntry, FileStat } from "./types.js";
 import { sanitizePath } from "@boringos/shared";
@@ -77,19 +77,14 @@ export function createLocalStorage(config: { root: string }): StorageBackend {
   return backend;
 }
 
-export async function scaffoldDrive(root: string, tenantId: string): Promise<void> {
-  const tenantRoot = join(root, tenantId);
-  const dirs = ["projects", "agents", "tasks", "shared", "inbox"];
-
-  for (const dir of dirs) {
-    await mkdir(join(tenantRoot, dir), { recursive: true });
-  }
-
-  const skillPath = join(tenantRoot, ".drive-skill.md");
-  if (!existsSync(skillPath)) {
-    await writeFile(skillPath, DRIVE_SKILL, "utf8");
-  }
-}
+// `scaffoldDrive(root, tenantId)` used to create empty top-level dirs
+// + write `.drive-skill.md` here. Both were dead: the function was
+// never called from anywhere, and the DRIVE_SKILL constant is loaded
+// into agent prompts directly via `skillMarkdown()` below — not from
+// the on-disk `.drive-skill.md` file. Tenant-create scaffolding now
+// lives in `@boringos/core/src/drive-scaffold.ts` and routes through
+// `DriveManager.write` so the seeded files land in the `driveFiles`
+// index (see drive_issues #1 and #4 scaffold-bypass slice).
 
 const DRIVE_SKILL = `# Drive — your tenant's persistent storage
 
