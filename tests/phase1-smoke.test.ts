@@ -185,22 +185,11 @@ describe("@boringos/drive", () => {
     expect(storage.skillMarkdown()).toContain("Drive");
   });
 
-  it("scaffoldDrive — creates default folders", async () => {
-    const { scaffoldDrive } = await import("@boringos/drive");
-    const { mkdtemp, readdir } = await import("node:fs/promises");
-    const { tmpdir } = await import("node:os");
-    const { join } = await import("node:path");
-
-    const root = await mkdtemp(join(tmpdir(), "boringos-test-"));
-    await scaffoldDrive(root, "test-tenant");
-
-    const entries = await readdir(join(root, "test-tenant"));
-    expect(entries).toContain("projects");
-    expect(entries).toContain("agents");
-    expect(entries).toContain("tasks");
-    expect(entries).toContain("shared");
-    expect(entries).toContain("inbox");
-  });
+  // `scaffoldDrive` was removed (dead code — never called, and the
+  // `.drive-skill.md` it wrote was never read). Tenant/user scaffolding
+  // now lives in `@boringos/core/src/drive-scaffold.ts` and routes
+  // through `DriveManager.write` so seeded files land in the driveFiles
+  // index. See docs/drive_issues.md #1 and #4.
 });
 
 // ── Step 5: @boringos/db ──────────────────────────────────────────────────

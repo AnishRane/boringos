@@ -13,15 +13,11 @@ npm install @boringos/drive
 ```typescript
 import {
   createLocalStorage,
-  scaffoldDrive,
   createDriveManager,
 } from "@boringos/drive";
 
 // Create a local filesystem backend
 const storage = createLocalStorage({ root: "/data/drive" });
-
-// Scaffold default folder structure for a tenant
-await scaffoldDrive("/data/drive", "tenant_123");
 
 // Basic storage operations
 await storage.write("docs/notes.md", Buffer.from("# Notes\nHello"));
@@ -46,7 +42,6 @@ const drive = createDriveManager({
 | Export | Description |
 |---|---|
 | `createLocalStorage({ root })` | Filesystem backend with path traversal protection |
-| `scaffoldDrive(root, tenantId)` | Create default folder structure |
 | `createDriveManager(deps)` | Full manager with DB indexing and memory sync |
 
 ### `StorageBackend` Interface
