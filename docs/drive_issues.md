@@ -52,7 +52,7 @@ deliberately deferred — different concern, broader change.
 
 ---
 
-### 2. Specialist personas don't always update the index file (`MEMORY.md`)
+### 2. Specialist personas don't always update the index file (`MEMORY.md`) ✅ FIXED 2026-05-31
 
 **What I expected:** every persona that knows the Memory SKILL updates
 both the entity file (e.g. `shared/memory/domains/acme.md`) *and* the
@@ -67,11 +67,37 @@ top-level `MEMORY.md` index when material new facts land.
 agents reading just `MEMORY.md` to decide whether to load detail files
 miss recent activity / enrichment status. The brain looks staler than it is.
 
-**Fix:** add a one-liner to every persona's SOUL.md: *"When you materially
-update an entity file under `domains/`, also refresh the matching bullet in
-`shared/memory/MEMORY.md` so the index reflects the change."* Or — cheaper
-and more robust — a synthesis pass (see #7) that rewrites the index from
-the entity files.
+**Root cause (corrected):** this was *not* a per-persona gap. The Memory
+SKILL is attached **globally via the `memory` module**, so every agent
+(copilot, follow-up-writer, contact-enrichment) already receives it — adding
+a line to each SOUL.md would be redundant copy-paste that drifts out of sync.
+The real hole was the SKILL's wording: it framed the rule around *writing /
+creating* a `domains/` file ("update it every time you **write** a `domains/`
+file"; "a `decisions/X.md` with **no entry**"). Both failures were **appends
+to an already-indexed file** (`## Activity`, `## Enrichment`), so the agents
+read "I already added a pointer for `acme.md`, the index requirement is
+satisfied" — technically true under the old wording.
+
+**Resolution:** tightened the SKILL (single source of truth), not the personas.
+In `packages/@boringos/core/src/modules/memory/SKILL.md`:
+- The `MEMORY.md` layout rule now reads "Update it every time you write *or
+  materially update* a `decisions/`/`domains/` file — including appending a
+  new section to an already-indexed entity file. The bullet must reflect the
+  file's latest state, not just its existence."
+- Added an anti-pattern: "Don't treat the pointer as write-once" — appending
+  to an indexed file makes the existing bullet stale; refresh it.
+
+No SOUL.md edits. Because the skill is module-scoped, every persona picks up
+the corrected wording automatically.
+
+**Known limitation (still agent-discipline, not enforced):** there's no
+auto-sync that rebuilds `MEMORY.md` from the entity files — the post-run
+checkpoint only reindexes the `driveFiles` DB table, never curates index
+*content*. Wording lowers the miss rate but won't eliminate it under
+concurrency/fanout. The robust follow-on is the synthesis pass (see #3/#7)
+that rewrites the index from entity files rather than trusting every agent
+to keep two files in sync by hand. Deliberately deferred — separate, broader
+change.
 
 ---
 

@@ -164,8 +164,11 @@ facts.
 ```
 
 **`MEMORY.md`** — the index. One line per pointer. **Update it
-every time you write a `decisions/` or `domains/` file.**
-Pointers, not warehouses.
+every time you write *or materially update* a `decisions/` or
+`domains/` file — including appending a new section (e.g.
+`## Activity`, `## Enrichment`) to an entity file that's already
+indexed. The bullet must reflect the file's latest state, not
+just its existence.** Pointers, not warehouses.
 
 ```markdown
 ## Standing rules
@@ -243,6 +246,10 @@ THEN reply to the user — "Saved: Acme net-30 default → `shared/memory/domain
 - **Don't skip the `MEMORY.md` pointer.** A `decisions/X.md`
   with no entry in `MEMORY.md` is invisible to future grep-
   based recall. Always update both.
+- **Don't treat the pointer as write-once.** If you append to or
+  materially change an already-indexed `domains/`/`decisions/`
+  file, the existing bullet is now stale — refresh it. "I already
+  added a pointer once" does not satisfy this.
 - **Don't write to `./drive/users/<other>/`.** The mount only
   exposes the current wake-owner — siblings aren't reachable
   anyway, but `./drive/me/` is your only sanctioned write path
