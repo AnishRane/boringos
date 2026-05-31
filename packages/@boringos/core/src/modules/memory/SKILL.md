@@ -38,6 +38,33 @@ in mind" without an actual filesystem `Write` is a lie. If you
 posted a comment, that's not a save — comments are per-task
 transcript, not memory. Verify with `ls` after writing.
 
+## Passive signals — capture without being asked
+
+Users drop preferences, facts, and corrections **without using
+the verbs above**. The cardinal rule fires on these passive
+shapes too; treat them the same as an explicit "save":
+
+| Shape | Example | Route to |
+|---|---|---|
+| Preference statement | *"I prefer terse responses"* · *"I'd rather see it as a table"* · *"next time, skip the preamble"* | `./drive/me/memory/decisions/<topic>.md` |
+| Negative preference / hard rule | *"stop suggesting Calendly"* · *"don't auto-merge anymore"* · *"never use co-authors"* | `./drive/me/memory/decisions/<topic>.md` |
+| Correction or alias | *"no, I meant Acme not Apex"* · *"actually her title is VP Eng, not Director"* | Update the relevant `domains/<entity>.md` and the matching bullet in `MEMORY.md` so future agents don't repeat the slip. |
+| Stable fact about an entity, mentioned in passing | *"Acme renews October"* · *"John's the CFO over there"* · *"we always sign net-30 with vendors"* | `./drive/shared/memory/domains/<entity>.md` (tenant-wide truth) or `./drive/me/memory/domains/<entity>.md` (only this human cares). |
+| Repeated pattern across a session | The user asks to "draft before sending" for the third time this session | Promote to `./drive/me/memory/decisions/draft-before-send.md`. Persistent friction is itself a signal. |
+
+**If you noticed something worth keeping but you're not sure it
+warrants a `decisions/` or `domains/` file yet**, drop a one-line
+capture into `./drive/me/memory/notes/<YYYY-MM-DD-HH-MM>-<slug>.md`
+and move on. Notes are the cheap path — high recall, low cost.
+A future synthesis pass promotes what matters. **A noisy
+`notes/` is fine; a fact silently dropped on the floor is not.**
+
+The discipline to internalize: **before you post your final reply,
+re-scan the user's last message for any of the shapes above. If
+one is present, write the file first, then reply.** A reply that
+ends with "got it" while the user just established a standing
+rule is a bug — you've thrown away their intent.
+
 ## Where memory lives
 
 Same shape at both scopes:
@@ -95,9 +122,14 @@ you do have to remember:
    `Write` `./drive/me/memory/domains/<entity>.md` (or under
    `./drive/shared/memory/` if tenant-canonical) plus a pointer
    in `MEMORY.md`.
-3. **Dump in-flight observations before compacting context.**
-   Append to `./drive/me/memory/notes/<iso-timestamp>.md` so
-   they survive even if you don't promote them.
+3. **When unsure, default to `notes/`.** If something might
+   matter later — a passing remark, an in-flight observation,
+   a half-formed pattern, a fact you can't yet route to
+   `decisions/` or `domains/` — append a one-liner to
+   `./drive/me/memory/notes/<YYYY-MM-DD-HH-MM>-<slug>.md` (or
+   the shared equivalent) and move on. Notes are the safety net
+   against silent loss. The bar to capture is "I noticed it";
+   the bar to promote out of notes is higher and comes later.
 
 ## How to write — the format
 
