@@ -512,7 +512,9 @@ export async function createDevHost(opts: DevHostOptions): Promise<DevHost> {
       } catch {
         /* best-effort */
       }
-      await safeRm(extractDir);
+      // Remove the whole harness root (it contains extractDir) so we
+      // don't leave an empty `.dev-host-*` dir behind on every run.
+      await safeRm(harnessRoot);
       await safeRm(dataDir);
     },
   };
