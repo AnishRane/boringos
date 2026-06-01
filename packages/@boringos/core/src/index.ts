@@ -44,6 +44,8 @@ export type { AgentEngine, ContextProvider } from "@boringos/agent";
 
 export { createAuthMiddleware } from "./auth-middleware.js";
 export { createEventBus } from "./event-bus.js";
+export { reconcileDriveIndex } from "./drive-reconcile.js";
+export type { ReconcileDeps, ReconcileResult } from "./drive-reconcile.js";
 export type { EventBus, ConnectorEvent } from "./event-bus.js";
 export {
   classifyAutomatedMail,
@@ -51,7 +53,7 @@ export {
   type AutomatedClassification,
   type AutomatedKind,
 } from "./automated-mail.js";
-export { buildIngestMetadata } from "./inbox-gmail-forward-sync.js";
+export { buildIngestMetadata, selfOriginatedReason } from "./inbox-gmail-forward-sync.js";
 export { createRealtimeBus } from "./realtime.js";
 export type { RealtimeBus, RealtimeEvent, EventType } from "./realtime.js";
 

@@ -38,17 +38,16 @@ want them.
 - [`docs/thesis.md`](thesis.md) — **the Hebbs thesis** (Shell +
   Modules + framework + how we sell). Source of truth for all docs
   and marketing copy — read before writing any new doc.
-- [`docs/overview.md`](overview.md) — system overview.
-- [`docs/coordination.md`](coordination.md) — how agents coordinate
-  via tasks + comments + the hierarchy.
-- [`docs/capabilities.md`](capabilities.md) — feature surface.
-- [`docs/shell-screens.md`](shell-screens.md) — UI surface.
-- [`docs/roadmap.md`](roadmap.md) — direction.
+- [`docs/install-flow.md`](install-flow.md) — packaging, upload,
+  per-tenant install / uninstall lifecycle.
+- [`docs/external-postgres.md`](external-postgres.md) — running
+  against an external Postgres instead of embedded.
 
 ## Project context
 
-- [`docs/investor-one-pager.md`](investor-one-pager.md)
 - [`docs/licensing.md`](licensing.md)
+- [`docs/MDK-UPGRADE-GUIDE.md`](MDK-UPGRADE-GUIDE.md) — Module Dev
+  Kit upgrade guide for module authors.
 
 ## Plans + status
 

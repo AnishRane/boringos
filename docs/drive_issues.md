@@ -34,18 +34,19 @@ of #4 below. Verified end-to-end: fresh signup yields 3 templates on
 disk + 3 entries in `/api/admin/drive/list` immediately.
 
 Also closed in the same PR:
+
 - The dead `scaffoldDrive()` in `@boringos/drive/src/local.ts` (imported
-  but never called; the empty-dirs concept was wrong — empty dirs don't
-  help the brain). Deleted.
+but never called; the empty-dirs concept was wrong — empty dirs don't
+help the brain). Deleted.
 - The inline `scaffoldUserMemoryFiles` in `auth-routes.ts` is gone;
-  `scaffoldUserMemory` from the new shared helper replaces it in all
-  three signup paths (new-tenant, invite-accept, legacy-join). User
-  templates now also land in `/drive/list` on fresh signup.
+`scaffoldUserMemory` from the new shared helper replaces it in all
+three signup paths (new-tenant, invite-accept, legacy-join). User
+templates now also land in `/drive/list` on fresh signup.
 
 **Known limitation:** the backfill only re-seeds tenant-level
 `shared/memory/MEMORY.md`; existing users' `preferences.md` files
 written by the legacy bypass-path scaffold stay invisible in `/list`
-until an agent edits them (at which point the `**/memory/**` reindex
+until an agent edits them (at which point the `**/memory/`** reindex
 catches one of them — but `preferences.md` is not under `memory/`, so
 it stays invisible forever for legacy users). Per-user backfill is
 deliberately deferred — different concern, broader change.
@@ -59,6 +60,7 @@ both the entity file (e.g. `shared/memory/domains/acme.md`) *and* the
 top-level `MEMORY.md` index when material new facts land.
 
 **What I saw:**
+
 - Copilot updated both `acme.md` and `MEMORY.md` after CRM onboarding (added "in CRM (ids in file)").
 - Follow-up-writer appended an `## Activity` section to `acme.md` but **did not touch `MEMORY.md`**.
 - Company-enrichment appended `## Enrichment` to `acme.md`, also **did not touch `MEMORY.md`**.
@@ -80,12 +82,13 @@ satisfied" — technically true under the old wording.
 
 **Resolution:** tightened the SKILL (single source of truth), not the personas.
 In `packages/@boringos/core/src/modules/memory/SKILL.md`:
+
 - The `MEMORY.md` layout rule now reads "Update it every time you write *or
-  materially update* a `decisions/`/`domains/` file — including appending a
-  new section to an already-indexed entity file. The bullet must reflect the
-  file's latest state, not just its existence."
+materially update* a `decisions/`/`domains/` file — including appending a
+new section to an already-indexed entity file. The bullet must reflect the
+file's latest state, not just its existence."
 - Added an anti-pattern: "Don't treat the pointer as write-once" — appending
-  to an indexed file makes the existing bullet stale; refresh it.
+to an indexed file makes the existing bullet stale; refresh it.
 
 No SOUL.md edits. Because the skill is module-scoped, every persona picks up
 the corrected wording automatically.
@@ -101,7 +104,7 @@ change.
 
 ---
 
-### 3. No synthesis / compaction routine
+### 3. No synthesis / compaction routine 
 
 **What I expected:** something reads `tasks/*/log.md` and `*/notes/`,
 promotes recurring facts into `decisions/` and `domains/`, and rolls
@@ -122,9 +125,10 @@ so it only fires when the log volume warrants.
 
 ---
 
-### 4. Dashboard drive list is incomplete — 8/10 files invisible to the user (scaffold slice ✅ FIXED 2026-05-31; checkpoint + agent-FS slices open)
+### 4. Dashboard drive list is incomplete — 8/10 files invisible to the user ✅ FIXED 2026-05-31 (scaffold slice earlier; checkpoint + agent-FS slices closed by the reconciler)
 
 **Repro:**
+
 ```bash
 curl -s http://localhost:3030/api/admin/drive/list \
   -H "Authorization: Bearer $TOKEN" -H "X-Tenant-Id: $TENANT"
@@ -138,11 +142,11 @@ find .data/drive/$TENANT -type f | wc -l
 table only. Three writers bypass that index:
 
 1. `scaffoldDrive` at signup — writes `users/<id>/preferences.md` and
-   `users/<id>/memory/MEMORY.md` direct to FS.
+  `users/<id>/memory/MEMORY.md` direct to FS.
 2. Auto-checkpoint hook (`packages/@boringos/agent/src/memory-checkpoint.ts`)
-   appends `tasks/<id>/log.md` direct to FS, doesn't insert into `driveFiles`.
+  appends `tasks/<id>/log.md` direct to FS, doesn't insert into `driveFiles`.
 3. Agent `Edit`/`Write` on the workdir symlink — partially covered by the
-   checkpoint's memory-reindex (only walks `**/memory/**`), so `shared/memory/*`
+  checkpoint's memory-reindex (only walks `**/memory/`**), so `shared/memory/*`
    gets picked up, but any non-memory shared file (e.g. `shared/playbooks/X.md`)
    would not.
 
@@ -154,13 +158,56 @@ directly and returns 200 for every path I tried — so content is consistent,
 only the listing is missing.
 
 **Fix (any of):**
+
 - Have `scaffoldDrive`, `memory-checkpoint`, and agent FS writes all go
-  through `DriveManager.write(...)` so the index stays authoritative.
+through `DriveManager.write(...)` so the index stays authoritative.
 - Add a session-end reconciler that walks the FS slice and upserts any
-  file not in `driveFiles`.
+file not in `driveFiles`.
 - Or change `/drive/list` to scan the filesystem and join with the index.
 
 The reconciler is the smallest patch.
+
+**Resolution:** went with the reconciler (the generic, future-proof
+option — it heals drift from *any* bypassing writer without having to
+chase each one). New file
+`packages/@boringos/core/src/drive-reconcile.ts` exposes
+`reconcileDriveIndex({ db, drive }, tenantId)`: it recursively walks the
+tenant's on-disk slice (`<tenantId>/...`), and for every real file either
+inserts a missing `driveFiles` row or refreshes one whose `size` no longer
+matches disk (so an appended `tasks/<id>/log.md` re-syncs). The filesystem
+is treated as the source of truth; the index is the self-healing cache.
+
+Key properties:
+- **Cheap steady state** — one `stat` per file; a file is only read +
+  hashed when it's new or its size changed, so an unchanged tenant costs
+  no content reads. Hash matches `DriveManager` (sha256, 16-char) so ETags
+  stay consistent.
+- **Dotfiles skipped** (`.drive-skill.md`) for parity with `DriveManager`,
+  which never indexed them.
+- **Best-effort + bounded** — per-file errors are swallowed, a unique-
+  constraint race with a concurrent `DriveManager.write` falls back to an
+  update, and a `MAX_FILES` cap stops a pathological tree from melting the
+  pass. A failed reconcile never blocks the listing.
+
+Wired into `GET /api/admin/drive/list` (admin-routes.ts) — it reconciles
+*before* querying `driveFiles`, so the dashboard always reflects disk.
+This closes both remaining slices: the **checkpoint** task-log appends and
+the **agent-FS** non-memory writes (e.g. `shared/playbooks/X.md`) that the
+`**/memory/**` reindex hook never covered. The earlier scaffold slice
+(routing tenant/user scaffolding through `DriveManager.write`, see #1) is
+unchanged.
+
+Regression test in `tests/phase15-drive.test.ts` ("/drive/list reconciles
+FS files that bypassed the index") writes a task log + a non-memory shared
+file straight to the FS (no index row), asserts both appear in
+`/drive/list` while `.drive-skill.md` does not, then appends to the log and
+confirms the indexed size tracks disk and a second pass is a no-op.
+
+**Note:** the reconcile only *adds/refreshes* — it does not prune index
+rows whose backing file was deleted out-of-band (deletes still go through
+`DriveManager.remove`). Orphan-pruning is deliberately deferred; it's a
+different risk profile (a transient FS read error could otherwise hide a
+real file) and not part of this gap.
 
 ---
 
@@ -179,7 +226,7 @@ sub-runs (enrichment, deal-analysis, etc.) is now licensed to write to
 writes will tear this.
 
 **Fix:** the cheap version is a Drive-level advisory lock on
-`shared/memory/**` (single-writer queue per path). The right version is
+`shared/memory/`** (single-writer queue per path). The right version is
 a curator agent that periodically reads recent writes and resolves drift.
 
 ---
@@ -216,7 +263,7 @@ populate). Enabled by `BORINGOS_MAIL=dev` env.
 
 ---
 
-### 8. `POST /api/admin/inbox` doesn't emit `inbox.item_created`
+### 8. `POST /api/admin/inbox` doesn't emit `inbox.item_created` ✅ FIXED 2026-05-31
 
 **What I expected:** the seed endpoint is comment-described as "for demo
 seeds and any caller that wants to push a synthetic inbound item without
@@ -236,9 +283,28 @@ today is to have a real Gmail account connected. Demo seeds for sales
 calls / onboarding screens are dead-end items.
 
 **Fix:** after the `db.insert` in admin-routes.ts:2255, publish the same
-event the forward-sync emits (`{ type: "inbox.item_created", tenantId,
-itemId, source, sourceId, subject, body, from, automated: { automated: false } }`).
+event the forward-sync emits (`{ type: "inbox.item_created", tenantId, itemId, source, sourceId, subject, body, from, automated: { automated: false } }`).
 One additional `eventBus.emit(...)` call; the rest is already wired.
+
+**Resolution:** `POST /inbox` now emits `inbox.item_created` right after
+the insert, mirroring the forward-sync ingest shape
+(`connectorKind: "framework"`, `data: { itemId, source, sourceId, subject, body, from, automated: { automated: false } }`). The `automated: { automated: false }` shape matters: the triage workflow's
+`check-not-automated` condition tests `{{trigger.automated.automated}}` for
+falsy, so manual seeds correctly flow through to triage instead of being
+skipped as automated. Emit is fire-and-forget (wrapped in try/catch with a
+`console.warn`) so a bus failure can't roll back the insert — same posture
+as the existing `triage.classified` emit in the PATCH handler. Regression
+test added in `tests/phase16-final-tier3.test.ts` ("POST /inbox emits
+inbox.item_created…") subscribes via `context.eventBus.onAny`, POSTs a
+synthetic item, and asserts the event fires with the right tenant, item id,
+and `automated` shape.
+
+**Note:** this only restores parity with the framework forward-sync path
+(it wakes the **framework** `inbox-triage` workflow). The CRM's "Enrich
+inbox items on ingestion" workflow also triggers on `inbox.item_created`,
+so seeded items now reach CRM enrichment too. Items posted with a `status`
+other than `unread` still emit (the workflow itself decides eligibility);
+callers that want a truly silent insert should not use this route.
 
 ---
 
@@ -278,26 +344,27 @@ cat .../.data/drive/<other-tenant-id>/shared/memory/MEMORY.md
 real. The filesystem mount is not.
 
 **Fix options:**
+
 1. **Posix sandbox per run** — Linux: `unshare -mU` + bind-mount the
-   tenant's drive slice as the *only* visible filesystem under
+  tenant's drive slice as the *only* visible filesystem under
    `./drive/`. macOS: `sandbox-exec` profile that restricts reads.
    Heaviest but real.
 2. **chroot the workdir** to a per-run staged directory whose only
-   accessible parent is `./drive/` (the symlinks). Don't put workdirs
+  accessible parent is `./drive/` (the symlinks). Don't put workdirs
    under `.data/`.
 3. **Move tenant drive data outside the framework cwd** — e.g.
-   `/var/lib/boringos/drive/<tenantId>/`, and run the dev server from
+  `/var/lib/boringos/drive/<tenantId>/`, and run the dev server from
    a parent that doesn't contain it. Doesn't fix the leak but reduces
    the discovery surface.
 4. **Audit / runtime guard** — wrap the runtime's CLI invocation in a
-   filter that scans tool inputs for absolute paths under
+  filter that scans tool inputs for absolute paths under
    `<framework-root>/.data/drive/<OTHER-TENANT>/` and refuses them.
    Defense-in-depth but not a real boundary.
 
 Option 1 is the only real fix. The rest are bandaids.
 
 **Also affects the indexer:** writes done via absolute-path Edit/Write
-bypass even the `**/memory/**` reindex hook in the auto-checkpoint
+bypass even the `**/memory/`** reindex hook in the auto-checkpoint
 (see #4). So the agent that took the escape hatch also evaded the
 mechanism that keeps the dashboard list honest.
 
@@ -350,13 +417,14 @@ runs through CRM → enrichment fanout, not through the persona writing
 shared memory directly.
 
 **Fix (choice):**
+
 1. Document this explicitly in the Memory SKILL — "for shared facts
-   that don't need approval, write directly; gate only PII / external
+  that don't need approval, write directly; gate only PII / external
    actions."
 2. Or make memory-write a non-gated category of `agent_action`
-   (auto-approve "write to `shared/memory/domains/**`" unless flagged).
+  (auto-approve "write to `shared/memory/domains/`**" unless flagged).
 3. Or accept the gating and lean on the auto-fanout pattern for brain
-   growth — but ship a non-CRM equivalent (a "memory curator" agent
+  growth — but ship a non-CRM equivalent (a "memory curator" agent
    that fires on `task.completed` events and promotes findings).
 
 ---
@@ -379,15 +447,15 @@ counts failures.
 ## What works well (so we don't lose this)
 
 - `Read`-before-`Write` discipline holds across 3 different personas
-  (copilot, follow-up-writer, contact-enrichment).
+(copilot, follow-up-writer, contact-enrichment).
 - Auto-fanout chain — CRM create → enrichment → brain-write —
-  produces real cross-linked memory without explicit user prompting.
+produces real cross-linked memory without explicit user prompting.
 - Memory SKILL discipline travels with the module, not the persona.
-- `**/memory/**` re-index hook does keep `/api/admin/drive/list`
-  current for memory paths (the FS-Edit writes from the
-  enrichment agent ARE reflected in the dashboard after the run).
+- `**/memory/`** re-index hook does keep `/api/admin/drive/list`
+current for memory paths (the FS-Edit writes from the
+enrichment agent ARE reflected in the dashboard after the run).
 - Result comment + auto-checkpoint log give the user a reliable
-  end-of-run trace even if intermediate steps were chaotic.
+end-of-run trace even if intermediate steps were chaotic.
 
 ---
 
@@ -423,11 +491,12 @@ revived exactly the path `dc748a4` deprecated and made the engine's
 as "no runtime" — there's always the host-wide one from the env var.
 
 **The fix that shipped (full excision of the per-tenant runtime layer):**
+
 1. Deleted the `runtimes` lookup + `if (!runtimeId) return` guard in both
-   `inbox-triage.ts` and `inbox-replier.ts`; agents now insert with no
+  `inbox-triage.ts` and `inbox-replier.ts`; agents now insert with no
    `runtime_id` (column removed).
 2. Removed the framework's coupling to the per-tenant runtime layer:
-   `agents.runtime_id` / `agents.fallback_runtime_id` columns, the
+  `agents.runtime_id` / `agents.fallback_runtime_id` columns, the
    `/api/admin/runtimes` CRUD endpoints, the runtime-picker UI, the drizzle
    schema, and all engine reads. Runtime is host-wide via `BORINGOS_RUNTIME`;
    runtime *config* (e.g. `command`/`webhook`) is host-wide via
@@ -437,87 +506,120 @@ as "no runtime" — there's always the host-wide one from the env var.
    gracefully (empty → their "no runtime, skip" branch) instead of hard-
    erroring on a missing relation. A future major can drop the table.
 3. Kept per-agent model selection: `agents.model` stays; the picker now
-   sources its options from the host runtime via `GET /api/admin/runtime/models`.
+  sources its options from the host runtime via `GET /api/admin/runtime/models`.
 4. Default Claude model is now **Haiku** (`CLAUDE_DEFAULT_MODEL`) when no
-   per-agent `agents.model` / `BORINGOS_MODEL` override is set.
+  per-agent `agents.model` / `BORINGOS_MODEL` override is set.
 5. Added a regression test (`tests/inbox-default-install-fresh-tenant.test.ts`)
-   that installs both default modules on a tenant with **no** runtimes row
+  that installs both default modules on a tenant with **no** runtimes row
    and asserts the agents + workflows land — the coverage gap that let this
    ship in the first place.
 
 ---
 
-### 14. Forward-sync ingests our own SENT mail as if it were inbound — runaway fanout
+### 14. Forward-sync ingests our own SENT mail as if it were inbound — runaway fanout (label + self-sender slices ✅ FIXED 2026-05-31; alias enumeration deferred)
 
 **Severity:** high (real money + brand risk).
 
 **Repro:**
+
 1. Connect Gmail; let user have a "Send Mail As" alias (`parag@revelin7.com`
-   on `parag.arora@gmail.com` in this session).
+  on `parag.arora@gmail.com` in this session).
 2. Agent drafts a reply, user approves, `crm.email-lens` sends it via
-   `gmail.send_email`.
+  `gmail.send_email`.
 3. Gmail stores the message with label `SENT` in the user's mailbox.
 4. Forward-sync's next tick pulls it back into the BoringOS inbox
-   alongside real inbound.
+  alongside real inbound.
 
 **What happened in this session:** the agent's outbound reply to Talker
 came back in under `from: Parag Arora <parag@revelin7.com>` (the
 Send-As alias), subject `Re: Please send the proposal`,
 `gmailLabels: ["SENT"]`. The triage workflow promptly:
+
 - classified it `important` ("active proposal thread"),
 - created CRM company `Revelin7 (revelin7.com)`,
 - created CRM contact `Parag Arora <parag@revelin7.com>`,
 - spawned `Enrich contact`, `Enrich company`, and `Analyze new deal` runs
-  on the agent's own message,
+on the agent's own message,
 - queued ANOTHER reply draft (a reply to itself).
 
 **Cost:**
+
 - token burn on enrichment for an entity that doesn't exist (Revelin7
-  is the user's Send-As alias, not a customer),
+is the user's Send-As alias, not a customer),
 - CRM bloat with phantom records,
 - a real possibility of an agent reply-loop if `gmailLabels: SENT`
-  isn't filtered out of the eligible-for-reply set,
+isn't filtered out of the eligible-for-reply set,
 - ANY user with a custom-domain alias on Gmail will hit this on
-  day one.
+day one.
 
 **Existing partial mitigation:** the forward-sync prefilter checks
 `auto-submitted`, `list-id`, `precedence` — none of which are set on a
 human-drafted email sent via the Gmail API.
 
 **Fix (mandatory):**
+
 1. In the forward-sync ingestion path, **drop messages whose
-   `gmailLabels` include `SENT`** (or any other label set indicates
+  `gmailLabels` include `SENT`** (or any other label set indicates
    the user is the sender). They belong in a separate
    `outbox-mirror` lane if we want to record them at all.
 2. Also drop messages whose `From` matches any verified Send-As
-   alias on the connected account (use Gmail's `/profile` + the
+  alias on the connected account (use Gmail's `/profile` + the
    `sendAs` endpoint to enumerate aliases at connect-time, cache in
    `connector_accounts.profile.sendAs`).
 3. Defensive: at the inbox-replier workflow's trigger condition,
-   skip any `triage.classified` event whose source item has
+  skip any `triage.classified` event whose source item has
    `gmailLabels` including `SENT`. Defence in depth even if (1)+(2)
    leak.
 
 **Related — surfaced in the same cascade (good, not a bug):** the
-agent did spawn a `human_todo: Confirm: is parag@talker.network your
-own record? Tag or merge to keep` task once it noticed the duplicate
+agent did spawn a `human_todo: Confirm: is parag@talker.network your own record? Tag or merge to keep` task once it noticed the duplicate
 shape, so the loop-detection instinct exists — it's just too late
 to prevent the wasted runs that already fired.
+
+**Resolution (slices 1 + 2 shipped 2026-05-31):** added a self-originated
+guard in `inbox-gmail-forward-sync.ts`. New exported pure predicate
+`selfOriginatedReason(msg, selfAddress)` drops a fetched message when
+*either*:
+
+- it carries the `SENT` Gmail system label (covers sends from custom
+Send-As aliases too, since those still land in the user's Sent
+mailbox), or
+- its `From` address equals the connected account address
+(`connectorAccounts.accountId`, which for Google resolves to the
+account email via `resolveAccountId`). This is the backstop for when
+the `SENT` label is absent.
+
+`ingestMessage` now takes `selfAddress` (threaded from `account.accountId`
+already loaded in the tick loop) and returns null + logs a warn when the
+guard fires. Also added `-in:sent` to the Gmail query as a cheap
+pre-filter so we don't pay a `getMessage()` round-trip just to drop our
+own mail; the per-message guard remains the authoritative check (defense
+in depth). Covered by `tests/inbox-forward-sync-self-originated.test.ts`
+(7 cases incl. the alias-From-with-SENT-label case the original report
+tripped on).
+
+**Deliberately deferred (slice 3):** verified Send-As alias enumeration
+at connect-time (Gmail `/profile` + `sendAs`, cached on
+`connector_accounts.profile.sendAs`). That would catch an alias `From`
+*without* relying on the `SENT` label — but it's provider-specific
+(Google vs Outlook differ) and the label + self-sender checks already
+close the reported case. Punted per scope.
 
 ---
 
 ## Next things to test (queued)
 
-- [ ] Does the agent automatically extract facts from inbound emails and
-      update `shared/memory/domains/<entity>.md`?
-- [ ] When the user @-mentions a known entity in a copilot message, does
-      the agent route to the right `domains/` file *before* answering?
-- [ ] Cross-tenant isolation: confirm a second tenant cannot read
-      tenant A's drive even with a forged path.
-- [ ] What happens if an agent writes to a path outside its ACL
-      (e.g. follow-up-writer writes to `users/<other-user>/memory/`)?
-      Hard error, silent skip, or success?
-- [ ] Recall behaviour when no Hebbs API is configured — the drive-backed
-      provider only does grep+recency. How does it rank?
-- [ ] Memory growth under concurrent writes to the same entity file
-      (race condition #5).
+- Does the agent automatically extract facts from inbound emails and
+update `shared/memory/domains/<entity>.md`?
+- When the user @-mentions a known entity in a copilot message, does
+the agent route to the right `domains/` file *before* answering?
+- Cross-tenant isolation: confirm a second tenant cannot read
+tenant A's drive even with a forged path.
+- What happens if an agent writes to a path outside its ACL
+(e.g. follow-up-writer writes to `users/<other-user>/memory/`)?
+Hard error, silent skip, or success?
+- Recall behaviour when no Hebbs API is configured — the drive-backed
+provider only does grep+recency. How does it rank?
+- Memory growth under concurrent writes to the same entity file
+(race condition #5).
+

@@ -30,6 +30,7 @@ import type { AuthManager } from "./auth-manager.js";
 import type { EventBus } from "./event-bus.js";
 import {
   classifyAutomatedMail,
+  extractEmailAddress,
   type AutomatedClassification,
 } from "./automated-mail.js";
 
@@ -54,6 +55,8 @@ export interface IngestedInboxItem {
 
 const PROVIDER_GOOGLE = "google";
 const SOURCE_GMAIL = "google.gmail";
+/** Gmail system label on messages the connected account itself sent. */
+const SENT_LABEL = "SENT";
 const CALLER_MODULE = "inbox-gmail-forward-sync";
 const DEFAULT_INTERVAL_MS = 30_000;
 const FIRST_RUN_LOOKBACK_SECONDS = 60 * 60; // 1 hour
@@ -262,12 +265,56 @@ export function buildIngestMetadata(msg: GmailMessage, opts: { now?: Date } = {}
   return { metadata, headers, automated };
 }
 
+/**
+ * Decide whether a fetched Gmail message originated from the connected
+ * account itself and must NOT be ingested as inbound. Pure -- exported
+ * for unit tests.
+ *
+ * Two independent signals, either of which is sufficient:
+ *   1. The `SENT` Gmail system label -- the message lives in the user's
+ *      Sent mailbox, i.e. they (or an agent on their behalf) sent it.
+ *      Catches sends from custom "Send As" aliases too, since those still
+ *      land in Sent.
+ *   2. The `From` address equals the connected account address
+ *      (`accountId`). A backstop for the case where the `SENT` label is
+ *      absent (re-labeled, IMAP quirks) but the sender is still us.
+ *
+ * Returns the matched reason string when the message is self-originated,
+ * or null when it should be ingested normally.
+ */
+export function selfOriginatedReason(
+  msg: { from?: string | null; labelIds?: string[] },
+  selfAddress: string | null | undefined,
+): string | null {
+  if ((msg.labelIds ?? []).includes(SENT_LABEL)) {
+    return `gmail-label: ${SENT_LABEL}`;
+  }
+  const fromAddress = extractEmailAddress(msg.from ?? null);
+  const self = extractEmailAddress(selfAddress ?? null);
+  if (fromAddress && self && fromAddress === self) {
+    return `self-sender: ${fromAddress}`;
+  }
+  return null;
+}
+
 async function ingestMessage(
   db: Db,
   tenantId: string,
   msg: GmailMessage,
+  selfAddress: string | null,
 ): Promise<IngestedInboxItem | null> {
   if (!msg.id) return null;
+
+  // Drop our own outbound mail before it enters the inbox. Without this,
+  // an agent-sent reply bounces back through forward-sync, gets triaged as
+  // a fresh inbound, and spawns CRM/enrichment fanout on ourselves (#14).
+  const selfReason = selfOriginatedReason(msg, selfAddress);
+  if (selfReason) {
+    console.warn(
+      `[gmail-forward-sync] skipping self-originated message tenant=${tenantId} msg=${msg.id} (${selfReason})`,
+    );
+    return null;
+  }
 
   // Dedup: skip if we've already ingested this Gmail message.
   const existing = await db.execute(sql`
@@ -393,7 +440,10 @@ export function createInboxGmailForwardSyncTicker(
         // First run: catch the past hour. Subsequent runs: only new
         // messages since the last successful tick.
         const after = cursor ?? nowSeconds - FIRST_RUN_LOOKBACK_SECONDS;
-        const query = `after:${after} -in:chats`;
+        // `-in:sent` keeps our own outbound mail out of the result set so we
+        // don't pay a getMessage() round-trip just to drop it (#14). The
+        // per-message guard in ingestMessage is the authoritative check.
+        const query = `after:${after} -in:chats -in:sent`;
 
         let partialMessages: { id: string; threadId: string }[];
         try {
@@ -424,7 +474,7 @@ export function createInboxGmailForwardSyncTicker(
 
           let item: IngestedInboxItem | null = null;
           try {
-            item = await ingestMessage(db, account.tenantId, msg);
+            item = await ingestMessage(db, account.tenantId, msg, account.accountId);
           } catch (e) {
             console.warn(
               `[gmail-forward-sync] ingest failed tenant=${account.tenantId} msg=${msg.id}:`,

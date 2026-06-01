@@ -1451,7 +1451,7 @@ export class BoringOS {
     // 30 seconds. Replaces the legacy gmail.gmail-sync workflow + routine
     // that the deleted workflow engine used to run.
     //
-    // Layered fan-out (per docs/coordination.md):
+    // Layered fan-out (per docs/archive/coordination.md):
     //   1. Header-prefilter at ingest time pre-classifies clear
     //      newsletters / no-reply automated mail. When it fires, we
     //      skip the triage wake — paying for an LLM run only to

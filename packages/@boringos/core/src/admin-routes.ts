@@ -40,6 +40,7 @@ import { generateId } from "@boringos/shared";
 import type { RealtimeBus } from "./realtime.js";
 import type { EventBus } from "./event-bus.js";
 import { syncArchive, syncStatusChange } from "./inbox-gmail-sync.js";
+import { reconcileDriveIndex } from "./drive-reconcile.js";
 import type { AuthManager } from "./auth-manager.js";
 import { runWorkflow } from "./run-workflow.js";
 import { canAccess, validatePath, type Actor } from "./modules/drive-acl.js";
@@ -1921,6 +1922,21 @@ export function createAdminRoutes(
 
   app.get("/drive/list", async (c) => {
     const prefix = c.req.query("path");
+    // Heal the index against the filesystem before listing, so files
+    // written by paths that bypass `DriveManager` (checkpoint task logs,
+    // non-memory agent FS writes) still appear. The reconciler is
+    // best-effort and only reads files that are new or changed on disk;
+    // a failure must never block the listing. See drive_issues #4.
+    if (drive) {
+      try {
+        await reconcileDriveIndex({ db, drive }, c.get("tenantId"));
+      } catch (err) {
+        console.warn(
+          `[admin /drive/list] index reconcile failed for tenant=${c.get("tenantId")}:`,
+          err instanceof Error ? err.message : err,
+        );
+      }
+    }
     const rows = await db.select().from(driveFiles).where(eq(driveFiles.tenantId, c.get("tenantId")));
     let filtered = rows;
     if (prefix) {
@@ -2175,20 +2191,60 @@ export function createAdminRoutes(
   app.post("/inbox", async (c) => {
     const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>;
     const id = generateId();
+    const tenantId = c.get("tenantId");
     const source = (body.source as string) ?? "manual";
     const sourceId = (body.sourceId as string) ?? `manual-${id}`;
+    const subject = (body.subject as string) ?? "(no subject)";
+    const itemBody = (body.body as string) ?? null;
+    const from = (body.from as string) ?? null;
     await db.insert(inboxItems).values({
       id,
-      tenantId: c.get("tenantId"),
+      tenantId,
       assigneeUserId: (body.assigneeUserId as string) ?? c.get("userId") ?? null,
       source,
       sourceId,
-      subject: (body.subject as string) ?? "(no subject)",
-      body: (body.body as string) ?? null,
-      from: (body.from as string) ?? null,
+      subject,
+      body: itemBody,
+      from,
       status: (body.status as string) ?? "unread",
       metadata: (body.metadata as Record<string, unknown> | undefined) ?? undefined,
     });
+
+    // Emit `inbox.item_created` for parity with the Gmail forward-sync
+    // path, so the inbox-triage workflow (and any other event-driven
+    // listeners) pick up synthetic / seeded items the same way they do
+    // real inbound mail. Without this, items pushed through this route
+    // sit unread forever — no triage, no reply draft, no brain update.
+    // Fire-and-forget: a failed emit must not roll back the insert.
+    if (eventBus) {
+      try {
+        await eventBus.emit({
+          connectorKind: "framework",
+          type: "inbox.item_created",
+          tenantId,
+          timestamp: new Date(),
+          data: {
+            itemId: id,
+            source,
+            sourceId,
+            subject,
+            body: itemBody,
+            from,
+            // Manual seeds are human-authored, never prefilter-flagged
+            // as automated — shape mirrors the forward-sync ingest so
+            // the workflow's `{{trigger.automated.automated}}` check
+            // evaluates falsy and the item proceeds to triage.
+            automated: { automated: false },
+          },
+        });
+      } catch (err) {
+        console.warn(
+          `[admin /inbox POST] inbox.item_created emit failed for item=${id}:`,
+          err instanceof Error ? err.message : err,
+        );
+      }
+    }
+
     const rows = await db.select().from(inboxItems).where(eq(inboxItems.id, id)).limit(1);
     return c.json(rows[0], 201);
   });

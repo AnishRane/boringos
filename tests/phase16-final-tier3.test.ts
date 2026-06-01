@@ -200,4 +200,48 @@ describe("inbox", () => {
       expect(list2.items).toHaveLength(0);
     } finally { await server.close(); }
   }, 30000);
+
+  it("POST /inbox emits inbox.item_created so triage can pick it up", async () => {
+    const server = await boot(5571);
+    try {
+      const { generateId } = await import("@boringos/shared");
+      const { tenants } = await import("@boringos/db");
+      const db = server.context.db as import("@boringos/db").Db;
+      const tid = generateId();
+      await db.insert(tenants).values({ id: tid, name: "Seed Co", slug: "seed-co" });
+
+      const events: Array<{ type: string; tenantId: string; data: Record<string, unknown> }> = [];
+      const eventBus = server.context.eventBus as {
+        onAny: (h: (e: { type: string; tenantId: string; data: Record<string, unknown> }) => void) => void;
+      };
+      eventBus.onAny((e) => {
+        if (e.type === "inbox.item_created") events.push(e);
+      });
+
+      const res = await fetch(`${server.url}/api/admin/inbox`, {
+        method: "POST", headers: h(tid),
+        body: JSON.stringify({
+          source: "manual",
+          subject: "Demo seed: renewal question",
+          body: "Can you send the Q4 proposal?",
+          from: "buyer@acme.com",
+        }),
+      });
+      expect(res.status).toBe(201);
+      const created = await res.json() as { id: string };
+      expect(created.id).toBeTruthy();
+
+      // Event-bus emits are awaited inline in the route, so the
+      // listener has already fired by the time the response returns.
+      const evt = events.find((e) => e.tenantId === tid && e.data.itemId === created.id);
+      expect(evt).toBeDefined();
+      expect(evt!.data.source).toBe("manual");
+      expect(evt!.data.subject).toBe("Demo seed: renewal question");
+      expect(evt!.data.from).toBe("buyer@acme.com");
+      // Shape parity with forward-sync: the triage workflow's
+      // `{{trigger.automated.automated}}` falsy-check must let manual
+      // seeds through to triage.
+      expect(evt!.data.automated).toEqual({ automated: false });
+    } finally { await server.close(); }
+  }, 30000);
 });
