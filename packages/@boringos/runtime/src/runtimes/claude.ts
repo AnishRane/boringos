@@ -86,11 +86,13 @@ export const claudeRuntime: RuntimeModule = {
       });
 
       if (lastCostEvent) callbacks.onCostEvent(lastCostEvent);
-      callbacks.onComplete({ exitCode: result.exitCode, sessionId });
+      const errorCode = result.idleTimedOut ? "stalled" : undefined;
+      callbacks.onComplete({ exitCode: result.exitCode, sessionId, errorCode });
 
       return {
         exitCode: result.exitCode,
         sessionId,
+        errorCode,
         usage: lastCostEvent ? {
           inputTokens: lastCostEvent.inputTokens,
           outputTokens: lastCostEvent.outputTokens,

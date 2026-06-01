@@ -370,7 +370,7 @@ mechanism that keeps the dashboard list honest.
 
 ---
 
-### 10. Stale `running` run rows that never finalize
+### 10. Stale `running` run rows that never finalize ✅ FIXED 2026-06-01 (idle-watchdog slice; per-task supersede guard deferred)
 
 **Repro:** task BOS-004 has 8 runs in `agent_runs`. Run `7c01db35` was the
 first run on that task (started 19:11:25). Later runs (`52ff3d8b`)
@@ -397,6 +397,70 @@ on boot, so until the dev server restarts the row is wrong.
 run on a task that already has a `running` row from the same agent,
 either coalesce (preferred — already the doc'd behavior) or mark the
 older row as superseded (`status=replaced`, `finishedAt=now()`).
+
+**Root cause (corrected after reading the code).** A run row leaves
+`running` on exactly one condition: the CLI subprocess exits and
+`onComplete` fires (`engine.ts` `onComplete` → `run-lifecycle.updateStatus`).
+The subprocess is awaited via `spawnAgent` (`child.on("close")`). **No
+runtime ever passed a timeout**, so a CLI that hangs idle (the observed
+`ps` zombie, PID 25901) never resolves → `onComplete` never runs → the row
+sits `running, finishedAt=null` until the next boot's `recoverPending()`
+sweep. So the orphan isn't a race on the finalize callback — it's that the
+finalize callback *never gets the chance to run* when the process hangs.
+
+We rejected "just mark the older row superseded": relabeling a row whose
+process is still alive doesn't kill the process, so it leaves a **zombie**
+that keeps writing comments / `shared/memory/` and burning budget while the
+row lies "done." The row's terminal transition must be *caused by* actually
+ending the process, not asserted independently of it. (That's exactly why
+`recoverPending()` can safely bulk-fail `running` rows — at boot there is
+provably no live process behind them; mid-session that invariant doesn't
+hold.)
+
+**Resolution (idle-watchdog slice).** Added a generic idle watchdog in the
+one chokepoint every process runtime shares — `spawnAgent`
+(`packages/@boringos/runtime/src/spawn.ts`). It resets on each chunk of
+stdout/stderr; if the process is silent for the full window it's presumed
+stuck, gets `SIGTERM` (then `SIGKILL` after 5s), and `spawnAgent` returns
+`idleTimedOut: true`. Because it keys off *activity*, not anything
+claude-specific, it covers claude / pi / gemini / ollama / chatgpt /
+command alike (`webhook` has no long-lived process). Default window **7
+min**, overridable via `BORINGOS_AGENT_IDLE_TIMEOUT_MS` (`0` disables); a
+distinct `idleTimeoutMs` SpawnOption is also accepted for tests.
+
+The kill then rides the **existing** failure path — no new finalize logic:
+
+```
+idle watchdog kills subprocess
+  → spawnAgent resolves non-zero, idleTimedOut=true
+  → runtime maps it to errorCode "stalled", calls onComplete
+  → engine marks the run `failed` (errorCode="stalled")
+  → afterRun handoff (boringos.ts) flips task next_actor='human'
+     + stamps metadata.lastError { errorCode: "stalled", ... }
+```
+
+So a stuck task lands back in a human's lap exactly like any other failed
+run, and the auto-rewake gate (`exitCode===0` only) already prevents a
+money-burning retry loop. The `errorCode: "stalled"` on both the run row and
+`metadata.lastError` lets the UI badge "Agent stalled" distinctly from a
+crash — the "other label" without new schema.
+
+Threaded `errorCode` through `CompletionResult` + `RuntimeExecutionResult`
+(runtime types), the six process runtimes, `engine.ts` `onComplete`, and the
+`afterRun` lastError stamp. Regression test
+`tests/runtime-idle-watchdog.test.ts` (3 cases): a silent `sleep 30` is
+killed fast with `idleTimedOut=true`/non-zero exit; a process emitting
+output every 50ms inside the window is never killed; `idleTimeoutMs=0`
+disables the watchdog.
+
+**Deliberately deferred (per-task supersede guard).** The other half of the
+original hypothesis — a *second* concurrent run starting on a task that
+already has a live run — is a separate change. Doing it honestly requires
+the engine to track in-flight child handles by runId/taskId so a new run can
+**kill** the prior process before relabeling its row (relabel-without-kill
+is the zombie trap above). The watchdog already closes the observed repro
+(a hung process); the supersede guard is a distinct, broader change. Punted
+per scope.
 
 ---
 

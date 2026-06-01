@@ -1156,7 +1156,11 @@ export class BoringOS {
             const lastError = {
               runId: event.runId,
               exitCode: event.result.exitCode ?? null,
-              error: (event.result as { error?: unknown }).error ?? null,
+              errorCode: (event.result as { errorCode?: unknown }).errorCode ?? null,
+              error:
+                (event.result as { errorMessage?: unknown; error?: unknown }).errorMessage ??
+                (event.result as { error?: unknown }).error ??
+                null,
               at: new Date().toISOString(),
             };
             await dbConn.db.execute(sql`

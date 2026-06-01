@@ -34,8 +34,9 @@ export const chatgptRuntime: RuntimeModule = {
         onStderrLine: callbacks.onStderrLine,
       });
 
-      callbacks.onComplete({ exitCode: result.exitCode });
-      return { exitCode: result.exitCode, provider: "openai" };
+      const errorCode = result.idleTimedOut ? "stalled" : undefined;
+      callbacks.onComplete({ exitCode: result.exitCode, errorCode });
+      return { exitCode: result.exitCode, errorCode, provider: "openai" };
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
       callbacks.onError(error);

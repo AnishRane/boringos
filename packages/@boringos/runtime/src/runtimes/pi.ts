@@ -268,11 +268,13 @@ export const piRuntime: RuntimeModule = {
           costUsd: s.costUsd,
         });
       }
-      callbacks.onComplete({ exitCode: result.exitCode, sessionId: s.sessionId });
+      const errorCode = result.idleTimedOut ? "stalled" : undefined;
+      callbacks.onComplete({ exitCode: result.exitCode, sessionId: s.sessionId, errorCode });
 
       return {
         exitCode: result.exitCode,
         sessionId: s.sessionId,
+        errorCode,
         usage: s.sawUsage
           ? {
               inputTokens: s.inputTokens,

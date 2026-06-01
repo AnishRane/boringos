@@ -60,6 +60,8 @@ export interface RuntimeExecutionResult {
   exitCode: number;
   sessionId?: string;
   errorMessage?: string;
+  /** Machine-readable failure reason, e.g. "stalled" (idle-watchdog kill). */
+  errorCode?: string;
   usage?: {
     inputTokens: number;
     outputTokens: number;
@@ -109,6 +111,8 @@ export interface CompletionResult {
   exitCode: number;
   sessionId?: string;
   summary?: string;
+  /** Machine-readable failure reason, e.g. "stalled" (idle-watchdog kill). */
+  errorCode?: string;
 }
 
 // ── Health and diagnostics ───────────────────────────────────────────────────

@@ -36,8 +36,9 @@ export const commandRuntime: RuntimeModule = {
         onStderrLine: callbacks.onStderrLine,
       });
 
-      callbacks.onComplete({ exitCode: result.exitCode });
-      return { exitCode: result.exitCode, provider: "command" };
+      const errorCode = result.idleTimedOut ? "stalled" : undefined;
+      callbacks.onComplete({ exitCode: result.exitCode, errorCode });
+      return { exitCode: result.exitCode, errorCode, provider: "command" };
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
       callbacks.onError(error);

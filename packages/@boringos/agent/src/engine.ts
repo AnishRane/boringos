@@ -371,6 +371,10 @@ export function createAgentEngine(config: AgentEngineConfig): AgentEngine {
         lifecycle.updateStatus(runId, result.exitCode === 0 ? "done" : "failed", {
           exitCode: result.exitCode,
           sessionId: result.sessionId,
+          errorCode: result.errorCode,
+          error: result.errorCode === "stalled"
+            ? `Agent went idle for too long and was stopped (idle watchdog).`
+            : undefined,
         }).catch(() => {});
 
         // Persist model used on the run record
