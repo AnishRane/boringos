@@ -639,6 +639,32 @@ export class BoringOS {
       pipeline.add(provider);
     }
 
+    // Dynamic writes-gate provider: reads connector_accounts for the tenant
+    // and injects an approval skill only for connectors where writesGate=true.
+    // Default (no gate) → nothing injected; agents act freely.
+    pipeline.add({
+      name: "connector-writes-gate",
+      phase: "system",
+      priority: 51,
+      provide: async (event) => {
+        const { connectorAccounts: caTable } = await import("@boringos/db");
+        const { eq } = await import("drizzle-orm");
+        const accounts = await dbConn.db
+          .select({ provider: caTable.provider, profile: caTable.profile })
+          .from(caTable)
+          .where(eq(caTable.tenantId, event.tenantId));
+
+        const gated = accounts
+          .filter((a) => (a.profile as Record<string, unknown> | null)?.writesGate === true)
+          .map((a) => a.provider);
+
+        if (!gated.length) return null;
+
+        const list = gated.join(", ");
+        return `## Connector writes gate\n\nFor the following connectors, you must request approval before performing any write action (sending messages, creating records, etc.): **${list}**.\n\nTo request approval, create a child task with \`originKind: "agent_action"\` and \`proposedParams\` describing the action. The user reviews; if approved, a comment lands on this task with \`**Approved.**\` — then execute.\n\nRead-only operations (querying, reading email, listing) never need approval. All other connectors and all local drive/memory writes are always free.`;
+      },
+    });
+
     // Module-driven prompt sections (## Skills + ## Available tools).
     if (hasModules) {
       pipeline.add(createSkillsProvider({ registry: skillRegistry }));

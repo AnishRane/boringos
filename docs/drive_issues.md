@@ -211,7 +211,7 @@ real file) and not part of this gap.
 
 ---
 
-### 5. No curator / write-conflict normalization
+### 5. No curator / write-conflict normalization ✅ CLOSED 2026-06-01
 
 **What I expected:** with `queue.concurrency: 5` (the dev default), two
 agents could write to the same shared-memory file simultaneously. Some
@@ -225,9 +225,21 @@ sub-runs (enrichment, deal-analysis, etc.) is now licensed to write to
 `shared/memory/domains/acme.md`. A future test with timing-sensitive
 writes will tear this.
 
-**Fix:** the cheap version is a Drive-level advisory lock on
-`shared/memory/`** (single-writer queue per path). The right version is
-a curator agent that periodically reads recent writes and resolves drift.
+**Resolution:** the classic race (snapshot → compute → blind overwrite)
+doesn't apply here. The Memory SKILL enforces Read-before-Write, so a
+concurrent agent reads the *live* state of the file — including whatever
+a parallel agent already wrote — and merges semantically rather than
+clobbering. The `Edit` tool compounds this: it fails if the target
+string changed between read and write, forcing a re-read and intelligent
+retry. Agents are not dumb scripts; they reason about existing content
+and append coherently.
+
+The curator pass added to SKILL.md (2026-06-01) handles the residual
+concern: index drift in `MEMORY.md` after concurrent agents each updated
+entity files. Every wake spot-checks referenced files and refreshes
+stale bullets before starting work.
+
+No advisory lock needed.
 
 ---
 
@@ -464,7 +476,7 @@ per scope.
 
 ---
 
-### 11. Brain-write is sometimes gated as an `agent_action` task awaiting approval
+### 11. Brain-write is sometimes gated as an `agent_action` task awaiting approval ✅ FIXED 2026-06-01
 
 **Observation, not bug — but the "obvious development per task" framing
 glosses over it.** In the BOS-004 cascade, the copilot proposed a task
@@ -480,16 +492,18 @@ queue and the brain would NOT grow. The reliable brain-update path
 runs through CRM → enrichment fanout, not through the persona writing
 shared memory directly.
 
-**Fix (choice):**
+**Resolution:** removed the hardcoded `APPROVALS_SKILL` from the framework
+module's static skills. Replaced with a dynamic context provider in `boringos.ts`
+(priority 51) that reads `connector_accounts.profile.writesGate` for the tenant
+at run time. If no connector has the gate on (the default), nothing is injected —
+agents act freely on everything including local drive/memory writes. If any
+connectors have the gate on, only those are named in the injected skill text.
 
-1. Document this explicitly in the Memory SKILL — "for shared facts
-  that don't need approval, write directly; gate only PII / external
-   actions."
-2. Or make memory-write a non-gated category of `agent_action`
-  (auto-approve "write to `shared/memory/domains/`**" unless flagged).
-3. Or accept the gating and lean on the auto-fanout pattern for brain
-  growth — but ship a non-CRM equivalent (a "memory curator" agent
-   that fires on `task.completed` events and promotes findings).
+The gate is toggled per-connector via `POST /api/connectors/:kind/writes-gate`
+and exposed as a "Writes gate" toggle in the connector's Manage modal
+(all connected connectors now show a Manage button, not just Google). The toggle
+sits next to "Email sync" for Google; other connectors show it as their only
+setting.
 
 ---
 

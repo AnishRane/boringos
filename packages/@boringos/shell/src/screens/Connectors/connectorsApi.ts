@@ -90,3 +90,24 @@ export async function setConnectorSync(
     throw new Error(`HTTP ${res.status} ${res.statusText}`);
   }
 }
+
+/**
+ * Enable / disable the writes gate for a connector. When enabled, agents
+ * must create an approval task before writing through this connector
+ * (sending email, posting to Slack, etc.). Defaults off.
+ */
+export async function setConnectorWritesGate(
+  kind: string,
+  enabled: boolean,
+  cfg: ConnectorClientConfig | undefined,
+): Promise<void> {
+  const base = cfg?.url ?? "";
+  const res = await fetch(`${base}/api/connectors/${kind}/writes-gate`, {
+    method: "POST",
+    headers: { ...buildHeaders(cfg), "Content-Type": "application/json" },
+    body: JSON.stringify({ enabled }),
+  });
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status} ${res.statusText}`);
+  }
+}

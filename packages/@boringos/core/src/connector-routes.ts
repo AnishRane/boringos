@@ -58,6 +58,12 @@ function readForwardSyncEnabled(profile: Record<string, unknown> | null | undefi
   return (profile as { forwardSyncEnabled?: unknown } | null)?.forwardSyncEnabled !== false;
 }
 
+// Writes gate defaults OFF: agents may write through connectors freely.
+// Only an explicit `true` (stored in profile JSONB) enables the gate.
+function readWritesGate(profile: Record<string, unknown> | null | undefined): boolean {
+  return (profile as { writesGate?: unknown } | null)?.writesGate === true;
+}
+
 function publicOrigin(c: Context, baseUrl: string): string {
   const host = c.req.header("X-Forwarded-Host") ?? c.req.header("Host");
   const proto = c.req.header("X-Forwarded-Proto") ?? "http";
@@ -217,6 +223,9 @@ export function createConnectorRoutes(
         forwardSyncEnabled: readForwardSyncEnabled(
           match?.profile as Record<string, unknown> | null | undefined,
         ),
+        writesGate: readWritesGate(
+          match?.profile as Record<string, unknown> | null | undefined,
+        ),
       };
     });
 
@@ -328,6 +337,56 @@ export function createConnectorRoutes(
     }
 
     return c.json({ ok: true, kind, forwardSyncEnabled: enabled });
+  });
+
+  // ── Writes-gate toggle ────────────────────────────────────
+  //
+  // Enable/disable the agent approval gate for connector writes on this
+  // provider. When enabled, agents must create an approval task before
+  // sending email, posting to Slack, etc. Defaults OFF — agents act freely.
+  // Stored as `profile.writesGate` on all accounts for the provider.
+
+  app.post("/:kind/writes-gate", async (c) => {
+    const kind = c.req.param("kind");
+    const bearer = c.req.header("Authorization")?.replace("Bearer ", "");
+    if (!bearer) return c.json({ error: "Authentication required" }, 401);
+
+    const result = await db.execute(sql`
+      SELECT ut.tenant_id FROM auth_sessions s
+      JOIN user_tenants ut ON ut.user_id = s.user_id
+      WHERE s.token = ${bearer} AND s.expires_at > NOW() LIMIT 1
+    `);
+    const rows = result as unknown as Array<{ tenant_id: string }>;
+    if (!rows[0]) return c.json({ error: "Invalid session" }, 401);
+    const tenantId = rows[0].tenant_id;
+
+    const body = (await c.req.json().catch(() => ({}))) as { enabled?: unknown };
+    if (typeof body.enabled !== "boolean") {
+      return c.json({ error: "Body must include boolean `enabled`" }, 400);
+    }
+    const enabled = body.enabled;
+
+    const existing = await db
+      .select()
+      .from(connectorAccounts)
+      .where(
+        and(
+          eq(connectorAccounts.tenantId, tenantId),
+          eq(connectorAccounts.provider, kind),
+        ),
+      );
+    if (!existing.length) return c.json({ error: "Connector not connected" }, 404);
+
+    for (const acct of existing) {
+      const profile = (acct.profile as Record<string, unknown> | null) ?? {};
+      const nextProfile = { ...profile, writesGate: enabled };
+      await db
+        .update(connectorAccounts)
+        .set({ profile: nextProfile, updatedAt: new Date() })
+        .where(eq(connectorAccounts.id, acct.id));
+    }
+
+    return c.json({ ok: true, kind, writesGate: enabled });
   });
 
   return app;

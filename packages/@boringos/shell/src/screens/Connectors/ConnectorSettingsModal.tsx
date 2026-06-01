@@ -1,11 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //
-// Per-connector settings modal. Opened from the connector card's
-// "Manage" button. Today its only control is Gmail's "Email sync"
-// toggle, which flips `config.gmail.forwardSyncEnabled` via
-// onToggleSync — the forward-sync ticker honors it without the
-// connection being torn down. Built as a general per-connector
-// settings surface so future connector options have a home.
+// Per-connector settings modal. Opened from the connector card's "Manage"
+// button. Shows Email sync (Google only) and Writes Gate (all connectors).
 
 import { useEffect, useState } from "react";
 import type { ConnectorViewModel } from "./connectorsPresenter.js";
@@ -13,21 +9,50 @@ import type { ConnectorViewModel } from "./connectorsPresenter.js";
 export interface ConnectorSettingsModalProps {
   vm: ConnectorViewModel;
   onToggleSync: (kind: string, enabled: boolean) => void;
+  onToggleWritesGate: (kind: string, enabled: boolean) => void;
   onClose: () => void;
+}
+
+function Toggle({
+  checked,
+  testId,
+  onChange,
+}: {
+  checked: boolean;
+  testId?: string;
+  onChange: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      data-testid={testId}
+      onClick={onChange}
+      className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
+        checked ? "bg-accent" : "bg-border"
+      }`}
+    >
+      <span
+        className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+          checked ? "translate-x-4" : "translate-x-0.5"
+        }`}
+      />
+    </button>
+  );
 }
 
 export function ConnectorSettingsModal({
   vm,
   onToggleSync,
+  onToggleWritesGate,
   onClose,
 }: ConnectorSettingsModalProps) {
-  // Optimistic local state for snappy toggle feedback; re-synced to the
-  // view model if the server rejects and the parent refetches.
-  const [enabled, setEnabled] = useState(vm.forwardSyncEnabled);
+  const [syncEnabled, setSyncEnabled] = useState(vm.forwardSyncEnabled);
+  const [gateEnabled, setGateEnabled] = useState(vm.writesGate);
 
-  useEffect(() => {
-    setEnabled(vm.forwardSyncEnabled);
-  }, [vm.forwardSyncEnabled]);
+  useEffect(() => { setSyncEnabled(vm.forwardSyncEnabled); }, [vm.forwardSyncEnabled]);
+  useEffect(() => { setGateEnabled(vm.writesGate); }, [vm.writesGate]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -37,14 +62,7 @@ export function ConnectorSettingsModal({
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  // Gmail (kind "google") is the only connector with a sync poll today.
   const hasEmailSync = vm.kind === "google";
-
-  const toggle = () => {
-    const next = !enabled;
-    setEnabled(next);
-    onToggleSync(vm.kind, next);
-  };
 
   return (
     <div
@@ -63,7 +81,7 @@ export function ConnectorSettingsModal({
         </div>
 
         <div className="px-5 py-4 space-y-4 text-sm text-text-secondary">
-          {hasEmailSync ? (
+          {hasEmailSync && (
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
                 <p className="font-medium text-text">Email sync</p>
@@ -77,26 +95,37 @@ export function ConnectorSettingsModal({
                   </p>
                 )}
               </div>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={enabled}
-                data-testid="email-sync-toggle"
-                onClick={toggle}
-                className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
-                  enabled ? "bg-accent" : "bg-border"
-                }`}
-              >
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
-                    enabled ? "translate-x-4" : "translate-x-0.5"
-                  }`}
-                />
-              </button>
+              <Toggle
+                checked={syncEnabled}
+                testId="email-sync-toggle"
+                onChange={() => {
+                  const next = !syncEnabled;
+                  setSyncEnabled(next);
+                  onToggleSync(vm.kind, next);
+                }}
+              />
             </div>
-          ) : (
-            <p className="text-muted">No settings available for {vm.name} yet.</p>
           )}
+
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <p className="font-medium text-text">Writes gate</p>
+              <p className="text-xs text-muted mt-0.5">
+                When on, agents must request approval before sending messages
+                or making writes through this connector. Off by default —
+                agents act freely.
+              </p>
+            </div>
+            <Toggle
+              checked={gateEnabled}
+              testId="writes-gate-toggle"
+              onChange={() => {
+                const next = !gateEnabled;
+                setGateEnabled(next);
+                onToggleWritesGate(vm.kind, next);
+              }}
+            />
+          </div>
         </div>
 
         <div className="px-5 pb-5 pt-2 flex items-center justify-end">

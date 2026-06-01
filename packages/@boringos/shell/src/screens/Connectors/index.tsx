@@ -33,6 +33,7 @@ import {
   disconnectConnector,
   fetchConnectorStatus,
   setConnectorSync,
+  setConnectorWritesGate,
   type ConnectorClientConfig,
 } from "./connectorsApi.js";
 
@@ -156,15 +157,7 @@ export function Connectors() {
     setPendingSettings(card);
   };
 
-  const handleToggleSync = async (kind: string, enabled: boolean) => {
-    setActionError(null);
-    try {
-      await setConnectorSync(kind, enabled, cfg);
-    } catch (err) {
-      setActionError(err instanceof Error ? err.message : String(err));
-    }
-    // Refetch either way so the open modal reflects the server's truth —
-    // on success it confirms the flag, on failure it resets the toggle.
+  const refetchAndSyncModal = async (kind: string) => {
     try {
       const fresh = await fetchConnectorStatus(cfg);
       setRows(fresh);
@@ -175,6 +168,26 @@ export function Connectors() {
     } catch (err) {
       setActionError(err instanceof Error ? err.message : String(err));
     }
+  };
+
+  const handleToggleSync = async (kind: string, enabled: boolean) => {
+    setActionError(null);
+    try {
+      await setConnectorSync(kind, enabled, cfg);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : String(err));
+    }
+    await refetchAndSyncModal(kind);
+  };
+
+  const handleToggleWritesGate = async (kind: string, enabled: boolean) => {
+    setActionError(null);
+    try {
+      await setConnectorWritesGate(kind, enabled, cfg);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : String(err));
+    }
+    await refetchAndSyncModal(kind);
   };
 
   return (
@@ -266,6 +279,7 @@ export function Connectors() {
         <ConnectorSettingsModal
           vm={pendingSettings}
           onToggleSync={handleToggleSync}
+          onToggleWritesGate={handleToggleWritesGate}
           onClose={() => setPendingSettings(null)}
         />
       )}

@@ -73,19 +73,6 @@ If \`error.retryable\` is true, retry with exponential backoff. Otherwise,
 post a comment explaining what failed and either ask for help or use the
 "When you're stuck" procedure.`;
 
-const APPROVALS_SKILL = `Default-deny posture: ask before acting on anything that
-sends a message, modifies a 3rd-party system, spends money, or otherwise
-affects the world outside this run. Examples: sending email, posting to
-Slack, scheduling a meeting, paying an invoice, deleting data.
-
-To request approval, create a child task with \`originKind: "agent_action"\`
-and \`proposedParams\` describing the action. The user reviews; if
-approved, a comment lands on this task with \`**Approved.**\` plus the
-action's parameters inline. Apply any modifications they noted, then
-execute.
-
-Read-only operations don't need approval: querying a CRM, reading email,
-listing files. When in doubt, ask.`;
 
 const WHEN_STUCK_SKILL = `You're stuck when you cannot make progress regardless
 of how many more attempts. Examples:
@@ -953,12 +940,6 @@ export const createFrameworkModule: ModuleFactory = (deps) => {
         source: "framework",
         body: TOOL_PROTOCOL_SKILL,
         priority: 50,
-      },
-      {
-        id: "approvals",
-        source: "framework",
-        body: APPROVALS_SKILL,
-        priority: 51,
       },
       {
         id: "when-stuck",
