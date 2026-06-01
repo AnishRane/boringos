@@ -18,6 +18,7 @@ import {
   createCopilotModule,
   createGoogleModule,
   createSlackModule,
+  createMicrosoftModule,
   createTriageModule,
   createInboxTriageModule,
   createInboxReplierModule,
@@ -76,6 +77,7 @@ app.module(createCopilotModule);
 // and @boringos/connector-slack directly.
 app.module(createGoogleModule);
 app.module(createSlackModule);
+app.module(createMicrosoftModule);
 app.module(createTriageModule);
 app.module(createInboxTriageModule);
 app.module(createInboxReplierModule);
