@@ -109,6 +109,35 @@ If `./drive/me/` doesn't exist, this wake has no human owner
 (routine / cron / webhook). Skip the me-scope reads; operate on
 `./drive/shared/` only.
 
+## Curator pass — resolve drift before you work
+
+After reading `shared/memory/MEMORY.md`, spot-check the entity files it
+points to. You are the curator for the duration of this wake.
+
+For each `domains/` or `decisions/` bullet in the index, open the
+backing file and check whether the one-line summary in the bullet still
+reflects the file's current state — especially:
+
+- new `##` sections appended since the bullet was written (e.g.
+  `## Activity`, `## Enrichment`, `## Stakeholders`),
+- facts that contradict or supersede the bullet's summary.
+
+If the bullet is stale, **update it in-place before you start your
+task**. Do not leave drift for the next agent to inherit.
+
+```bash
+# Example: shared MEMORY.md has:
+#   - [Acme](domains/acme.md) — Enterprise, net-30
+# but acme.md now also has ## Enrichment and ## Activity sections.
+# Corrected bullet:
+#   - [Acme](domains/acme.md) — Enterprise, net-30; enriched; active Q2 deal
+```
+
+**Scope limit:** check only files referenced in `MEMORY.md` that your
+task is likely to touch — not a full recursive walk. One curator pass
+per wake; move on. The goal is incremental convergence, not a
+blocking audit.
+
 ## When to write
 
 The framework auto-checkpoints every run's outcome into the
