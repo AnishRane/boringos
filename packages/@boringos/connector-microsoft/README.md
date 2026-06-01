@@ -55,9 +55,9 @@ pnpm build       # tsc -> dist/
 pnpm test        # vitest
 ```
 
-### Standalone layout note
+### Layout note
 
-This repo mirrors the in-tree layout of `boringos/packages/@boringos/connector-google` so it can be vendored back into the framework. It depends on the published `@boringos/module-sdk` for the Connector SDK contract. That dependency is used **type-only** — the emitted `dist/` has no runtime import of `@boringos/module-sdk` (the `import type` statements are erased at compile time). When vendored in-tree, change the dependency to `workspace:*`; the import resolves to the same package and the same exported names.
+This package mirrors `@boringos/connector-google` and is vendored in-tree under `packages/@boringos/`. It depends on `@boringos/module-sdk` (`workspace:*`) for the Connector SDK contract, used **type-only** — the emitted `dist/` has no runtime import of `@boringos/module-sdk` (the `import type` statements are erased at compile time). The canonical source also exists as a standalone repo; keep the two in sync when editing.
 
 ## License
 

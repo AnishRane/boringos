@@ -34,6 +34,7 @@ export { createInboxTriageModule } from "./modules/inbox-triage.js";
 export { createInboxReplierModule } from "./modules/inbox-replier.js";
 export { createGoogleModule } from "./modules/google.js";
 export { createSlackModule } from "./modules/slack.js";
+export { createMicrosoftModule } from "./modules/microsoft.js";
 
 // Re-export key types from sub-packages for convenience
 export type { MemoryProvider } from "@boringos/memory";
