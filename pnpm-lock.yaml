@@ -18,6 +18,9 @@ importers:
       '@boringos/connector-google':
         specifier: workspace:*
         version: link:packages/@boringos/connector-google
+      '@boringos/connector-microsoft':
+        specifier: workspace:*
+        version: link:packages/@boringos/connector-microsoft
       '@boringos/connector-slack':
         specifier: workspace:*
         version: link:packages/@boringos/connector-slack
