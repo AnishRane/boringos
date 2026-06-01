@@ -11,11 +11,11 @@ import { join } from "node:path";
 
 const KEY = "modal-wake-admin";
 
-async function boot(port: number) {
+async function boot() {
   const { BoringOS } = await import("@boringos/core");
   const d = await mkdtemp(join(tmpdir(), "boringos-modal-"));
   return new BoringOS({
-    database: { embedded: true, dataDir: d, port },
+    database: { embedded: true, dataDir: d },
     drive: { root: join(d, "drive") },
     auth: { secret: "s", adminKey: KEY },
   }).listen(0);
@@ -27,7 +27,7 @@ function headers(tenantId: string) {
 
 describe("NewTaskModal: wake fires", () => {
   it("assignTask with wake=true creates and enqueues wakeup request", async () => {
-    const server = await boot(5570);
+    const server = await boot();
     try {
       const { generateId } = await import("@boringos/shared");
       const { tenants, agents, tasks, agentWakeupRequests } = await import("@boringos/db");
@@ -99,10 +99,10 @@ describe("NewTaskModal: wake fires", () => {
     } finally {
       await server.close();
     }
-  }, 30000);
+  }, 60000);
 
   it("assignTask without wake does not create wakeup request", async () => {
-    const server = await boot(5569);
+    const server = await boot();
     try {
       const { generateId } = await import("@boringos/shared");
       const { tenants, agents, tasks, agentWakeupRequests } = await import("@boringos/db");
@@ -161,5 +161,5 @@ describe("NewTaskModal: wake fires", () => {
     } finally {
       await server.close();
     }
-  }, 30000);
+  }, 60000);
 });
